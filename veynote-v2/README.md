@@ -1,0 +1,108 @@
+# Veynote V2
+
+Full-stack implementation of the approved Veynote V2 design board: Notes ↔
+Trading Journal (with Library, Task List, and Trading Rules), one account,
+one login, switchable modes.
+
+**Stack:** React + Vite + Tailwind + React Router · Express + Prisma + **MySQL**
+
+---
+
+## 1. Prerequisites
+
+- Node.js 18+
+- A running MySQL server (local install, Docker, or a hosted instance)
+
+## 2. Database
+
+Create an empty database:
+
+```sql
+CREATE DATABASE veynote_v2;
+```
+
+## 3. Backend setup
+
+```bash
+cd server
+cp .env.example .env
+```
+
+Edit `.env`:
+- `DATABASE_URL` — your MySQL connection string, e.g.
+  `mysql://root:yourpassword@localhost:3306/veynote_v2`
+- `JWT_SECRET` — any long random string
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — optional, only needed for
+  the "Continue with Google" button. Create these in Google Cloud Console
+  → APIs & Services → Credentials, with callback URL
+  `http://localhost:4000/api/auth/google/callback`. Leave blank to disable
+  Google sign-in — email/password still works fully without it.
+
+Then:
+
+```bash
+npm install
+npx prisma generate
+npx prisma migrate dev --name init
+npm run dev
+```
+
+The API runs on `http://localhost:4000`.
+
+> Note: `prisma generate` needs internet access to download its query
+> engine the first time — if you're behind a restrictive proxy/firewall,
+> allow `binaries.prisma.sh` (or whichever host your Prisma version uses).
+
+## 4. Frontend setup
+
+```bash
+cd client
+npm install
+npm run dev
+```
+
+Runs on `http://localhost:5173` and proxies `/api` to the backend
+(see `vite.config.js`).
+
+## 5. First run
+
+Open `http://localhost:5173`, sign up, pick a starting mode, and go —
+everything starts empty (no mock data anywhere), matching the approved
+empty states.
+
+---
+
+## What's implemented
+
+- Auth: email/password + optional Google SSO, one account for both modes
+- Notes: Dashboard, All Notes, Folders, rich-text paginated editor,
+  Favorites/Tags/Archive/Trash, Calendar (fixed-date system holidays +
+  user events), Search
+- Library: dashboard, Reading & Watching (table/board/gallery views +
+  templates), Life Goals, Travel Plans, Bucket List, Ideas, Projects —
+  all real CRUD, all starting empty
+- Task List: kanban board (To Do / In progress / Done), subtasks,
+  comments
+- Trading Journal: Dashboard, All Entries, Accounts, SMC-aware trade
+  editor (BOS/OB/Liquidity Sweep/FVG, bias/setup/entry timeframes),
+  Trade Detail, Analytics (computed from real trades, not mocked),
+  Calendar (per-day P&L), Trading Rules
+- Settings shared across both modes (profile, theme, editor font size)
+
+## Known simplifications (flagged, not hidden)
+
+- **Library data model:** one `LibraryItem` table with a `properties`
+  JSON column covers all six databases, rather than six separate tables —
+  invisible in the UI, just a backend efficiency choice.
+- **Calendar system events:** fixed-date holidays (Christmas, Valentine's,
+  New Year's, etc.) AND calculated ones (Mother's Day = 2nd Sunday of May,
+  Father's Day = 3rd Sunday of June, Thanksgiving US) are both implemented.
+  Country-specific scoping by locale is still a fast-follow.
+- **Writing pagination:** the note editor reflows whole paragraphs/blocks
+  across pages when one fills up, not individual characters mid-paragraph.
+- **Google OAuth:** fully wired end to end, but needs your own Client
+  ID/Secret to actually work.
+- **Task List kanban:** real drag-and-drop between columns (not a
+  dropdown workaround).
+- **Reading gallery views:** real per-type cover art (gradient + icon +
+  score/author overlay), not a plain icon placeholder.
