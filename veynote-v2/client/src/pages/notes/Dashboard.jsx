@@ -18,12 +18,23 @@ export default function NotesDashboard() {
   const pinned = notes?.filter((n) => n.isPinned) || [];
   const recent = (notes || []).slice(0, 6);
 
-  return (
-    <div>
-      <div className="flex items-end justify-between gap-6 mb-7">
-        <div>
-          <span className="eyebrow">{new Date().toDateString().toUpperCase()}</span>
-          <h1 className="text-[30px] tracking-tight my-1.5">Good day, {user?.name?.split(" ")[0] || "there"}</h1>
+const hour = new Date().getHours();
+const greeting =
+  hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+
+  console.log("USER OBJECT:", user);
+
+return (
+  <div>
+    <div className="flex items-end justify-between gap-6 mb-7">
+      <div>
+        <span className="eyebrow">
+          {new Date().toDateString().toUpperCase()}
+        </span>
+
+        <h1 className="text-[30px] tracking-tight my-1.5">
+          {`${greeting}, ${user?.name}`}
+        </h1>
           <p className="text-ink-muted text-[13px] m-0 max-w-[520px]">Here's where your journal stands today.</p>
         </div>
         <Link to="/notes/new" className="btn-primary">+ New note</Link>
