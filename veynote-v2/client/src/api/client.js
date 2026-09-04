@@ -1,4 +1,4 @@
-const BASE = "/api";
+const BASE = "https://veynote-api.pxxl.click/api";
 
 function getToken() {
   return localStorage.getItem("veynote_token");
