@@ -23,7 +23,10 @@ const webauthnRoutes = require("./routes/webauthn.routes");
 
 const app = express();
 
-app.use(cors({ origin: 'https://veynote.pxxl.click' }));
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
 app.use(express.json());
 app.use(passport.initialize());
 
