@@ -13,7 +13,7 @@ function iconFor(mimeType) {
   return "📎";
 }
 
-export default function AttachmentList({ attachments, uploading, onRemove }) {
+export default function AttachmentList({ attachments, uploading, onRemove, accentClass = "text-accent-notes" }) {
   if (attachments.length === 0 && uploading.length === 0) return null;
 
   return (
@@ -24,7 +24,7 @@ export default function AttachmentList({ attachments, uploading, onRemove }) {
           <div className="flex-1 min-w-0">
             <p className="text-[12px] text-ink truncate m-0">{u.name}</p>
             <div className="h-1 bg-app-border rounded-full mt-1.5 overflow-hidden">
-              <div className="h-full bg-accent-notes transition-all" style={{ width: `${u.progress}%` }} />
+              <div className={`h-full ${accentClass.replace("text-", "bg-")} transition-all`} style={{ width: `${u.progress}%` }} />
             </div>
           </div>
           <span className="text-[10px] text-ink-muted shrink-0">Uploading…</span>
@@ -40,7 +40,7 @@ export default function AttachmentList({ attachments, uploading, onRemove }) {
               {a.mimeType} · {formatSize(a.sizeBytes)}
             </p>
           </div>
-          <a href={a.url} target="_blank" rel="noreferrer" className="text-[10.5px] text-accent-notes font-semibold shrink-0">
+          <a href={a.url} target="_blank" rel="noreferrer" className={`text-[10.5px] font-semibold shrink-0 ${accentClass}`}>
             Open
           </a>
           <button onClick={() => onRemove(a.id)} className="text-[10.5px] text-danger font-semibold shrink-0">

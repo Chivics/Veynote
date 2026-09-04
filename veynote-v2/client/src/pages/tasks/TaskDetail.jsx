@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
+import SaveStatus from "../../components/SaveStatus";
 
 export default function TaskDetail() {
   const { id } = useParams();
@@ -8,15 +9,42 @@ export default function TaskDetail() {
   const [task, setTask] = useState(null);
   const [subtaskTitle, setSubtaskTitle] = useState("");
   const [commentBody, setCommentBody] = useState("");
+  const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved | error
+  const [saveError, setSaveError] = useState("");
+  const dirtyRef = useRef(false);
 
   function load() {
     api.get(`/tasks/${id}`).then((d) => setTask(d.task));
   }
   useEffect(load, [id]);
 
+  useEffect(() => {
+    function handleBeforeUnload(e) {
+      if (!dirtyRef.current) return;
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
+  function markDirty() {
+    dirtyRef.current = true;
+    setSaveStatus("idle");
+  }
+
   async function patch(fields) {
-    const { task: updated } = await api.patch(`/tasks/${id}`, fields);
-    setTask((t) => ({ ...t, ...updated }));
+    setSaveStatus("saving");
+    try {
+      const { task: updated } = await api.patch(`/tasks/${id}`, fields);
+      setTask((t) => ({ ...t, ...updated }));
+      dirtyRef.current = false;
+      setSaveStatus("saved");
+      setSaveError("");
+    } catch (err) {
+      setSaveStatus("error");
+      setSaveError(err.message);
+    }
   }
 
   async function addSubtask(e) {
@@ -57,13 +85,16 @@ export default function TaskDetail() {
     <div className="max-w-[640px]">
       <div className="flex justify-between items-center mb-3">
         <span className="eyebrow">TASK</span>
-        <button onClick={remove} className="text-danger text-[11px] font-semibold">Delete</button>
+        <div className="flex items-center gap-3">
+          <SaveStatus status={saveStatus} error={saveError} />
+          <button onClick={remove} className="text-danger text-[11px] font-semibold">Delete</button>
+        </div>
       </div>
 
       <input
         className="w-full bg-transparent outline-none text-[26px] font-bold tracking-tight text-ink mb-4"
         value={task.title}
-        onChange={(e) => setTask({ ...task, title: e.target.value })}
+        onChange={(e) => { markDirty(); setTask({ ...task, title: e.target.value }); }}
         onBlur={(e) => patch({ title: e.target.value })}
       />
 
@@ -96,7 +127,7 @@ export default function TaskDetail() {
             className="bg-transparent outline-none text-[12.5px] text-ink-soft w-full"
             placeholder="comma, separated, tags"
             value={task.tags || ""}
-            onChange={(e) => setTask({ ...task, tags: e.target.value })}
+            onChange={(e) => { markDirty(); setTask({ ...task, tags: e.target.value }); }}
             onBlur={(e) => patch({ tags: e.target.value })}
           />
         </PropRow>
@@ -108,7 +139,7 @@ export default function TaskDetail() {
           className="w-full bg-transparent outline-none text-[13px] text-ink-soft mt-2 min-h-[80px] resize-none placeholder:text-ink-muted"
           placeholder="Add context for this task…"
           value={task.description || ""}
-          onChange={(e) => setTask({ ...task, description: e.target.value })}
+          onChange={(e) => { markDirty(); setTask({ ...task, description: e.target.value }); }}
           onBlur={(e) => patch({ description: e.target.value })}
         />
       </div>

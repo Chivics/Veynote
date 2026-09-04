@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
 import { LIBRARY_CONFIG } from "../../data/libraryConfig";
+import SaveStatus from "../../components/SaveStatus";
+import LinkPreviewCard from "../../components/LinkPreviewCard";
 
 export default function ItemDetail({ configKey }) {
   const config = LIBRARY_CONFIG[configKey];
@@ -10,20 +12,44 @@ export default function ItemDetail({ configKey }) {
   const navigate = useNavigate();
 
   const [item, setItem] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved | error
+  const [saveError, setSaveError] = useState("");
+  const dirtyRef = useRef(false);
 
   function load() {
     api.get(`/library/${apiSlug}/${id}`).then((d) => setItem(d.item));
   }
   useEffect(load, [id]);
 
+  // Warn on close/navigate-away if a field was changed but hasn't been
+  // confirmed saved yet (e.g. user is still typing, or the blur-triggered
+  // patch is in flight / failed).
+  useEffect(() => {
+    function handleBeforeUnload(e) {
+      if (!dirtyRef.current) return;
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
+  function markDirty() {
+    dirtyRef.current = true;
+    setSaveStatus("idle");
+  }
+
   async function patch(fields) {
-    setSaving(true);
+    setSaveStatus("saving");
     try {
       const { item: updated } = await api.patch(`/library/${apiSlug}/${id}`, fields);
       setItem(updated);
-    } finally {
-      setSaving(false);
+      dirtyRef.current = false;
+      setSaveStatus("saved");
+      setSaveError("");
+    } catch (err) {
+      setSaveStatus("error");
+      setSaveError(err.message);
     }
   }
 
@@ -38,14 +64,17 @@ export default function ItemDetail({ configKey }) {
   return (
     <div className="max-w-[640px]">
       <div className="flex justify-between items-center mb-3">
-        <span className="eyebrow">{saving ? "SAVING…" : config.eyebrow}</span>
-        <button onClick={remove} className="text-danger text-[11px] font-semibold">Delete</button>
+        <span className="eyebrow">{config.eyebrow}</span>
+        <div className="flex items-center gap-3">
+          <SaveStatus status={saveStatus} error={saveError} />
+          <button onClick={remove} className="text-danger text-[11px] font-semibold">Delete</button>
+        </div>
       </div>
 
       <input
         className="w-full bg-transparent outline-none text-[26px] font-bold tracking-tight text-ink mb-4"
         value={item.title}
-        onChange={(e) => setItem({ ...item, title: e.target.value })}
+        onChange={(e) => { markDirty(); setItem({ ...item, title: e.target.value }); }}
         onBlur={(e) => patch({ title: e.target.value })}
       />
 
@@ -57,7 +86,7 @@ export default function ItemDetail({ configKey }) {
                 className="bg-transparent outline-none text-[12.5px] text-ink-soft"
                 value={item.category || ""}
                 placeholder="—"
-                onChange={(e) => setItem({ ...item, category: e.target.value })}
+                onChange={(e) => { markDirty(); setItem({ ...item, category: e.target.value }); }}
                 onBlur={(e) => patch({ category: e.target.value })}
               />
             ) : (
@@ -112,22 +141,37 @@ export default function ItemDetail({ configKey }) {
               className="bg-transparent outline-none text-[12.5px] text-ink-soft w-full"
               value={item.properties?.[f.key] || ""}
               placeholder="—"
-              onChange={(e) => setItem({ ...item, properties: { ...item.properties, [f.key]: e.target.value } })}
+              onChange={(e) => { markDirty(); setItem({ ...item, properties: { ...item.properties, [f.key]: e.target.value } }); }}
               onBlur={(e) => patch({ [f.key]: e.target.value })}
             />
           </PropRow>
         ))}
 
         <PropRow label="Link" icon="🔗">
-          <input
-            className="bg-transparent outline-none text-[12.5px] text-ink-soft w-full"
-            value={item.link || ""}
-            placeholder="—"
-            onChange={(e) => setItem({ ...item, link: e.target.value })}
-            onBlur={(e) => patch({ link: e.target.value })}
-          />
+          <div className="flex items-center gap-2 w-full">
+            <input
+              className="bg-transparent outline-none text-[12.5px] text-ink-soft flex-1 min-w-0"
+              value={item.link || ""}
+              placeholder="Paste a URL…"
+              onChange={(e) => { markDirty(); setItem({ ...item, link: e.target.value }); }}
+              onBlur={(e) => patch({ link: e.target.value })}
+            />
+            {isLikelyUrl(item.link) && (
+              <a
+                href={normalizeUrl(item.link)}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="shrink-0 text-[10.5px] text-accent-notes font-semibold whitespace-nowrap"
+                title={item.link}
+              >
+                Visit ↗
+              </a>
+            )}
+          </div>
         </PropRow>
       </div>
+
+      <LinkPreviewCard url={isLikelyUrl(item.link) ? normalizeUrl(item.link) : null} />
 
       <div className="border-t border-app-border pt-4 mb-5">
         <span className="eyebrow">NOTES</span>
@@ -135,7 +179,7 @@ export default function ItemDetail({ configKey }) {
           className="w-full bg-transparent outline-none text-[13px] text-ink-soft mt-2 min-h-[100px] resize-none placeholder:text-ink-muted"
           placeholder="Write your thoughts, quotes, or a summary here…"
           value={item.notes || ""}
-          onChange={(e) => setItem({ ...item, notes: e.target.value })}
+          onChange={(e) => { markDirty(); setItem({ ...item, notes: e.target.value }); }}
           onBlur={(e) => patch({ notes: e.target.value })}
         />
       </div>
@@ -150,6 +194,19 @@ export default function ItemDetail({ configKey }) {
       </div>
     </div>
   );
+}
+
+// Accepts "example.com" as well as "https://example.com" — most people
+// paste links without the scheme, and it should still render as a real,
+// clickable link rather than staying inert plain text.
+function isLikelyUrl(value) {
+  if (!value?.trim()) return false;
+  return /^([a-z][a-z0-9+.-]*:\/\/)?[^\s/$.?#].[^\s]*\.[a-z]{2,}([/?#]\S*)?$/i.test(value.trim());
+}
+
+function normalizeUrl(value) {
+  const trimmed = value.trim();
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
 function PropRow({ label, icon, children }) {

@@ -14,6 +14,9 @@ import Today from "./pages/notes/Today";
 import NoteListPage from "./pages/notes/NoteListPage";
 import NoteEditor from "./pages/notes/NoteEditor";
 import Folders from "./pages/notes/Folders";
+import Files from "./pages/notes/Files";
+import LockedNotes from "./pages/notes/LockedNotes";
+import WillInheritance from "./pages/notes/WillInheritance";
 import NotesCalendar from "./pages/notes/Calendar";
 import Tags from "./pages/notes/Tags";
 
@@ -86,6 +89,10 @@ export default function App() {
           <Route path="notes/tags/:tag" element={<NoteListPage scope="tag" />} />
           <Route path="notes/folders" element={<Folders />} />
           <Route path="notes/folders/:folderId" element={<NoteListPage scope="folder" />} />
+          <Route path="notes/files" element={<Files />} />
+          <Route path="notes/files/:id" element={<Files />} />
+          <Route path="notes/locked" element={<LockedNotes />} />
+          <Route path="notes/will" element={<WillInheritance />} />
           <Route path="notes/calendar" element={<NotesCalendar />} />
 
           {/* Library (no Calendar anywhere in here, per the approved update) */}

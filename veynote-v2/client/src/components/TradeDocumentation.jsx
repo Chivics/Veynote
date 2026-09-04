@@ -1,22 +1,62 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
 import TradeImageUploader from "./TradeImageUploader";
+import ImageLightbox from "./ImageLightbox";
+import AttachmentList from "./AttachmentList";
 
 const DEFAULT_TIMEFRAMES = ["Monthly", "Weekly", "Daily", "4H", "1H", "30M", "15M", "5M", "1M"];
 
 export default function TradeDocumentation({ entryId, ensureEntryId }) {
   const [images, setImages] = useState([]);
+  const [attachments, setAttachments] = useState([]);
+  const [fileUploading, setFileUploading] = useState([]);
   const [uploading, setUploading] = useState({});
   const [loaded, setLoaded] = useState(false);
   const [timeframe, setTimeframe] = useState("");
   const [selectedTimeframes, setSelectedTimeframes] = useState([]);
   const [open, setOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(null);
   const inputRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  function openLightbox(image) {
+    setLightboxIndex(images.findIndex((i) => i.id === image.id));
+  }
 
   useEffect(() => {
     if (!entryId) { setLoaded(true); return; }
-    api.get(`/trading/entries/${entryId}/images`).then((d) => { setImages(d.images); setLoaded(true); });
+    Promise.all([
+      api.get(`/trading/entries/${entryId}/images`),
+      api.get(`/trading/entries/${entryId}/attachments`),
+    ]).then(([imgRes, fileRes]) => {
+      setImages(imgRes.images);
+      setAttachments(fileRes.attachments);
+      setLoaded(true);
+    });
   }, [entryId]);
+
+  async function handleFileUpload(files) {
+    const id = entryId || (await ensureEntryId());
+    for (const file of files) {
+      const tempId = `${Date.now()}-${Math.random()}`;
+      setFileUploading((u) => [...u, { tempId, name: file.name, mimeType: file.type, progress: 0 }]);
+      try {
+        const { attachment } = await api.upload(`/trading/entries/${id}/attachments`, file, (pct) =>
+          setFileUploading((u) => u.map((x) => (x.tempId === tempId ? { ...x, progress: pct } : x)))
+        );
+        setAttachments((prev) => [...prev, attachment]);
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        setFileUploading((u) => u.filter((x) => x.tempId !== tempId));
+      }
+    }
+  }
+
+  async function removeAttachment(attachmentId) {
+    await api.delete(`/trading/attachments/${attachmentId}`);
+    setAttachments((prev) => prev.filter((a) => a.id !== attachmentId));
+  }
 
   const setupImages = images.filter((i) => i.stage === "SETUP");
   const usedTimeframes = useMemo(() => {
@@ -45,7 +85,15 @@ export default function TradeDocumentation({ entryId, ensureEntryId }) {
     }
   }
 
-  async function remove(id) { await api.delete(`/trading/images/${id}`); setImages((p) => p.filter((i) => i.id !== id)); }
+  async function remove(id) {
+    await api.delete(`/trading/images/${id}`);
+    setImages((p) => p.filter((i) => i.id !== id));
+    setLightboxIndex((idx) => {
+      if (idx === null) return null;
+      const removedIndex = images.findIndex((i) => i.id === id);
+      return removedIndex === idx ? null : idx;
+    });
+  }
   async function caption(id, value) { const { image } = await api.patch(`/trading/images/${id}`, { caption: value }); setImages((p) => p.map((i) => i.id === id ? image : i)); }
 
   function addTimeframe(value) {
@@ -63,7 +111,7 @@ export default function TradeDocumentation({ entryId, ensureEntryId }) {
     const key = `${stage}:`;
     return <section className="doc-section">
       <div className="doc-section-head"><div><span className="doc-kicker">{title}</span><p>{desc}</p></div><span className="doc-count">{stageImages.length} {stageImages.length === 1 ? "image" : "images"}</span></div>
-      <TradeImageUploader images={stageImages} uploading={uploading[key] || []} onUpload={(files) => handleUpload(stage, null, files)} onRemove={remove} onCaptionChange={caption} />
+      <TradeImageUploader images={stageImages} uploading={uploading[key] || []} onUpload={(files) => handleUpload(stage, null, files)} onRemove={remove} onCaptionChange={caption} onOpenLightbox={openLightbox} />
     </section>;
   };
 
@@ -92,7 +140,7 @@ export default function TradeDocumentation({ entryId, ensureEntryId }) {
           const key = `SETUP:${tf}`;
           return <div className="timeframe-card" key={tf}>
             <div className="timeframe-card-head"><div><span className="timeframe-badge">{tf}</span><span className="timeframe-meta">{tfImages.length} {tfImages.length === 1 ? "chart" : "charts"}</span></div><button type="button" className="text-action" onClick={() => { setTimeframe(tf); setOpen(true); }}>Add / change</button></div>
-            <TradeImageUploader images={tfImages} uploading={uploading[key] || []} onUpload={(files) => handleUpload("SETUP", tf, files)} onRemove={remove} onCaptionChange={caption} compact />
+            <TradeImageUploader images={tfImages} uploading={uploading[key] || []} onUpload={(files) => handleUpload("SETUP", tf, files)} onRemove={remove} onCaptionChange={caption} onOpenLightbox={openLightbox} compact />
           </div>;
         })}
       </div>}
@@ -103,5 +151,28 @@ export default function TradeDocumentation({ entryId, ensureEntryId }) {
     {renderStage("ENTRY", "ENTRY", "Capture the exact trigger or confirmation that got you into the trade.")}
     {renderStage("DURING_TRADE", "DURING TRADE", "Keep management, partials, adjustments and live decision screenshots together.")}
     {renderStage("POST_TRADE", "POST-TRADE", "Document the final chart and anything that helps you review the outcome.")}
+
+    <section className="doc-section">
+      <div className="doc-section-head">
+        <div><span className="doc-kicker">SUPPORTING FILES</span><p>Trade plans, backtests, journals or anything else worth attaching — PDF, Word, Excel, CSV, audio, video, ZIP.</p></div>
+        <button type="button" className="text-action" onClick={() => fileInputRef.current?.click()}>+ Add file</button>
+      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.csv,.txt,audio/*,video/*"
+        className="hidden"
+        onChange={(e) => { const files = Array.from(e.target.files || []); if (files.length) handleFileUpload(files); e.target.value = ""; }}
+      />
+      <AttachmentList attachments={attachments} uploading={fileUploading} onRemove={removeAttachment} accentClass="text-accent-trade" />
+      {attachments.length === 0 && fileUploading.length === 0 && (
+        <p className="text-ink-muted text-[11.5px]">No files attached yet.</p>
+      )}
+    </section>
+
+    {lightboxIndex !== null && (
+      <ImageLightbox images={images} startIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
+    )}
   </div>;
 }

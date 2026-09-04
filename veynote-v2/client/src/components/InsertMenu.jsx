@@ -1,6 +1,14 @@
 // The same option list drives both the toolbar's "+" Insert menu and the
 // "/" slash command popup, so choosing "Heading" from either place does
 // exactly the same thing — one implementation, two entry points.
+
+function calloutHTML(variant, icon) {
+  return (
+    `<div class="callout callout-${variant}"><span class="callout-icon" contenteditable="false">${icon}</span>` +
+    `<span class="callout-text" data-focus-target>Type something…</span></div><p><br></p>`
+  );
+}
+
 export const INSERT_BLOCKS = [
   { key: "text", label: "Text", icon: "¶", action: (ed) => ed.exec("formatBlock", "P") },
   { key: "heading", label: "Heading", icon: "H2", action: (ed) => ed.exec("formatBlock", "H2") },
@@ -19,6 +27,17 @@ export const INSERT_BLOCKS = [
   { key: "quote", label: "Quote", icon: "❝", action: (ed) => ed.exec("formatBlock", "BLOCKQUOTE") },
   { key: "code", label: "Code", icon: "{ }", action: (ed) => ed.exec("formatBlock", "PRE") },
   { key: "divider", label: "Divider", icon: "—", action: (ed) => ed.insertHTML('<hr class="editor-divider"/><div><br></div>') },
+  { key: "table", label: "Table", icon: "▦", action: (ed) => ed.insertBlock(
+    '<table class="note-table"><tbody>' +
+    '<tr><td data-focus-target>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>' +
+    '<tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>' +
+    '<tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>' +
+    '</tbody></table><p><br></p>'
+  ) },
+  { key: "callout-info", label: "Callout: Info", icon: "💡", action: (ed) => ed.insertBlock(calloutHTML("info", "💡")) },
+  { key: "callout-warning", label: "Callout: Warning", icon: "⚠️", action: (ed) => ed.insertBlock(calloutHTML("warning", "⚠️")) },
+  { key: "callout-success", label: "Callout: Success", icon: "✅", action: (ed) => ed.insertBlock(calloutHTML("success", "✅")) },
+  { key: "callout-important", label: "Callout: Important", icon: "❌", action: (ed) => ed.insertBlock(calloutHTML("important", "❌")) },
   // "image" and "file" are handled specially by NoteEditor (they open a
   // file picker + upload), so they're marked here rather than given an
   // `action` — the menu component checks for `needsFilePicker`.
@@ -27,7 +46,7 @@ export const INSERT_BLOCKS = [
 ];
 
 const MENU_WIDTH = 190;
-const MENU_HEIGHT_ESTIMATE = 340; // roughly 10 rows tall — used only for viewport clamping
+const MENU_HEIGHT_ESTIMATE = 420; // roughly 13 rows tall — used only for viewport clamping
 
 export default function InsertMenu({ x, y, onPick, onClose }) {
   // Clamp so the menu never renders partially (or fully) off-screen —

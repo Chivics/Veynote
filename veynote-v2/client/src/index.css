@@ -88,6 +88,57 @@ body {
   text-decoration: underline;
 }
 
+.editor-page .callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  margin: 10px 0;
+  border: 1px solid #252a33;
+}
+.editor-page .callout-icon {
+  flex-shrink: 0;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.editor-page .callout-text {
+  flex: 1;
+  min-width: 0;
+}
+.editor-page .callout-info { background: rgba(95, 168, 255, 0.1); border-color: rgba(95, 168, 255, 0.3); }
+.editor-page .callout-warning { background: rgba(245, 185, 66, 0.1); border-color: rgba(245, 185, 66, 0.3); }
+.editor-page .callout-success { background: rgba(56, 211, 159, 0.1); border-color: rgba(56, 211, 159, 0.3); }
+.editor-page .callout-important { background: rgba(255, 104, 120, 0.1); border-color: rgba(255, 104, 120, 0.3); }
+
+.editor-page table.note-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 10px 0;
+}
+.editor-page table.note-table td,
+.editor-page table.note-table th {
+  border: 1px solid #252a33;
+  padding: 7px 10px;
+  min-width: 60px;
+  vertical-align: top;
+}
+.editor-page table.note-table tr:first-child td,
+.editor-page table.note-table tr:first-child th {
+  background: #151920;
+  font-weight: 700;
+}
+.editor-page mark.search-hit {
+  background: #f5b942;
+  color: #0b0d10;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+.trade-body a {
+  color: #7db9ff;
+  text-decoration: underline;
+}
+
 /* Veynote premium product layer */
 @layer base {
   html { scroll-behavior: smooth; }
@@ -155,10 +206,31 @@ body {
   .image-uploading span { color:#707a88; font-size:8px; overflow:hidden; text-overflow:ellipsis; width:100%; white-space:nowrap; }
   .overview-timeframe { border:1px solid #252a33; border-radius:13px; padding:10px; background:#0e1116; }
   .overview-timeframe-head span { font-weight:800; font-size:10px; color:#bcdcff; }
+
+  .lightbox-overlay { position:fixed; inset:0; z-index:100; display:flex; flex-direction:column; background:rgba(5,7,10,.92); backdrop-filter:blur(6px); animation:lightbox-fade .15s ease; }
+  .lightbox-topbar { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; }
+  .lightbox-counter { color:#b6beca; font-size:11.5px; font-weight:600; letter-spacing:.02em; }
+  .lightbox-icon-btn { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:9px; border:1px solid #252a33; background:#101318; color:#f4f6f8; font-size:16px; cursor:pointer; text-decoration:none; transition:.15s; }
+  .lightbox-icon-btn:hover { background:#151920; border-color:#3a424f; }
+  .lightbox-stage { flex:1; display:flex; align-items:center; justify-content:center; gap:14px; min-height:0; padding:0 16px 16px; }
+  .lightbox-img { max-width:min(88vw,1100px); max-height:78vh; object-fit:contain; border-radius:10px; box-shadow:0 30px 90px rgba(0,0,0,.5); }
+  .lightbox-nav { flex-shrink:0; width:44px; height:44px; border-radius:50%; border:1px solid #252a33; background:rgba(16,19,24,.85); color:#f4f6f8; font-size:22px; line-height:1; cursor:pointer; transition:.15s; }
+  .lightbox-nav:hover { background:#1a2028; border-color:#3a424f; }
+  .lightbox-caption { text-align:center; color:#8d96a5; font-size:11.5px; padding:0 20px 18px; }
+  @keyframes lightbox-fade { from { opacity:0; } to { opacity:1; } }
+
+  .link-preview-card { display:block; border:1px solid #252a33; border-radius:12px; padding:12px 14px; background:#0e1116; text-decoration:none; transition:.15s; margin-top:8px; }
+  .link-preview-card:hover { border-color:#3a424f; background:#12161c; }
+  .link-preview-loading { color:#8d96a5; font-size:11.5px; }
+  .link-preview-title { color:#f4f6f8; font-weight:700; font-size:12.5px; margin:0 0 3px; }
+  .link-preview-desc { color:#b6beca; font-size:11px; margin:0 0 6px; line-height:1.5; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+  .link-preview-domain { color:#7db9ff; font-size:10px; font-weight:600; margin:0; letter-spacing:.02em; }
 }
 
 @media (max-width: 700px) {
   .timeframe-cards { grid-template-columns:1fr; }
   .image-gallery,.image-gallery-compact { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .pretrade-panel { padding:15px; }
+  .lightbox-nav { width:36px; height:36px; font-size:18px; }
+  .lightbox-img { max-width:94vw; max-height:64vh; }
 }

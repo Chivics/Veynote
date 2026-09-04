@@ -48,6 +48,18 @@ model User {
   editorFontSize  String   @default("medium") // small | medium | large
   timezone        String   @default("Africa/Lagos")
   locale          String   @default("NG")
+  // Separate, independent passwords gating the Locked Notes and Will &
+  // Inheritance areas — distinct from the account's login password, so
+  // someone with an unlocked device/session still can't see either
+  // without a second secret. Null means that vault hasn't been set up yet.
+  lockedNotesPasswordHash String?
+  willPasswordHash        String?
+  // Holds the WebAuthn challenge between "generate options" and "verify
+  // response" — this app has no session store, so it's parked here
+  // instead. Single-slot is fine: registration and authentication are
+  // never in flight for the same user at the same time in practice.
+  webauthnChallenge          String?
+  webauthnChallengeExpiresAt DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -62,6 +74,8 @@ model User {
   tradingRules    TradingRule[]
   attachments     Attachment[]
   tradeImages     TradeImage[]
+  fileNodes       FileNode[]
+  webauthnCredentials WebAuthnCredential[]
 }
 
 model Folder {
@@ -105,6 +119,12 @@ model Note {
   isArchived Boolean   @default(false)
   isTrashed  Boolean   @default(false)
   trashedAt  DateTime?
+  // isLocked = sits in the Locked Notes vault (any note can be toggled).
+  // isWill = THE Will & Inheritance document — a single dedicated note
+  // per user, created lazily the first time that section is opened.
+  // Both require their own vault token to read/write; see security.routes.js.
+  isLocked   Boolean   @default(false)
+  isWill     Boolean   @default(false)
   entryDate  DateTime  @default(now())
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
@@ -185,6 +205,7 @@ model TradingEntry {
 
   calendarEvents CalendarEvent[]
   tradeImages TradeImage[]
+  attachments Attachment[]
 
   @@index([userId])
   @@index([accountId])
@@ -362,8 +383,14 @@ model Attachment {
   id           String         @id @default(cuid())
   userId       String
   user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  noteId       String
-  note         Note           @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  // Exactly one of noteId / tradingEntryId is set — an attachment belongs
+  // to either a Note or a TradingEntry, never both. Both are optional at
+  // the DB level (Prisma has no clean XOR constraint); the routes enforce
+  // that invariant.
+  noteId       String?
+  note         Note?          @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  tradingEntryId String?
+  tradingEntry TradingEntry?  @relation(fields: [tradingEntryId], references: [id], onDelete: Cascade)
   kind         AttachmentKind
   originalName String
   storedName   String // the actual filename on disk (randomized, avoids collisions)
@@ -372,5 +399,53 @@ model Attachment {
   createdAt    DateTime       @default(now())
 
   @@index([noteId])
+  @@index([tradingEntryId])
+  @@index([userId])
+}
+
+// A device-folder upload tree. When someone uploads an entire folder
+// (via the browser's directory picker), each subfolder becomes a
+// FileNode with isDirectory=true, and each file becomes a leaf FileNode
+// under it — preserving the structure they had on disk, rather than
+// flattening everything into one note per file the way the old "Import
+// from device" button did.
+model FileNode {
+  id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentId    String?    // null = top level of the Files browser
+  parent      FileNode?  @relation("FileNodeChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children    FileNode[] @relation("FileNodeChildren")
+
+  name        String
+  isDirectory Boolean    @default(false)
+
+  // Only set when isDirectory is false.
+  storedName  String?    // randomized filename on disk
+  mimeType    String?
+  sizeBytes   Int?
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([userId])
+  @@index([parentId])
+}
+
+// A registered passkey/security key for unlocking Locked Notes.
+// Deliberately scoped to that one purpose (not Will & Inheritance, which
+// stays password-only) per the product spec. counter is used to detect
+// cloned-authenticator replay attacks, per the WebAuthn spec.
+model WebAuthnCredential {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String   @unique
+  publicKey    Bytes
+  counter      Int      @default(0)
+  transports   String?  // JSON array, e.g. ["internal","hybrid"]
+  deviceLabel  String?  // e.g. "Chrome on macOS" — set client-side at registration time
+  createdAt    DateTime @default(now())
+
   @@index([userId])
 }

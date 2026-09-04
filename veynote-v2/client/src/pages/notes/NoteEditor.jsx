@@ -6,6 +6,11 @@ import PaginatedEditor from "../../components/PaginatedEditor";
 import EditorToolbar from "../../components/EditorToolbar";
 import InsertMenu from "../../components/InsertMenu";
 import AttachmentList from "../../components/AttachmentList";
+import SaveStatus from "../../components/SaveStatus";
+import FindReplaceBar from "../../components/FindReplaceBar";
+import TableToolbar from "../../components/TableToolbar";
+import VaultGate from "../../components/VaultGate";
+import { computeStats, formatStats } from "../../utils/textStats";
 
 const FONT_SIZE_PX = { small: "13px", medium: "15px", large: "18px", comfort: "16px", display: "22px", xlarge: "28px" };
 
@@ -23,6 +28,7 @@ export default function NoteEditor() {
   const latestHTML = useRef("");
   const saveTimer = useRef(null);
   const saveSeq = useRef(0);
+  const dirtyRef = useRef(false);
 
   const [noteId, setNoteId] = useState(routeId || null);
   const [title, setTitle] = useState("");
@@ -37,6 +43,12 @@ export default function NoteEditor() {
   const [insertMenu, setInsertMenu] = useState(null); // { x, y, fromSlash, blockEl } | null
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState([]);
+  const [findOpen, setFindOpen] = useState(false);
+  const [tableToolbarRect, setTableToolbarRect] = useState(null);
+  const [stats, setStats] = useState(() => computeStats(""));
+  const [vaultRequired, setVaultRequired] = useState(null); // "locked-notes" | "will" | null
+  const [isLocked, setIsLocked] = useState(false);
+  const [isWill, setIsWill] = useState(false);
   const imageInputRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -44,20 +56,47 @@ export default function NoteEditor() {
     api.get("/folders").then((d) => setFolders(d.folders));
   }, []);
 
-  useEffect(() => {
-    if (routeId) {
-      api.get(`/notes/${routeId}`).then((d) => {
+  function loadNote() {
+    if (!routeId) return;
+    setVaultRequired(null);
+    api
+      .get(`/notes/${routeId}`)
+      .then((d) => {
         setTitle(d.note.title || "");
         setFolderId(d.note.folderId || "");
         setMood(d.note.mood || "");
         setTags(d.note.tags || []);
         setInitialHTML(d.note.content || "");
         latestHTML.current = d.note.content || "";
+        setStats(computeStats(d.note.content || ""));
         setAttachments((d.note.attachments || []).filter((a) => a.kind === "FILE"));
+        setIsLocked(Boolean(d.note.isLocked));
+        setIsWill(Boolean(d.note.isWill));
         setLoaded(true);
+      })
+      .catch((err) => {
+        if (err.requiresVault) {
+          setVaultRequired(err.requiresVault);
+        } else {
+          alert(err.message);
+        }
       });
+  }
+
+  useEffect(loadNote, [routeId]);
+
+  async function toggleLock() {
+    try {
+      const { note } = await api.patch(`/notes/${routeId}/lock`, { locked: !isLocked });
+      setIsLocked(Boolean(note.isLocked));
+    } catch (err) {
+      if (err.requiresVault) {
+        setVaultRequired(err.requiresVault);
+      } else {
+        alert(err.message);
+      }
     }
-  }, [routeId]);
+  }
 
   // ---------------- autosave ----------------
   const doSave = useCallback(
@@ -100,10 +139,46 @@ export default function NoteEditor() {
   );
 
   function scheduleAutosave() {
+    dirtyRef.current = true;
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       doSave({ noteId, title, html: latestHTML.current, folderId, mood, tags });
     }, 900);
+  }
+
+  // Belt-and-braces: the 900ms autosave debounce is short, but if someone
+  // closes the tab in that window (or a save is actively in flight), warn
+  // instead of silently losing the last keystrokes.
+  useEffect(() => {
+    if (saveStatus === "saved" || saveStatus === "idle") dirtyRef.current = false;
+  }, [saveStatus]);
+  useEffect(() => {
+    function handleBeforeUnload(e) {
+      if (!dirtyRef.current) return;
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
+  // Ctrl/Cmd+F opens the in-note find & replace bar instead of the
+  // browser's native page search, which can't see into a contentEditable
+  // region's live state the way our own find can, and can't replace at all.
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        setFindOpen(true);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  function closeFindBar() {
+    setFindOpen(false);
+    editorRef.current?.findAll(""); // also clears any leftover match highlight
   }
 
   useEffect(() => {
@@ -197,13 +272,37 @@ export default function NoteEditor() {
     block.action(editorRef.current);
   }
 
+  if (vaultRequired) return <VaultGate vault={vaultRequired} onUnlock={loadNote} />;
+
   if (!loaded) return <p className="text-ink-muted text-[12px]">Loading…</p>;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <span className="eyebrow">{routeId || noteId ? "EDITING" : "NEW NOTE"}</span>
-        <SaveStatus status={saveStatus} error={saveError} />
+        <span className="eyebrow">
+          {isWill ? "WILL & INHERITANCE" : isLocked ? "🔒 LOCKED NOTE" : routeId || noteId ? "EDITING" : "NEW NOTE"}
+        </span>
+        <div className="flex items-center gap-3">
+          {routeId && !isWill && (
+            <button
+              type="button"
+              onClick={toggleLock}
+              className="text-[11px] font-semibold text-ink-muted hover:text-ink"
+              title={isLocked ? "Remove from Locked Notes" : "Move to Locked Notes"}
+            >
+              {isLocked ? "🔓 Unlock note" : "🔒 Lock note"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setFindOpen((o) => !o)}
+            className="text-[11px] font-semibold text-ink-muted hover:text-ink"
+            title="Find & replace (Ctrl/Cmd+F)"
+          >
+            🔍 Find
+          </button>
+          <SaveStatus status={saveStatus} error={saveError} />
+        </div>
       </div>
 
       <div className="flex gap-2.5 mb-4 flex-wrap">
@@ -235,6 +334,8 @@ export default function NoteEditor() {
 
       <AttachmentList attachments={attachments} uploading={uploading} onRemove={removeAttachment} />
 
+      {findOpen && <FindReplaceBar editorRef={editorRef} onClose={closeFindBar} />}
+
       <EditorToolbar editorRef={editorRef} onOpenInsertMenu={openInsertMenuFromButton} />
 
       <div className="-mt-px">
@@ -245,12 +346,20 @@ export default function NoteEditor() {
           fontSize={editorFontSize}
           onChange={(html) => {
             latestHTML.current = html;
+            setStats(computeStats(html));
             scheduleAutosave();
           }}
           onSlash={handleSlash}
           onImageDrop={(files) => files.forEach((f) => uploadOne(f, { inline: true }))}
+          onTableFocus={setTableToolbarRect}
         />
       </div>
+
+      {stats.words > 0 && (
+        <p className="text-[10.5px] text-ink-muted mt-2 text-right">{formatStats(stats)}</p>
+      )}
+
+      <TableToolbar rect={tableToolbarRect} editorRef={editorRef} />
 
       <input ref={imageInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImagePicked} />
       <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFilePicked} />
@@ -260,18 +369,6 @@ export default function NoteEditor() {
       )}
     </div>
   );
-}
-
-function SaveStatus({ status, error }) {
-  if (status === "saving") return <span className="text-[11px] text-ink-muted">Saving…</span>;
-  if (status === "saved") return <span className="text-[11px] text-success">Saved</span>;
-  if (status === "error")
-    return (
-      <span className="text-[11px] text-danger" title={error}>
-        Couldn't save — {error}
-      </span>
-    );
-  return <span className="text-[11px] text-ink-muted">&nbsp;</span>;
 }
 
 function TagInput({ tags, setTags }) {

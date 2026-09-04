@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../../api/client";
+import ImageLightbox from "../../components/ImageLightbox";
 
 
 export default function TradeDetail() {
   const { id } = useParams();
   const [entry, setEntry] = useState(null);
   const [images, setImages] = useState([]);
+  const [lightboxIndex, setLightboxIndex] = useState(null);
+
+  function openLightbox(image) {
+    setLightboxIndex(images.findIndex((i) => i.id === image.id));
+  }
 
   useEffect(() => {
     api.get(`/trading/entries/${id}`).then((d) => setEntry(d.entry));
@@ -73,7 +79,7 @@ export default function TradeDetail() {
       )}
 
       <div
-        className="text-[14px] leading-[1.8] text-ink-soft mb-6"
+        className="text-[14px] leading-[1.8] text-ink-soft mb-6 trade-body"
         dangerouslySetInnerHTML={{ __html: entry.content || "<p class='text-ink-muted'>No notes yet.</p>" }}
       />
 
@@ -99,7 +105,7 @@ export default function TradeDetail() {
                   {[...new Set(byStage("SETUP").map((i) => i.timeframe).filter(Boolean))].map((tf) => (
                     <div key={tf} className="overview-timeframe">
                       <div className="overview-timeframe-head"><span>{tf}</span><small>{byStage("SETUP").filter((i) => i.timeframe === tf).length} charts</small></div>
-                      <ImageGrid images={byStage("SETUP").filter((i) => i.timeframe === tf)} />
+                      <ImageGrid images={byStage("SETUP").filter((i) => i.timeframe === tf)} onOpen={openLightbox} />
                     </div>
                   ))}
                 </div>
@@ -108,19 +114,19 @@ export default function TradeDetail() {
             {byStage("ENTRY").length > 0 && (
               <section>
                 <h3 className="text-[12.5px] font-bold mb-2.5">Entry</h3>
-                <ImageGrid images={byStage("ENTRY")} />
+                <ImageGrid images={byStage("ENTRY")} onOpen={openLightbox} />
               </section>
             )}
             {byStage("DURING_TRADE").length > 0 && (
               <section>
                 <h3 className="text-[12.5px] font-bold mb-2.5">During trade</h3>
-                <ImageGrid images={byStage("DURING_TRADE")} />
+                <ImageGrid images={byStage("DURING_TRADE")} onOpen={openLightbox} />
               </section>
             )}
             {byStage("POST_TRADE").length > 0 && (
               <section>
                 <h3 className="text-[12.5px] font-bold mb-2.5">Post-trade</h3>
-                <ImageGrid images={byStage("POST_TRADE")} />
+                <ImageGrid images={byStage("POST_TRADE")} onOpen={openLightbox} />
               </section>
             )}
           </div>
@@ -138,18 +144,22 @@ export default function TradeDetail() {
           </div>
         </>
       )}
+
+      {lightboxIndex !== null && (
+        <ImageLightbox images={images} startIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
+      )}
     </div>
   );
 }
 
-function ImageGrid({ images }) {
+function ImageGrid({ images, onOpen }) {
   return (
     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
       {images.map((img) => (
-        <a key={img.id} href={img.url} target="_blank" rel="noreferrer" className="block">
+        <button key={img.id} type="button" onClick={() => onOpen(img)} className="block text-left">
           <img src={img.url} alt={img.caption || img.originalName} className="w-full aspect-square object-cover rounded-lg border border-app-border" />
           {img.caption && <p className="text-[9.5px] text-ink-muted mt-1 truncate">{img.caption}</p>}
-        </a>
+        </button>
       ))}
     </div>
   );

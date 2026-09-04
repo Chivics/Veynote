@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import TradeDocumentation from "../../components/TradeDocumentation";
+import { handleLinkPaste } from "../../utils/linkify";
 
 const SETUP_TYPES = [
   { key: "BOS", label: "Break of Structure" },
@@ -283,7 +284,8 @@ export default function TradeEditor() {
         ref={bodyRef}
         contentEditable
         suppressContentEditableWarning
-        className="border border-app-border rounded-b-xl p-6 bg-app-panel min-h-[140px] text-[14px] leading-[1.8] text-ink-soft outline-none focus:border-accent-trade mb-6"
+        onPaste={handleLinkPaste}
+        className="border border-app-border rounded-b-xl p-6 bg-app-panel min-h-[140px] text-[14px] leading-[1.8] text-ink-soft outline-none focus:border-accent-trade mb-6 trade-body"
       />
 
       <h2 className="text-[15.5px] mb-3">Trading psychology</h2>

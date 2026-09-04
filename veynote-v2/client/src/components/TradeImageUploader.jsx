@@ -1,12 +1,18 @@
 import { useRef } from "react";
 
-export default function TradeImageUploader({ images, uploading, onUpload, onRemove, onCaptionChange, compact }) {
+export default function TradeImageUploader({ images, uploading, onUpload, onRemove, onCaptionChange, compact, onOpenLightbox }) {
   const inputRef = useRef(null);
   function handleFiles(e) { const files = Array.from(e.target.files || []); if (files.length) onUpload(files); e.target.value = ""; }
   return <div>
     <div className={`image-gallery ${compact ? "image-gallery-compact" : ""}`}>
       {images.map((img) => <div key={img.id} className="trade-image-card">
-        <a href={img.url} target="_blank" rel="noreferrer"><img src={img.url} alt={img.caption || img.originalName} /></a>
+        {onOpenLightbox ? (
+          <button type="button" onClick={() => onOpenLightbox(img)} className="block w-full h-full">
+            <img src={img.url} alt={img.caption || img.originalName} />
+          </button>
+        ) : (
+          <a href={img.url} target="_blank" rel="noreferrer"><img src={img.url} alt={img.caption || img.originalName} /></a>
+        )}
         <button type="button" className="image-remove" onClick={() => onRemove(img.id)} title="Remove image">×</button>
         <input className="image-caption" placeholder="Add a caption…" defaultValue={img.caption || ""} onBlur={(e) => { if (e.target.value !== (img.caption || "")) onCaptionChange(img.id, e.target.value); }} />
       </div>)}
