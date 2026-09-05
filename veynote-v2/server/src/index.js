@@ -29,8 +29,17 @@ app.use(cors({
     "http://localhost:5173",
     "https://veynote.pxxl.click"
   ],
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Vault-Token",
+    "X-Will-Token"
+  ],
   credentials: true
 }));
+
+app.options("*", cors());
 app.use(express.json());
 app.use(passport.initialize());
 
