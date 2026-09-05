@@ -80,7 +80,7 @@ export default function EditorToolbar({ editorRef, onOpenInsertMenu }) {
   }
 
   return (
-    <div className="flex gap-0.5 flex-wrap items-center border border-app-border rounded-t-xl px-2.5 py-2 bg-app-panel sticky top-0 z-10">
+    <div className="flex gap-0.5 flex-wrap items-center border border-app-border rounded-t-xl px-2.5 py-2 bg-app-panel sticky top-0 z-10 max-sm:fixed max-sm:bottom-0 max-sm:top-auto max-sm:left-0 max-sm:right-0 max-sm:rounded-none max-sm:border-x-0 max-sm:border-b-0 max-sm:z-30 max-sm:justify-center max-sm:py-2.5 print:hidden">
       <ToolbarButton title="Insert block" onMouseDown={onOpenInsertMenu}>
         +
       </ToolbarButton>

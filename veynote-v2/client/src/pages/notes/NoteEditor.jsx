@@ -1,16 +1,21 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
 import { api } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import PaginatedEditor from "../../components/PaginatedEditor";
 import EditorToolbar from "../../components/EditorToolbar";
 import InsertMenu from "../../components/InsertMenu";
+import NoteLinkMenu from "../../components/NoteLinkMenu";
 import AttachmentList from "../../components/AttachmentList";
 import SaveStatus from "../../components/SaveStatus";
 import FindReplaceBar from "../../components/FindReplaceBar";
 import TableToolbar from "../../components/TableToolbar";
 import VaultGate from "../../components/VaultGate";
+import VersionHistory from "../../components/VersionHistory";
+import ExportMenu from "../../components/ExportMenu";
+import ShareMenu from "../../components/ShareMenu";
 import { computeStats, formatStats } from "../../utils/textStats";
+import { getTemplate } from "../../data/noteTemplates";
 
 const FONT_SIZE_PX = { small: "13px", medium: "15px", large: "18px", comfort: "16px", display: "22px", xlarge: "28px" };
 
@@ -21,6 +26,7 @@ function hasMeaningfulContent({ title, html, mood, tags }) {
 
 export default function NoteEditor() {
   const { id: routeId } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const editorFontSize = FONT_SIZE_PX[user?.editorFontSize] || FONT_SIZE_PX.medium;
@@ -41,6 +47,7 @@ export default function NoteEditor() {
   const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved | error
   const [saveError, setSaveError] = useState("");
   const [insertMenu, setInsertMenu] = useState(null); // { x, y, fromSlash, blockEl } | null
+  const [noteLinkMenu, setNoteLinkMenu] = useState(null); // { x, y, blockEl } | null
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState([]);
   const [findOpen, setFindOpen] = useState(false);
@@ -49,11 +56,29 @@ export default function NoteEditor() {
   const [vaultRequired, setVaultRequired] = useState(null); // "locked-notes" | "will" | null
   const [isLocked, setIsLocked] = useState(false);
   const [isWill, setIsWill] = useState(false);
+  const [backlinks, setBacklinks] = useState([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [noteMeta, setNoteMeta] = useState({ createdAt: null, updatedAt: null });
+  const [shareState, setShareState] = useState({ shareEnabled: false, shareToken: null });
   const imageInputRef = useRef(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     api.get("/folders").then((d) => setFolders(d.folders));
+  }, []);
+
+  // "+ From template" pre-fills a brand-new, unsaved note — only applies
+  // when there's no routeId yet (never overwrites a real, already-saved note).
+  useEffect(() => {
+    if (routeId) return;
+    const templateId = searchParams.get("template");
+    const template = templateId ? getTemplate(templateId) : null;
+    if (!template) return;
+    setTitle(template.title);
+    setInitialHTML(template.html);
+    latestHTML.current = template.html;
+    setStats(computeStats(template.html));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function loadNote() {
@@ -72,7 +97,10 @@ export default function NoteEditor() {
         setAttachments((d.note.attachments || []).filter((a) => a.kind === "FILE"));
         setIsLocked(Boolean(d.note.isLocked));
         setIsWill(Boolean(d.note.isWill));
+        setNoteMeta({ createdAt: d.note.createdAt, updatedAt: d.note.updatedAt });
+        setShareState({ shareEnabled: Boolean(d.note.shareEnabled), shareToken: d.note.shareToken || null });
         setLoaded(true);
+        api.get(`/notes/${routeId}/backlinks`).then((b) => setBacklinks(b.backlinks)).catch(() => {});
       })
       .catch((err) => {
         if (err.requiresVault) {
@@ -95,6 +123,15 @@ export default function NoteEditor() {
       } else {
         alert(err.message);
       }
+    }
+  }
+
+  async function duplicateNote() {
+    try {
+      const { note } = await api.post(`/notes/${routeId}/duplicate`, {});
+      navigate(`/notes/${note.id}`);
+    } catch (err) {
+      alert(err.message);
     }
   }
 
@@ -254,6 +291,18 @@ export default function NoteEditor() {
     setInsertMenu({ x, y: y + 6, fromSlash: true, blockEl });
   }
 
+  function handleNoteLink({ x, y, blockEl }) {
+    setNoteLinkMenu({ x, y: y + 6, blockEl });
+  }
+
+  function pickNoteLink(note) {
+    if (noteLinkMenu?.blockEl) noteLinkMenu.blockEl.textContent = "";
+    setNoteLinkMenu(null);
+    editorRef.current?.insertHTML(
+      `<a class="note-link" href="/notes/${note.id}" data-note-id="${note.id}">${note.title || "Untitled"}</a>&nbsp;`
+    );
+  }
+
   function pickInsertBlock(block) {
     // If the menu was opened via "/", remove that slash character first.
     if (insertMenu?.fromSlash && insertMenu.blockEl) {
@@ -276,13 +325,24 @@ export default function NoteEditor() {
 
   if (!loaded) return <p className="text-ink-muted text-[12px]">Loading…</p>;
 
+  // Note-links are plain <a href> tags inside the editor's raw HTML (not
+  // React <Link>s, since they're user content) — intercept clicks so
+  // navigating between notes stays a client-side transition instead of a
+  // full page reload.
+  function handleContentClick(e) {
+    const link = e.target.closest?.("a.note-link");
+    if (!link) return;
+    e.preventDefault();
+    navigate(link.getAttribute("href"));
+  }
+
   return (
-    <div>
+    <div onClick={handleContentClick} className="max-sm:pb-16">
       <div className="flex items-center justify-between mb-4">
         <span className="eyebrow">
           {isWill ? "WILL & INHERITANCE" : isLocked ? "🔒 LOCKED NOTE" : routeId || noteId ? "EDITING" : "NEW NOTE"}
         </span>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 print:hidden">
           {routeId && !isWill && (
             <button
               type="button"
@@ -292,6 +352,32 @@ export default function NoteEditor() {
             >
               {isLocked ? "🔓 Unlock note" : "🔒 Lock note"}
             </button>
+          )}
+          {routeId && (
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(true)}
+              className="text-[11px] font-semibold text-ink-muted hover:text-ink"
+              title="Version history"
+            >
+              🕐 History
+            </button>
+          )}
+          {routeId && !isWill && (
+            <button
+              type="button"
+              onClick={duplicateNote}
+              className="text-[11px] font-semibold text-ink-muted hover:text-ink"
+              title="Duplicate this note"
+            >
+              ⧉ Duplicate
+            </button>
+          )}
+          {routeId && (
+            <ExportMenu note={{ title, content: latestHTML.current, tags, createdAt: noteMeta.createdAt, updatedAt: noteMeta.updatedAt }} />
+          )}
+          {routeId && !isWill && !isLocked && (
+            <ShareMenu noteId={routeId} shareEnabled={shareState.shareEnabled} shareToken={shareState.shareToken} onChange={setShareState} />
           )}
           <button
             type="button"
@@ -350,6 +436,7 @@ export default function NoteEditor() {
             scheduleAutosave();
           }}
           onSlash={handleSlash}
+          onNoteLink={handleNoteLink}
           onImageDrop={(files) => files.forEach((f) => uploadOne(f, { inline: true }))}
           onTableFocus={setTableToolbarRect}
         />
@@ -359,6 +446,19 @@ export default function NoteEditor() {
         <p className="text-[10.5px] text-ink-muted mt-2 text-right">{formatStats(stats)}</p>
       )}
 
+      {backlinks.length > 0 && (
+        <div className="border-t border-app-border mt-5 pt-4">
+          <p className="text-[11px] font-bold text-ink-muted mb-2 tracking-wide">LINKED FROM</p>
+          <div className="flex flex-col gap-1">
+            {backlinks.map((b) => (
+              <Link key={b.id} to={`/notes/${b.id}`} className="text-[12px] text-accent-notes hover:underline">
+                {b.title || "Untitled"}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       <TableToolbar rect={tableToolbarRect} editorRef={editorRef} />
 
       <input ref={imageInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImagePicked} />
@@ -366,6 +466,14 @@ export default function NoteEditor() {
 
       {insertMenu && (
         <InsertMenu x={insertMenu.x} y={insertMenu.y} onPick={pickInsertBlock} onClose={() => setInsertMenu(null)} />
+      )}
+
+      {noteLinkMenu && (
+        <NoteLinkMenu x={noteLinkMenu.x} y={noteLinkMenu.y} onPick={pickNoteLink} onClose={() => setNoteLinkMenu(null)} />
+      )}
+
+      {historyOpen && (
+        <VersionHistory noteId={routeId} onClose={() => setHistoryOpen(false)} onRestored={loadNote} />
       )}
     </div>
   );

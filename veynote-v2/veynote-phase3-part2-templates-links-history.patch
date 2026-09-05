@@ -1,0 +1,842 @@
+diff --git a/veynote-v2/client/src/components/EditorToolbar.jsx b/veynote-v2/client/src/components/EditorToolbar.jsx
+index 528b54e..7f6741d 100644
+--- a/veynote-v2/client/src/components/EditorToolbar.jsx
++++ b/veynote-v2/client/src/components/EditorToolbar.jsx
+@@ -80,7 +80,7 @@ export default function EditorToolbar({ editorRef, onOpenInsertMenu }) {
+   }
+ 
+   return (
+-    <div className="flex gap-0.5 flex-wrap items-center border border-app-border rounded-t-xl px-2.5 py-2 bg-app-panel sticky top-0 z-10">
++    <div className="flex gap-0.5 flex-wrap items-center border border-app-border rounded-t-xl px-2.5 py-2 bg-app-panel sticky top-0 z-10 max-sm:fixed max-sm:bottom-0 max-sm:top-auto max-sm:left-0 max-sm:right-0 max-sm:rounded-none max-sm:border-x-0 max-sm:border-b-0 max-sm:z-30 max-sm:justify-center max-sm:py-2.5">
+       <ToolbarButton title="Insert block" onMouseDown={onOpenInsertMenu}>
+         +
+       </ToolbarButton>
+diff --git a/veynote-v2/client/src/components/NoteLinkMenu.jsx b/veynote-v2/client/src/components/NoteLinkMenu.jsx
+new file mode 100644
+index 0000000..3e378a5
+--- /dev/null
++++ b/veynote-v2/client/src/components/NoteLinkMenu.jsx
+@@ -0,0 +1,62 @@
++import { useEffect, useRef, useState } from "react";
++import { api } from "../api/client";
++
++// Opened by typing "[[" at the start of a block (mirrors the "/" slash
++// command's own trigger rule). Unlike the slash menu, this needs live
++// search, so it carries its own text input rather than reading further
++// typing back out of the contentEditable block.
++export default function NoteLinkMenu({ x, y, onPick, onClose }) {
++  const [query, setQuery] = useState("");
++  const [results, setResults] = useState([]);
++  const inputRef = useRef(null);
++
++  useEffect(() => {
++    inputRef.current?.focus();
++  }, []);
++
++  useEffect(() => {
++    const handle = setTimeout(() => {
++      api.get("/notes/meta/search", { q: query }).then((d) => setResults(d.notes));
++    }, 150);
++    return () => clearTimeout(handle);
++  }, [query]);
++
++  const top = Math.min(y, window.innerHeight - 260);
++  const left = Math.min(x, window.innerWidth - 240);
++
++  return (
++    <>
++      <div className="fixed inset-0 z-30" onMouseDown={onClose} />
++      <div
++        style={{ position: "fixed", top, left, zIndex: 35 }}
++        className="w-[220px] bg-app-panel border border-app-border rounded-xl shadow-2xl overflow-hidden"
++        onMouseDown={(e) => e.stopPropagation()}
++      >
++        <input
++          ref={inputRef}
++          value={query}
++          onChange={(e) => setQuery(e.target.value)}
++          onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
++          placeholder="Link to a note…"
++          className="w-full bg-transparent outline-none border-b border-app-border px-3 py-2 text-[12.5px] text-ink"
++        />
++        <div className="max-h-[220px] overflow-y-auto py-1">
++          {results.length === 0 ? (
++            <p className="px-3 py-2 text-[11.5px] text-ink-muted">{query ? "No matching notes." : "Start typing to search…"}</p>
++          ) : (
++            results.map((n) => (
++              <button
++                key={n.id}
++                type="button"
++                onClick={() => onPick(n)}
++                className="block w-full text-left px-3 py-2 text-[12px] text-ink hover:bg-app-panel2 truncate"
++              >
++                {n.title || "Untitled"}
++              </button>
++            ))
++          )}
++        </div>
++      </div>
++    </>
++  );
++}
+diff --git a/veynote-v2/client/src/components/PaginatedEditor.jsx b/veynote-v2/client/src/components/PaginatedEditor.jsx
+index ff67938..6cd44c7 100644
+--- a/veynote-v2/client/src/components/PaginatedEditor.jsx
++++ b/veynote-v2/client/src/components/PaginatedEditor.jsx
+@@ -24,7 +24,7 @@ import { handleLinkPaste } from "../utils/linkify";
+ const PAGE_HEIGHT_PX = 760; // ≈ a comfortable "sheet" of writing space
+ 
+ const PaginatedEditor = forwardRef(function PaginatedEditor(
+-  { initialHTML, onChange, placeholder, onSlash, onImageDrop, onTableFocus, fontSize = "14px" },
++  { initialHTML, onChange, placeholder, onSlash, onNoteLink, onImageDrop, onTableFocus, fontSize = "14px" },
+   ref
+ ) {
+   const containerRef = useRef(null);
+@@ -434,6 +434,22 @@ const PaginatedEditor = forwardRef(function PaginatedEditor(
+         }
+       }
+     }
++
++    // [[ note-link detection — same "only thing in the block so far" rule
++    // as slash commands, for the same reason (never trigger mid-sentence
++    // off two literal brackets someone actually meant to type).
++    if (onNoteLink) {
++      const sel = window.getSelection();
++      if (sel && sel.rangeCount > 0) {
++        let node = sel.getRangeAt(0).startContainer;
++        const blockEl = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
++        if (blockEl && blockEl.textContent === "[[") {
++          const rect = sel.getRangeAt(0).getBoundingClientRect();
++          onNoteLink({ x: rect.left, y: rect.bottom, blockEl });
++          return;
++        }
++      }
++    }
+   }
+ 
+   function handleClick(e) {
+diff --git a/veynote-v2/client/src/components/TemplateMenu.jsx b/veynote-v2/client/src/components/TemplateMenu.jsx
+new file mode 100644
+index 0000000..6b3a8c5
+--- /dev/null
++++ b/veynote-v2/client/src/components/TemplateMenu.jsx
+@@ -0,0 +1,37 @@
++import { useState } from "react";
++import { useNavigate } from "react-router-dom";
++import { NOTE_TEMPLATES } from "../data/noteTemplates";
++
++// A small "+ From template ▾" dropdown that starts a new note pre-filled
++// with one of the built-in structures — sits next to the plain "+ New
++// note" button wherever that already appears.
++export default function TemplateMenu() {
++  const [open, setOpen] = useState(false);
++  const navigate = useNavigate();
++
++  return (
++    <div className="relative">
++      <button type="button" onClick={() => setOpen((o) => !o)} className="chip hover:bg-app-border">
++        📐 From template {open ? "▴" : "▾"}
++      </button>
++      {open && (
++        <>
++          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
++          <div className="absolute right-0 top-full mt-1.5 z-20 bg-app-panel border border-app-border rounded-lg shadow-2xl py-1.5 min-w-[180px]">
++            {NOTE_TEMPLATES.map((t) => (
++              <button
++                key={t.id}
++                type="button"
++                onClick={() => { setOpen(false); navigate(`/notes/new?template=${t.id}`); }}
++                className="flex items-center gap-2 w-full text-left px-3 py-2 text-[12.5px] text-ink hover:bg-app-panel2"
++              >
++                <span>{t.icon}</span>
++                <span>{t.name}</span>
++              </button>
++            ))}
++          </div>
++        </>
++      )}
++    </div>
++  );
++}
+diff --git a/veynote-v2/client/src/components/VersionHistory.jsx b/veynote-v2/client/src/components/VersionHistory.jsx
+new file mode 100644
+index 0000000..31cc108
+--- /dev/null
++++ b/veynote-v2/client/src/components/VersionHistory.jsx
+@@ -0,0 +1,91 @@
++import { useEffect, useState } from "react";
++import { api } from "../api/client";
++
++// Versions are grouped by day in the sidebar list, mirroring the "Today
++// / Yesterday" grouping from the spec's mockup. Preview renders with the
++// .editor-page class so headings/tables/callouts look the same as they
++// do in the live editor, not like plain unstyled HTML.
++export default function VersionHistory({ noteId, onClose, onRestored }) {
++  const [versions, setVersions] = useState(null);
++  const [preview, setPreview] = useState(null);
++  const [busy, setBusy] = useState(false);
++
++  useEffect(() => {
++    api.get(`/notes/${noteId}/versions`).then((d) => setVersions(d.versions));
++  }, [noteId]);
++
++  async function openPreview(versionId) {
++    const { version } = await api.get(`/notes/${noteId}/versions/${versionId}`);
++    setPreview(version);
++  }
++
++  async function restore(versionId) {
++    if (!confirm("Restore this version? Your current version will be saved to history first, so this can be undone.")) return;
++    setBusy(true);
++    try {
++      await api.post(`/notes/${noteId}/versions/${versionId}/restore`, {});
++      onRestored();
++      onClose();
++    } catch (err) {
++      alert(err.message);
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  const groups = {};
++  (versions || []).forEach((v) => {
++    const day = new Date(v.createdAt).toDateString();
++    (groups[day] = groups[day] || []).push(v);
++  });
++
++  return (
++    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4" onMouseDown={onClose}>
++      <div
++        className="relative bg-app-panel border border-app-border rounded-2xl w-full max-w-[560px] h-[70vh] overflow-hidden flex"
++        onMouseDown={(e) => e.stopPropagation()}
++      >
++        <button type="button" onClick={onClose} className="absolute top-3 right-3 text-ink-muted hover:text-ink text-[18px] leading-none z-10">×</button>
++
++        <div className="w-[190px] border-r border-app-border overflow-y-auto p-3 shrink-0">
++          <p className="text-[10.5px] font-bold text-ink-muted mb-2 px-1 tracking-wide">VERSION HISTORY</p>
++          {versions === null ? (
++            <p className="text-[11px] text-ink-muted px-1">Loading…</p>
++          ) : versions.length === 0 ? (
++            <p className="text-[11px] text-ink-muted px-1">No earlier versions yet — one is saved automatically every so often as you edit.</p>
++          ) : (
++            Object.entries(groups).map(([day, items]) => (
++              <div key={day} className="mb-3">
++                <p className="text-[10px] text-ink-muted px-1 mb-1">{day}</p>
++                {items.map((v) => (
++                  <button
++                    key={v.id}
++                    type="button"
++                    onClick={() => openPreview(v.id)}
++                    className={`block w-full text-left px-2 py-1.5 rounded-md text-[11.5px] truncate ${preview?.id === v.id ? "bg-app-panel2 text-ink" : "text-ink-soft hover:bg-app-panel2"}`}
++                  >
++                    {new Date(v.createdAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
++                  </button>
++                ))}
++              </div>
++            ))
++          )}
++        </div>
++
++        <div className="flex-1 p-5 overflow-y-auto">
++          {preview ? (
++            <>
++              <h3 className="text-[15px] font-bold mb-3">{preview.title || "Untitled"}</h3>
++              <div className="editor-page text-[12.5px] text-ink-soft leading-relaxed" dangerouslySetInnerHTML={{ __html: preview.content }} />
++              <button type="button" onClick={() => restore(preview.id)} disabled={busy} className="btn-primary mt-4 text-[11px]">
++                Restore this version
++              </button>
++            </>
++          ) : (
++            <p className="text-ink-muted text-[12px]">Select a version on the left to preview it.</p>
++          )}
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/veynote-v2/client/src/data/noteTemplates.js b/veynote-v2/client/src/data/noteTemplates.js
+new file mode 100644
+index 0000000..2f71867
+--- /dev/null
++++ b/veynote-v2/client/src/data/noteTemplates.js
+@@ -0,0 +1,63 @@
++// Static, built-in starter templates. Not user-customizable in this
++// pass — that would mean a DB-backed template model, which is a
++// reasonable next step but a separate piece of work from "give people a
++// running start on four common note types."
++export const NOTE_TEMPLATES = [
++  {
++    id: "daily-journal",
++    name: "Daily Journal",
++    icon: "☀️",
++    title: "",
++    html:
++      "<h3>Today's Focus</h3><p><br></p>" +
++      "<h3>What Happened</h3><p><br></p>" +
++      "<h3>What I Learned</h3><p><br></p>" +
++      "<h3>What I Need to Improve</h3><p><br></p>" +
++      "<h3>Tomorrow</h3><p><br></p>",
++  },
++  {
++    id: "meeting-notes",
++    name: "Meeting Notes",
++    icon: "🗓️",
++    title: "Meeting",
++    html:
++      "<p><strong>Date:</strong> </p>" +
++      "<p><strong>Attendees:</strong> </p>" +
++      "<h3>Agenda</h3><p><br></p>" +
++      "<h3>Discussion</h3><p><br></p>" +
++      "<h3>Decisions</h3><p><br></p>" +
++      "<h3>Action Items</h3><p><br></p>",
++  },
++  {
++    id: "study-notes",
++    name: "Study Notes",
++    icon: "📚",
++    title: "",
++    html:
++      "<p><strong>Topic:</strong> </p>" +
++      "<h3>Definition</h3><p><br></p>" +
++      "<h3>Key Concepts</h3><p><br></p>" +
++      "<h3>Examples</h3><p><br></p>" +
++      "<h3>Questions</h3><p><br></p>" +
++      "<h3>Summary</h3><p><br></p>",
++  },
++  {
++    id: "trading-review",
++    name: "Trading Review",
++    icon: "📈",
++    title: "Trade Review",
++    html:
++      "<h3>Market Context</h3><p><br></p>" +
++      "<h3>Setup</h3><p><br></p>" +
++      "<h3>Entry</h3><p><br></p>" +
++      "<h3>Psychology</h3><p><br></p>" +
++      "<h3>What Went Right</h3><p><br></p>" +
++      "<h3>What Went Wrong</h3><p><br></p>" +
++      "<h3>Lesson</h3><p><br></p>" +
++      "<h3>Next Action</h3><p><br></p>",
++  },
++];
++
++export function getTemplate(id) {
++  return NOTE_TEMPLATES.find((t) => t.id === id) || null;
++}
+diff --git a/veynote-v2/client/src/index.css b/veynote-v2/client/src/index.css
+index d8f6f56..98271d5 100644
+--- a/veynote-v2/client/src/index.css
++++ b/veynote-v2/client/src/index.css
+@@ -138,6 +138,17 @@ body {
+   color: #7db9ff;
+   text-decoration: underline;
+ }
++.editor-page a.note-link {
++  color: #a89fff;
++  background: rgba(124, 108, 255, 0.12);
++  padding: 0 4px;
++  border-radius: 4px;
++  text-decoration: none;
++  font-weight: 600;
++}
++.editor-page a.note-link:hover {
++  background: rgba(124, 108, 255, 0.22);
++}
+ 
+ /* Veynote premium product layer */
+ @layer base {
+diff --git a/veynote-v2/client/src/pages/notes/Dashboard.jsx b/veynote-v2/client/src/pages/notes/Dashboard.jsx
+index 89d4404..102c32a 100644
+--- a/veynote-v2/client/src/pages/notes/Dashboard.jsx
++++ b/veynote-v2/client/src/pages/notes/Dashboard.jsx
+@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
+ import { api } from "../../api/client";
+ import { useAuth } from "../../context/AuthContext";
+ import StatCard from "../../components/StatCard";
++import TemplateMenu from "../../components/TemplateMenu";
+ import EmptyState from "../../components/EmptyState";
+ 
+ export default function NotesDashboard() {
+@@ -37,7 +38,10 @@ return (
+         </h1>
+           <p className="text-ink-muted text-[13px] m-0 max-w-[520px]">Here's where your journal stands today.</p>
+         </div>
+-        <Link to="/notes/new" className="btn-primary">+ New note</Link>
++        <div className="flex items-center gap-2 shrink-0">
++          <TemplateMenu />
++          <Link to="/notes/new" className="btn-primary">+ New note</Link>
++        </div>
+       </div>
+ 
+       <div className="rounded-2xl p-5 flex items-center gap-3.5 mb-7 border border-app-border bg-gradient-to-br from-app-panel to-accent-notes-soft">
+diff --git a/veynote-v2/client/src/pages/notes/NoteEditor.jsx b/veynote-v2/client/src/pages/notes/NoteEditor.jsx
+index beec07e..d16d105 100644
+--- a/veynote-v2/client/src/pages/notes/NoteEditor.jsx
++++ b/veynote-v2/client/src/pages/notes/NoteEditor.jsx
+@@ -1,16 +1,19 @@
+ import { useEffect, useRef, useState, useCallback } from "react";
+-import { useNavigate, useParams } from "react-router-dom";
++import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
+ import { api } from "../../api/client";
+ import { useAuth } from "../../context/AuthContext";
+ import PaginatedEditor from "../../components/PaginatedEditor";
+ import EditorToolbar from "../../components/EditorToolbar";
+ import InsertMenu from "../../components/InsertMenu";
++import NoteLinkMenu from "../../components/NoteLinkMenu";
+ import AttachmentList from "../../components/AttachmentList";
+ import SaveStatus from "../../components/SaveStatus";
+ import FindReplaceBar from "../../components/FindReplaceBar";
+ import TableToolbar from "../../components/TableToolbar";
+ import VaultGate from "../../components/VaultGate";
++import VersionHistory from "../../components/VersionHistory";
+ import { computeStats, formatStats } from "../../utils/textStats";
++import { getTemplate } from "../../data/noteTemplates";
+ 
+ const FONT_SIZE_PX = { small: "13px", medium: "15px", large: "18px", comfort: "16px", display: "22px", xlarge: "28px" };
+ 
+@@ -21,6 +24,7 @@ function hasMeaningfulContent({ title, html, mood, tags }) {
+ 
+ export default function NoteEditor() {
+   const { id: routeId } = useParams();
++  const [searchParams] = useSearchParams();
+   const navigate = useNavigate();
+   const { user } = useAuth();
+   const editorFontSize = FONT_SIZE_PX[user?.editorFontSize] || FONT_SIZE_PX.medium;
+@@ -41,6 +45,7 @@ export default function NoteEditor() {
+   const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved | error
+   const [saveError, setSaveError] = useState("");
+   const [insertMenu, setInsertMenu] = useState(null); // { x, y, fromSlash, blockEl } | null
++  const [noteLinkMenu, setNoteLinkMenu] = useState(null); // { x, y, blockEl } | null
+   const [attachments, setAttachments] = useState([]);
+   const [uploading, setUploading] = useState([]);
+   const [findOpen, setFindOpen] = useState(false);
+@@ -49,6 +54,8 @@ export default function NoteEditor() {
+   const [vaultRequired, setVaultRequired] = useState(null); // "locked-notes" | "will" | null
+   const [isLocked, setIsLocked] = useState(false);
+   const [isWill, setIsWill] = useState(false);
++  const [backlinks, setBacklinks] = useState([]);
++  const [historyOpen, setHistoryOpen] = useState(false);
+   const imageInputRef = useRef(null);
+   const fileInputRef = useRef(null);
+ 
+@@ -56,6 +63,20 @@ export default function NoteEditor() {
+     api.get("/folders").then((d) => setFolders(d.folders));
+   }, []);
+ 
++  // "+ From template" pre-fills a brand-new, unsaved note — only applies
++  // when there's no routeId yet (never overwrites a real, already-saved note).
++  useEffect(() => {
++    if (routeId) return;
++    const templateId = searchParams.get("template");
++    const template = templateId ? getTemplate(templateId) : null;
++    if (!template) return;
++    setTitle(template.title);
++    setInitialHTML(template.html);
++    latestHTML.current = template.html;
++    setStats(computeStats(template.html));
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, []);
++
+   function loadNote() {
+     if (!routeId) return;
+     setVaultRequired(null);
+@@ -73,6 +94,7 @@ export default function NoteEditor() {
+         setIsLocked(Boolean(d.note.isLocked));
+         setIsWill(Boolean(d.note.isWill));
+         setLoaded(true);
++        api.get(`/notes/${routeId}/backlinks`).then((b) => setBacklinks(b.backlinks)).catch(() => {});
+       })
+       .catch((err) => {
+         if (err.requiresVault) {
+@@ -98,6 +120,15 @@ export default function NoteEditor() {
+     }
+   }
+ 
++  async function duplicateNote() {
++    try {
++      const { note } = await api.post(`/notes/${routeId}/duplicate`, {});
++      navigate(`/notes/${note.id}`);
++    } catch (err) {
++      alert(err.message);
++    }
++  }
++
+   // ---------------- autosave ----------------
+   const doSave = useCallback(
+     async (fields) => {
+@@ -254,6 +285,18 @@ export default function NoteEditor() {
+     setInsertMenu({ x, y: y + 6, fromSlash: true, blockEl });
+   }
+ 
++  function handleNoteLink({ x, y, blockEl }) {
++    setNoteLinkMenu({ x, y: y + 6, blockEl });
++  }
++
++  function pickNoteLink(note) {
++    if (noteLinkMenu?.blockEl) noteLinkMenu.blockEl.textContent = "";
++    setNoteLinkMenu(null);
++    editorRef.current?.insertHTML(
++      `<a class="note-link" href="/notes/${note.id}" data-note-id="${note.id}">${note.title || "Untitled"}</a>&nbsp;`
++    );
++  }
++
+   function pickInsertBlock(block) {
+     // If the menu was opened via "/", remove that slash character first.
+     if (insertMenu?.fromSlash && insertMenu.blockEl) {
+@@ -276,8 +319,19 @@ export default function NoteEditor() {
+ 
+   if (!loaded) return <p className="text-ink-muted text-[12px]">Loading…</p>;
+ 
++  // Note-links are plain <a href> tags inside the editor's raw HTML (not
++  // React <Link>s, since they're user content) — intercept clicks so
++  // navigating between notes stays a client-side transition instead of a
++  // full page reload.
++  function handleContentClick(e) {
++    const link = e.target.closest?.("a.note-link");
++    if (!link) return;
++    e.preventDefault();
++    navigate(link.getAttribute("href"));
++  }
++
+   return (
+-    <div>
++    <div onClick={handleContentClick} className="max-sm:pb-16">
+       <div className="flex items-center justify-between mb-4">
+         <span className="eyebrow">
+           {isWill ? "WILL & INHERITANCE" : isLocked ? "🔒 LOCKED NOTE" : routeId || noteId ? "EDITING" : "NEW NOTE"}
+@@ -293,6 +347,26 @@ export default function NoteEditor() {
+               {isLocked ? "🔓 Unlock note" : "🔒 Lock note"}
+             </button>
+           )}
++          {routeId && (
++            <button
++              type="button"
++              onClick={() => setHistoryOpen(true)}
++              className="text-[11px] font-semibold text-ink-muted hover:text-ink"
++              title="Version history"
++            >
++              🕐 History
++            </button>
++          )}
++          {routeId && !isWill && (
++            <button
++              type="button"
++              onClick={duplicateNote}
++              className="text-[11px] font-semibold text-ink-muted hover:text-ink"
++              title="Duplicate this note"
++            >
++              ⧉ Duplicate
++            </button>
++          )}
+           <button
+             type="button"
+             onClick={() => setFindOpen((o) => !o)}
+@@ -350,6 +424,7 @@ export default function NoteEditor() {
+             scheduleAutosave();
+           }}
+           onSlash={handleSlash}
++          onNoteLink={handleNoteLink}
+           onImageDrop={(files) => files.forEach((f) => uploadOne(f, { inline: true }))}
+           onTableFocus={setTableToolbarRect}
+         />
+@@ -359,6 +434,19 @@ export default function NoteEditor() {
+         <p className="text-[10.5px] text-ink-muted mt-2 text-right">{formatStats(stats)}</p>
+       )}
+ 
++      {backlinks.length > 0 && (
++        <div className="border-t border-app-border mt-5 pt-4">
++          <p className="text-[11px] font-bold text-ink-muted mb-2 tracking-wide">LINKED FROM</p>
++          <div className="flex flex-col gap-1">
++            {backlinks.map((b) => (
++              <Link key={b.id} to={`/notes/${b.id}`} className="text-[12px] text-accent-notes hover:underline">
++                {b.title || "Untitled"}
++              </Link>
++            ))}
++          </div>
++        </div>
++      )}
++
+       <TableToolbar rect={tableToolbarRect} editorRef={editorRef} />
+ 
+       <input ref={imageInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImagePicked} />
+@@ -367,6 +455,14 @@ export default function NoteEditor() {
+       {insertMenu && (
+         <InsertMenu x={insertMenu.x} y={insertMenu.y} onPick={pickInsertBlock} onClose={() => setInsertMenu(null)} />
+       )}
++
++      {noteLinkMenu && (
++        <NoteLinkMenu x={noteLinkMenu.x} y={noteLinkMenu.y} onPick={pickNoteLink} onClose={() => setNoteLinkMenu(null)} />
++      )}
++
++      {historyOpen && (
++        <VersionHistory noteId={routeId} onClose={() => setHistoryOpen(false)} onRestored={loadNote} />
++      )}
+     </div>
+   );
+ }
+diff --git a/veynote-v2/server/prisma/schema.prisma b/veynote-v2/server/prisma/schema.prisma
+index 21b6579..c716876 100644
+--- a/veynote-v2/server/prisma/schema.prisma
++++ b/veynote-v2/server/prisma/schema.prisma
+@@ -132,11 +132,44 @@ model Note {
+   tags           NoteTag[]
+   calendarEvents CalendarEvent[]
+   attachments    Attachment[]
++  versions       NoteVersion[]
++  linksFrom      NoteLink[]      @relation("LinksFrom") // [[links]] this note contains, pointing at other notes
++  linksTo        NoteLink[]      @relation("LinksTo")   // other notes that [[link]] to this one — i.e. its backlinks
+ 
+   @@index([userId])
+   @@index([folderId])
+ }
+ 
++// A snapshot of a note's title/content at a point in time, so edits can
++// be reviewed and reverted. Not created on every autosave tick (that
++// would be a snapshot every ~900ms while typing) — see the throttling
++// comment in notes.routes.js for the actual rule.
++model NoteVersion {
++  id        String   @id @default(cuid())
++  noteId    String
++  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
++  title     String
++  content   String   @db.LongText
++  createdAt DateTime @default(now())
++
++  @@index([noteId])
++}
++
++// One row per [[note link]] found in a note's content, kept in sync on
++// every save (see syncNoteLinks in notes.routes.js) rather than
++// re-parsing HTML on every backlinks lookup.
++model NoteLink {
++  id           String   @id @default(cuid())
++  sourceNoteId String
++  sourceNote   Note     @relation("LinksFrom", fields: [sourceNoteId], references: [id], onDelete: Cascade)
++  targetNoteId String
++  targetNote   Note     @relation("LinksTo", fields: [targetNoteId], references: [id], onDelete: Cascade)
++  createdAt    DateTime @default(now())
++
++  @@unique([sourceNoteId, targetNoteId])
++  @@index([targetNoteId])
++}
++
+ model NoteTag {
+   noteId String
+   note   Note   @relation(fields: [noteId], references: [id], onDelete: Cascade)
+diff --git a/veynote-v2/server/src/routes/notes.routes.js b/veynote-v2/server/src/routes/notes.routes.js
+index c74835f..2c4600c 100644
+--- a/veynote-v2/server/src/routes/notes.routes.js
++++ b/veynote-v2/server/src/routes/notes.routes.js
+@@ -128,6 +128,60 @@ async function resolveTags(userId, tagNames = []) {
+   return tags;
+ }
+ 
++// [[note links]] are stored in content as
++// <a class="note-link" data-note-id="...">Title</a> (inserted by the
++// editor's [[ picker — see NoteLinkMenu on the client). Keeping a real
++// NoteLink row per link (rather than re-scanning HTML on every
++// backlinks lookup) means the "Linked from:" panel is a plain indexed
++// query instead of a text search across every note's content.
++async function syncNoteLinks(sourceNoteId, content) {
++  const targetIds = new Set();
++  const re = /data-note-id="([a-zA-Z0-9_-]+)"/g;
++  let match;
++  while ((match = re.exec(content || ""))) targetIds.add(match[1]);
++  targetIds.delete(sourceNoteId); // a note linking to itself isn't a backlink worth tracking
++
++  const existing = await prisma.noteLink.findMany({ where: { sourceNoteId } });
++  const existingIds = new Set(existing.map((l) => l.targetNoteId));
++
++  const toRemove = existing.filter((l) => !targetIds.has(l.targetNoteId)).map((l) => l.id);
++  const toAdd = [...targetIds].filter((id) => !existingIds.has(id));
++
++  if (toRemove.length) await prisma.noteLink.deleteMany({ where: { id: { in: toRemove } } });
++  if (toAdd.length) {
++    // Only link to notes that actually exist and belong to this user —
++    // a stale/tampered data-note-id shouldn't silently create a dangling
++    // or cross-account row.
++    const validTargets = await prisma.note.findMany({
++      where: { id: { in: toAdd }, userId: (await prisma.note.findUnique({ where: { id: sourceNoteId } })).userId },
++      select: { id: true },
++    });
++    await prisma.noteLink.createMany({
++      data: validTargets.map((t) => ({ sourceNoteId, targetNoteId: t.id })),
++      skipDuplicates: true,
++    });
++  }
++}
++
++// Snapshots the note's pre-edit state into NoteVersion, but only if the
++// last snapshot is more than 10 minutes old (or there isn't one yet) —
++// otherwise every ~900ms autosave tick while typing would create its own
++// version, burying anything worth actually reverting to.
++const VERSION_SNAPSHOT_INTERVAL_MS = 10 * 60 * 1000;
++
++async function maybeSnapshotVersion(note) {
++  const lastVersion = await prisma.noteVersion.findFirst({
++    where: { noteId: note.id },
++    orderBy: { createdAt: "desc" },
++  });
++  const dueForSnapshot = !lastVersion || Date.now() - new Date(lastVersion.createdAt).getTime() > VERSION_SNAPSHOT_INTERVAL_MS;
++  if (!dueForSnapshot) return;
++
++  await prisma.noteVersion.create({
++    data: { noteId: note.id, title: note.title, content: note.content },
++  });
++}
++
+ router.post("/", async (req, res) => {
+   const { title, content, folderId, mood, tags, entryDate, draftForAttachment } = req.body;
+ 
+@@ -155,6 +209,8 @@ router.post("/", async (req, res) => {
+     include: { tags: { include: { tag: true } }, folder: true, attachments: true },
+   });
+ 
++  if (content) await syncNoteLinks(note.id, content);
++
+   res.status(201).json({ note: serializeNote(note) });
+ });
+ 
+@@ -167,6 +223,13 @@ router.patch("/:id", async (req, res) => {
+ 
+   const { title, content, folderId, mood, isFavorite, isPinned, isArchived, tags, entryDate } = req.body;
+ 
++  // Snapshot BEFORE applying the change, and only when content/title are
++  // actually part of this request — a favorite/pin/archive toggle
++  // shouldn't count as an edit worth versioning.
++  if (title !== undefined || content !== undefined) {
++    await maybeSnapshotVersion(existing);
++  }
++
+   if (tags) {
+     const tagRecords = await resolveTags(req.userId, tags);
+     await prisma.noteTag.deleteMany({ where: { noteId: existing.id } });
+@@ -190,9 +253,101 @@ router.patch("/:id", async (req, res) => {
+     include: { tags: { include: { tag: true } }, folder: true, attachments: true },
+   });
+ 
++  if (content !== undefined) await syncNoteLinks(note.id, content);
++
+   res.json({ note: serializeNote(note) });
+ });
+ 
++// GET /api/notes/:id/versions — history list (title + timestamp only,
++// not full content, to keep the list cheap)
++router.get("/:id/versions", async (req, res) => {
++  const note = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
++  if (!note) return res.status(404).json({ error: "Note not found." });
++  const guard = vaultGuardFor(note);
++  if (!guard.ok) return res.status(401).json({ error: "This note is protected.", requiresVault: guard.requiresVault });
++
++  const versions = await prisma.noteVersion.findMany({
++    where: { noteId: note.id },
++    select: { id: true, title: true, createdAt: true },
++    orderBy: { createdAt: "desc" },
++  });
++  res.json({ versions });
++});
++
++router.get("/:id/versions/:versionId", async (req, res) => {
++  const note = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
++  if (!note) return res.status(404).json({ error: "Note not found." });
++  const guard = vaultGuardFor(note);
++  if (!guard.ok) return res.status(401).json({ error: "This note is protected.", requiresVault: guard.requiresVault });
++
++  const version = await prisma.noteVersion.findFirst({ where: { id: req.params.versionId, noteId: note.id } });
++  if (!version) return res.status(404).json({ error: "Version not found." });
++  res.json({ version });
++});
++
++// POST /api/notes/:id/versions/:versionId/restore — snapshots the
++// CURRENT state first (so restoring is itself undoable), then overwrites
++// title/content with the chosen version's.
++router.post("/:id/versions/:versionId/restore", async (req, res) => {
++  const note = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
++  if (!note) return res.status(404).json({ error: "Note not found." });
++  const guard = vaultGuardFor(note);
++  if (!guard.ok) return res.status(401).json({ error: "This note is protected.", requiresVault: guard.requiresVault });
++
++  const version = await prisma.noteVersion.findFirst({ where: { id: req.params.versionId, noteId: note.id } });
++  if (!version) return res.status(404).json({ error: "Version not found." });
++
++  await prisma.noteVersion.create({ data: { noteId: note.id, title: note.title, content: note.content } });
++
++  const updated = await prisma.note.update({
++    where: { id: note.id },
++    data: { title: version.title, content: version.content },
++    include: { tags: { include: { tag: true } }, folder: true, attachments: true },
++  });
++  await syncNoteLinks(updated.id, version.content);
++
++  res.json({ note: serializeNote(updated) });
++});
++
++// GET /api/notes/:id/backlinks — other notes that [[link]] to this one
++router.get("/:id/backlinks", async (req, res) => {
++  const note = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
++  if (!note) return res.status(404).json({ error: "Note not found." });
++  const guard = vaultGuardFor(note);
++  if (!guard.ok) return res.status(401).json({ error: "This note is protected.", requiresVault: guard.requiresVault });
++
++  const links = await prisma.noteLink.findMany({
++    where: { targetNoteId: note.id },
++    include: { sourceNote: { select: { id: true, title: true, isTrashed: true } } },
++  });
++  const backlinks = links.map((l) => l.sourceNote).filter((n) => !n.isTrashed);
++  res.json({ backlinks });
++});
++
++// POST /api/notes/:id/duplicate
++router.post("/:id/duplicate", async (req, res) => {
++  const existing = await prisma.note.findFirst({
++    where: { id: req.params.id, userId: req.userId },
++    include: { tags: true },
++  });
++  if (!existing) return res.status(404).json({ error: "Note not found." });
++  const guard = vaultGuardFor(existing);
++  if (!guard.ok) return res.status(401).json({ error: "This note is protected.", requiresVault: guard.requiresVault });
++
++  const copy = await prisma.note.create({
++    data: {
++      userId: req.userId,
++      title: existing.title ? `${existing.title} (copy)` : "",
++      content: existing.content,
++      folderId: existing.folderId,
++      mood: existing.mood,
++      tags: { create: existing.tags.map((t) => ({ tagId: t.tagId })) },
++    },
++    include: { tags: { include: { tag: true } }, folder: true, attachments: true },
++  });
++  res.status(201).json({ note: serializeNote(copy) });
++});
++
+ // PATCH /api/notes/:id/lock  { locked: boolean } — move a note in/out of
+ // the Locked Notes vault. Requires an active vault token either way:
+ // locking without it would let anyone with API access hide notes without
+@@ -256,4 +411,25 @@ router.get("/meta/tags", async (req, res) => {
+   res.json({ tags: tags.map((t) => ({ id: t.id, name: t.name, count: t._count.notes })) });
+ });
+ 
++// GET /api/notes/meta/search?q= — powers the [[ note-link picker.
++// Deliberately excludes locked/will notes (linking to one from an
++// ordinary note would leak its existence into normal browsing) and
++// trashed ones.
++router.get("/meta/search", async (req, res) => {
++  const q = (req.query.q || "").trim();
++  const notes = await prisma.note.findMany({
++    where: {
++      userId: req.userId,
++      isTrashed: false,
++      isLocked: false,
++      isWill: false,
++      ...(q ? { title: { contains: q } } : {}),
++    },
++    select: { id: true, title: true },
++    orderBy: { updatedAt: "desc" },
++    take: 8,
++  });
++  res.json({ notes });
++});
++
+ module.exports = router;

@@ -20,6 +20,7 @@ const fileRoutes = require("./routes/files.routes");
 const linkPreviewRoutes = require("./routes/linkPreview.routes");
 const securityRoutes = require("./routes/security.routes");
 const webauthnRoutes = require("./routes/webauthn.routes");
+const publicRoutes = require("./routes/public.routes");
 
 const app = express();
 
@@ -57,6 +58,7 @@ app.use("/api/files", fileRoutes);
 app.use("/api/link-preview", linkPreviewRoutes);
 app.use("/api/security", securityRoutes);
 app.use("/api/webauthn", webauthnRoutes);
+app.use("/api/public", publicRoutes);
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, _req, res, _next) => {

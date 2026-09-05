@@ -24,7 +24,7 @@ import { handleLinkPaste } from "../utils/linkify";
 const PAGE_HEIGHT_PX = 760; // ≈ a comfortable "sheet" of writing space
 
 const PaginatedEditor = forwardRef(function PaginatedEditor(
-  { initialHTML, onChange, placeholder, onSlash, onImageDrop, onTableFocus, fontSize = "14px" },
+  { initialHTML, onChange, placeholder, onSlash, onNoteLink, onImageDrop, onTableFocus, fontSize = "14px" },
   ref
 ) {
   const containerRef = useRef(null);
@@ -430,6 +430,22 @@ const PaginatedEditor = forwardRef(function PaginatedEditor(
         if (blockEl && blockEl.textContent === "/") {
           const rect = sel.getRangeAt(0).getBoundingClientRect();
           onSlash({ x: rect.left, y: rect.bottom, blockEl });
+          return;
+        }
+      }
+    }
+
+    // [[ note-link detection — same "only thing in the block so far" rule
+    // as slash commands, for the same reason (never trigger mid-sentence
+    // off two literal brackets someone actually meant to type).
+    if (onNoteLink) {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        let node = sel.getRangeAt(0).startContainer;
+        const blockEl = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+        if (blockEl && blockEl.textContent === "[[") {
+          const rect = sel.getRangeAt(0).getBoundingClientRect();
+          onNoteLink({ x: rect.left, y: rect.bottom, blockEl });
           return;
         }
       }

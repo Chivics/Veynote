@@ -125,6 +125,12 @@ model Note {
   // Both require their own vault token to read/write; see security.routes.js.
   isLocked   Boolean   @default(false)
   isWill     Boolean   @default(false)
+  // A note is publicly viewable (read-only, no login) at /shared/:shareToken
+  // only while shareEnabled is true. Disabling clears the token entirely
+  // (see notes.routes.js) rather than just flipping the flag, so a
+  // previously-shared link can never be silently reactivated later.
+  shareEnabled Boolean @default(false)
+  shareToken   String? @unique
   entryDate  DateTime  @default(now())
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
@@ -132,9 +138,42 @@ model Note {
   tags           NoteTag[]
   calendarEvents CalendarEvent[]
   attachments    Attachment[]
+  versions       NoteVersion[]
+  linksFrom      NoteLink[]      @relation("LinksFrom") // [[links]] this note contains, pointing at other notes
+  linksTo        NoteLink[]      @relation("LinksTo")   // other notes that [[link]] to this one — i.e. its backlinks
 
   @@index([userId])
   @@index([folderId])
+}
+
+// A snapshot of a note's title/content at a point in time, so edits can
+// be reviewed and reverted. Not created on every autosave tick (that
+// would be a snapshot every ~900ms while typing) — see the throttling
+// comment in notes.routes.js for the actual rule.
+model NoteVersion {
+  id        String   @id @default(cuid())
+  noteId    String
+  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  title     String
+  content   String   @db.LongText
+  createdAt DateTime @default(now())
+
+  @@index([noteId])
+}
+
+// One row per [[note link]] found in a note's content, kept in sync on
+// every save (see syncNoteLinks in notes.routes.js) rather than
+// re-parsing HTML on every backlinks lookup.
+model NoteLink {
+  id           String   @id @default(cuid())
+  sourceNoteId String
+  sourceNote   Note     @relation("LinksFrom", fields: [sourceNoteId], references: [id], onDelete: Cascade)
+  targetNoteId String
+  targetNote   Note     @relation("LinksTo", fields: [targetNoteId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@unique([sourceNoteId, targetNoteId])
+  @@index([targetNoteId])
 }
 
 model NoteTag {

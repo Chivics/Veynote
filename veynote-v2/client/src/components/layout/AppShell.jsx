@@ -125,7 +125,7 @@ export default function AppShell() {
   return (
     <div className="min-h-screen flex bg-app-bg text-ink selection:bg-accent-notes/30">
       {/* Desktop/tablet sidebar — always visible from md breakpoint up */}
-      <aside className="hidden md:flex w-[246px] shrink-0 border-r border-app-border/80 p-3.5 flex-col gap-1 bg-black/10">
+      <aside className="hidden md:flex w-[246px] shrink-0 border-r border-app-border/80 p-3.5 flex-col gap-1 bg-black/10 print:hidden">
         <SidebarContent nav={nav} newHref={newHref} newLabel={newLabel} mode={mode} />
       </aside>
 
@@ -146,7 +146,7 @@ export default function AppShell() {
       )}
 
       <main className="flex-1 min-w-0">
-        <div className="h-[56px] border-b border-app-border/80 flex items-center px-4 md:px-7 gap-3 bg-app-bg/80 backdrop-blur-xl sticky top-0 z-20">
+        <div className="h-[56px] border-b border-app-border/80 flex items-center px-4 md:px-7 gap-3 bg-app-bg/80 backdrop-blur-xl sticky top-0 z-20 print:hidden">
           <button
             onClick={() => setDrawerOpen(true)}
             className="md:hidden w-8 h-8 rounded-md flex items-center justify-center text-ink-muted hover:bg-app-panel2 shrink-0"

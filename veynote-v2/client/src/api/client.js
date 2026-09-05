@@ -1,4 +1,4 @@
-const BASE = "https://veynote-api.pxxl.click/api";
+const BASE = `${import.meta.env.VITE_API_URL}/api`;
 
 function getToken() {
   return localStorage.getItem("veynote_token");

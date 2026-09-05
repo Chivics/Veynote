@@ -5,6 +5,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import AppShell from "./components/layout/AppShell";
 
 import Login from "./pages/auth/Login";
+import SharedNote from "./pages/SharedNote";
 import Signup from "./pages/auth/Signup";
 import PickMode from "./pages/auth/PickMode";
 import AuthCallback from "./pages/auth/AuthCallback";
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/shared/:token" element={<SharedNote />} />
         <Route
           path="/pick-mode"
           element={

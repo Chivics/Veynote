@@ -138,6 +138,17 @@ body {
   color: #7db9ff;
   text-decoration: underline;
 }
+.editor-page a.note-link {
+  color: #a89fff;
+  background: rgba(124, 108, 255, 0.12);
+  padding: 0 4px;
+  border-radius: 4px;
+  text-decoration: none;
+  font-weight: 600;
+}
+.editor-page a.note-link:hover {
+  background: rgba(124, 108, 255, 0.22);
+}
 
 /* Veynote premium product layer */
 @layer base {
@@ -233,4 +244,15 @@ body {
   .pretrade-panel { padding:15px; }
   .lightbox-nav { width:36px; height:36px; font-size:18px; }
   .lightbox-img { max-width:94vw; max-height:64vh; }
+}
+
+/* Print: the dark theme's colors are wrong for paper regardless of which
+   page is being printed, and app chrome (sidebar/header/buttons) is
+   hidden via print:hidden at the layout level — this just fixes colors
+   so the printed page reads like a document, not an inverted screenshot. */
+@media print {
+  body, .bg-app-bg, .bg-app-panel, .bg-app-panel2 { background: #fff !important; }
+  * { color: #111 !important; border-color: #ccc !important; box-shadow: none !important; }
+  .editor-page a.note-link { background: none !important; text-decoration: underline !important; }
+  .lightbox-overlay, .table-toolbar, .save-status { display: none !important; }
 }

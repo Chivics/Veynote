@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import StatCard from "../../components/StatCard";
+import TemplateMenu from "../../components/TemplateMenu";
 import EmptyState from "../../components/EmptyState";
 
 export default function NotesDashboard() {
@@ -37,7 +38,10 @@ return (
         </h1>
           <p className="text-ink-muted text-[13px] m-0 max-w-[520px]">Here's where your journal stands today.</p>
         </div>
-        <Link to="/notes/new" className="btn-primary">+ New note</Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <TemplateMenu />
+          <Link to="/notes/new" className="btn-primary">+ New note</Link>
+        </div>
       </div>
 
       <div className="rounded-2xl p-5 flex items-center gap-3.5 mb-7 border border-app-border bg-gradient-to-br from-app-panel to-accent-notes-soft">
