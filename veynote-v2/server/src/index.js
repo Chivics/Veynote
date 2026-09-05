@@ -1,7 +1,6 @@
 require("dotenv").config();
 const express = require("express");
 const path = require("path");
-const cors = require("cors");
 const passport = require("passport");
 
 const { router: authRoutes } = require("./routes/auth.routes");
@@ -24,28 +23,21 @@ const publicRoutes = require("./routes/public.routes");
 
 const app = express();
 
-app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "https://veynote.pxxl.click"
-  ],
-  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "X-Vault-Token",
-    "X-Will-Token"
-  ],
-  credentials: true
-}));
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "https://veynote.pxxl.click");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Vault-Token, X-Will-Token"
+  );
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
 
-app.options("*", cors());
 app.use(express.json());
 app.use(passport.initialize());
 
-// Uploaded files (images/attachments) are served as plain static assets.
-// Filenames are randomized on upload (see attachments.routes.js) so this
-// is safe to expose without auth — nobody can guess another user's URL.
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
@@ -69,11 +61,12 @@ app.use("/api/security", securityRoutes);
 app.use("/api/webauthn", webauthnRoutes);
 app.use("/api/public", publicRoutes);
 
-// eslint-disable-next-line no-unused-vars
 app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(500).json({ error: "Something went wrong on our end." });
 });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`Veynote V2 API listening on :${PORT}`));
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Veynote V2 API listening on :${PORT}`);
+});
