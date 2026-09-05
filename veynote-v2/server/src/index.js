@@ -13,7 +13,10 @@ const calendarRoutes = require("./routes/calendar.routes");
 const libraryRoutes = require("./routes/library.routes");
 const taskRoutes = require("./routes/tasks.routes");
 const tradingRuleRoutes = require("./routes/tradingRules.routes");
-const { noteAttachmentRoutes, tradingAttachmentRoutes } = require("./routes/attachments.routes");
+const {
+  noteAttachmentRoutes,
+  tradingAttachmentRoutes,
+} = require("./routes/attachments.routes");
 const tradeImageRoutes = require("./routes/tradeImages.routes");
 const fileRoutes = require("./routes/files.routes");
 const linkPreviewRoutes = require("./routes/linkPreview.routes");
@@ -23,50 +26,91 @@ const publicRoutes = require("./routes/public.routes");
 
 const app = express();
 
+/*
+ * CORS
+ * Allow requests from the Veynote production frontend.
+ */
 app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "https://veynote.pxxl.click");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
+  const allowedOrigin = "https://veynote.pxxl.click";
+
+  res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+  );
   res.setHeader(
     "Access-Control-Allow-Headers",
     "Content-Type, Authorization, X-Vault-Token, X-Will-Token"
   );
   res.setHeader("Access-Control-Allow-Credentials", "true");
-  if (req.method === "OPTIONS") return res.sendStatus(204);
+
+  // Handle browser CORS preflight requests
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
   next();
 });
 
 app.use(express.json());
+
 app.use(passport.initialize());
 
-app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "..", "uploads"))
+);
 
-app.get("/api/health", (_req, res) => res.json({ ok: true }));
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true });
+});
 
 app.use("/api/auth", authRoutes);
+
 app.use("/api/folders", folderRoutes);
+
 app.use("/api/notes", noteRoutes);
 app.use("/api/notes", noteAttachmentRoutes);
+
 app.use("/api/accounts", accountRoutes);
+
 app.use("/api/trading", tradingRoutes);
 app.use("/api/trading", tradeImageRoutes);
 app.use("/api/trading", tradingAttachmentRoutes);
+
 app.use("/api/analytics", analyticsRoutes);
+
 app.use("/api/calendar", calendarRoutes);
+
 app.use("/api/library", libraryRoutes);
+
 app.use("/api/tasks", taskRoutes);
+
 app.use("/api/trading-rules", tradingRuleRoutes);
+
 app.use("/api/files", fileRoutes);
+
 app.use("/api/link-preview", linkPreviewRoutes);
+
 app.use("/api/security", securityRoutes);
+
 app.use("/api/webauthn", webauthnRoutes);
+
 app.use("/api/public", publicRoutes);
 
+/*
+ * Global error handler
+ */
 app.use((err, _req, res, _next) => {
   console.error(err);
-  res.status(500).json({ error: "Something went wrong on our end." });
+
+  res.status(500).json({
+    error: "Something went wrong on our end.",
+  });
 });
 
 const PORT = process.env.PORT || 4000;
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Veynote V2 API listening on :${PORT}`);
 });
