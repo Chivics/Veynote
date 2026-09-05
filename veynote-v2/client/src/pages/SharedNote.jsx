@@ -11,7 +11,7 @@ export default function SharedNote() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch(`/api/public/notes/${token}`)
+    fetch(`${import.meta.env.VITE_API_URL}/api/public/notes/${token}`)
       .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
       .then(({ ok, data }) => {
         if (ok) setNote(data.note);
