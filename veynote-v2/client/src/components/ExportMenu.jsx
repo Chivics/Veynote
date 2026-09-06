@@ -8,13 +8,18 @@ const FORMATS = [
   { id: "json", label: "JSON (.json)" },
 ];
 
-export default function ExportMenu({ note }) {
+export default function ExportMenu({ note, compact = false }) {
   const [open, setOpen] = useState(false);
 
   return (
     <div className="relative">
-      <button type="button" onClick={() => setOpen((o) => !o)} className="text-[11px] font-semibold text-ink-muted hover:text-ink">
-        ⬇ Export
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={compact ? "w-7 h-7 flex items-center justify-center rounded-md text-ink-muted hover:text-ink hover:bg-app-panel2 text-[13px]" : "text-[11px] font-semibold text-ink-muted hover:text-ink"}
+        title="Export"
+      >
+        {compact ? "⬇" : "⬇ Export"}
       </button>
       {open && (
         <>
