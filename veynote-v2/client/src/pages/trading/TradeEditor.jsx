@@ -119,7 +119,7 @@ export default function TradeEditor() {
       if (!entryId) {
         const { entry } = await api.post("/trading/entries", buildPayload());
         setEntryId(entry.id);
-        navigate(`/trading/entries/${entry.id}`, { replace: true });
+        window.history.replaceState(null, "", `/trading/entries/${entry.id}/edit`);
       } else {
         await api.patch(`/trading/entries/${entryId}`, buildPayload());
         navigate(`/trading/entries/${entryId}`);
@@ -140,7 +140,14 @@ export default function TradeEditor() {
       title: form.title.trim() || "Untitled trade",
     });
     setEntryId(entry.id);
-    navigate(`/trading/entries/${entry.id}`, { replace: true });
+    // Update the address bar so a refresh/bookmark lands back on this
+    // draft — WITHOUT going through react-router's navigate(). navigate()
+    // swaps to a fresh route match (/trading/entries/:id, which renders
+    // the read-only TradeDetail, not the editor) and remounts this
+    // component, silently discarding anything typed since the draft was
+    // created. history.replaceState updates the URL without triggering
+    // any of that.
+    window.history.replaceState(null, "", `/trading/entries/${entry.id}/edit`);
     return entry.id;
   }
 
