@@ -11,9 +11,19 @@ router.use(requireAuth);
 // only needs the shared hasValidVaultAccess() helper (also used by
 // webauthn.routes.js) to check the X-Vault-Token / X-Will-Token headers.
 
-function vaultGuardFor(note) {
-  if (note.isWill) return { ok: false, requiresVault: "will", purpose: "will" };
-  if (note.isLocked) return { ok: false, requiresVault: "locked-notes", purpose: "vault" };
+// Checks whether THIS request is allowed to read/write a given note,
+// given its isWill/isLocked flags — this is the actual gate; unlike an
+// earlier version of this function, it genuinely checks the request's
+// X-Vault-Token/X-Will-Token via hasValidVaultAccess() rather than
+// unconditionally rejecting every locked/will note regardless of
+// whether a valid token was presented.
+function vaultGuardFor(req, note) {
+  if (note.isWill) {
+    return hasValidVaultAccess(req, "will") ? { ok: true } : { ok: false, requiresVault: "will" };
+  }
+  if (note.isLocked) {
+    return hasValidVaultAccess(req, "vault") ? { ok: true } : { ok: false, requiresVault: "locked-notes" };
+  }
   return { ok: true };
 }
 
@@ -110,7 +120,7 @@ router.get("/:id", async (req, res) => {
   });
   if (!note) return res.status(404).json({ error: "Note not found." });
 
-  const guard = vaultGuardFor(note);
+  const guard = vaultGuardFor(req, note);
   if (!guard.ok) return res.status(401).json({ error: "This note is protected.", requiresVault: guard.requiresVault });
 
   res.json({ note: serializeNote(note) });
@@ -221,7 +231,7 @@ router.patch("/:id", async (req, res) => {
   const existing = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!existing) return res.status(404).json({ error: "Note not found." });
 
-  const guard = vaultGuardFor(existing);
+  const guard = vaultGuardFor(req, existing);
   if (!guard.ok) return res.status(401).json({ error: "This note is protected.", requiresVault: guard.requiresVault });
 
   const { title, content, folderId, mood, isFavorite, isPinned, isArchived, tags, entryDate } = req.body;
@@ -266,7 +276,7 @@ router.patch("/:id", async (req, res) => {
 router.get("/:id/versions", async (req, res) => {
   const note = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!note) return res.status(404).json({ error: "Note not found." });
-  const guard = vaultGuardFor(note);
+  const guard = vaultGuardFor(req, note);
   if (!guard.ok) return res.status(401).json({ error: "This note is protected.", requiresVault: guard.requiresVault });
 
   const versions = await prisma.noteVersion.findMany({
@@ -280,7 +290,7 @@ router.get("/:id/versions", async (req, res) => {
 router.get("/:id/versions/:versionId", async (req, res) => {
   const note = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!note) return res.status(404).json({ error: "Note not found." });
-  const guard = vaultGuardFor(note);
+  const guard = vaultGuardFor(req, note);
   if (!guard.ok) return res.status(401).json({ error: "This note is protected.", requiresVault: guard.requiresVault });
 
   const version = await prisma.noteVersion.findFirst({ where: { id: req.params.versionId, noteId: note.id } });
@@ -294,7 +304,7 @@ router.get("/:id/versions/:versionId", async (req, res) => {
 router.post("/:id/versions/:versionId/restore", async (req, res) => {
   const note = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!note) return res.status(404).json({ error: "Note not found." });
-  const guard = vaultGuardFor(note);
+  const guard = vaultGuardFor(req, note);
   if (!guard.ok) return res.status(401).json({ error: "This note is protected.", requiresVault: guard.requiresVault });
 
   const version = await prisma.noteVersion.findFirst({ where: { id: req.params.versionId, noteId: note.id } });
@@ -316,7 +326,7 @@ router.post("/:id/versions/:versionId/restore", async (req, res) => {
 router.get("/:id/backlinks", async (req, res) => {
   const note = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!note) return res.status(404).json({ error: "Note not found." });
-  const guard = vaultGuardFor(note);
+  const guard = vaultGuardFor(req, note);
   if (!guard.ok) return res.status(401).json({ error: "This note is protected.", requiresVault: guard.requiresVault });
 
   const links = await prisma.noteLink.findMany({
@@ -334,7 +344,7 @@ router.post("/:id/duplicate", async (req, res) => {
     include: { tags: true },
   });
   if (!existing) return res.status(404).json({ error: "Note not found." });
-  const guard = vaultGuardFor(existing);
+  const guard = vaultGuardFor(req, existing);
   if (!guard.ok) return res.status(401).json({ error: "This note is protected.", requiresVault: guard.requiresVault });
 
   const copy = await prisma.note.create({
@@ -404,7 +414,7 @@ router.delete("/:id", async (req, res) => {
   const existing = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!existing) return res.status(404).json({ error: "Note not found." });
 
-  const guard = vaultGuardFor(existing);
+  const guard = vaultGuardFor(req, existing);
   if (!guard.ok) return res.status(401).json({ error: "This note is protected.", requiresVault: guard.requiresVault });
 
   if (existing.isTrashed) {
@@ -424,11 +434,15 @@ router.post("/:id/restore", async (req, res) => {
   const existing = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!existing) return res.status(404).json({ error: "Note not found." });
 
+  const guard = vaultGuardFor(req, existing);
+  if (!guard.ok) return res.status(401).json({ error: "This note is protected.", requiresVault: guard.requiresVault });
+
   const note = await prisma.note.update({
     where: { id: existing.id },
     data: { isTrashed: false, trashedAt: null },
+    include: { tags: { include: { tag: true } }, folder: true, attachments: true },
   });
-  res.json({ note });
+  res.json({ note: serializeNote(note) });
 });
 
 router.get("/meta/tags", async (req, res) => {
