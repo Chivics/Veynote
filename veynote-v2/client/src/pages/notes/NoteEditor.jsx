@@ -14,6 +14,7 @@ import VaultGate from "../../components/VaultGate";
 import VersionHistory from "../../components/VersionHistory";
 import ExportMenu from "../../components/ExportMenu";
 import ShareMenu from "../../components/ShareMenu";
+import NoteOptionsMenu from "../../components/NoteOptionsMenu";
 import { computeStats, formatStats } from "../../utils/textStats";
 import { getTemplate } from "../../data/noteTemplates";
 
@@ -60,6 +61,7 @@ export default function NoteEditor() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [noteMeta, setNoteMeta] = useState({ createdAt: null, updatedAt: null });
   const [shareState, setShareState] = useState({ shareEnabled: false, shareToken: null });
+  const [focusMode, setFocusMode] = useState(false);
   const imageInputRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -202,16 +204,20 @@ export default function NoteEditor() {
   // Ctrl/Cmd+F opens the in-note find & replace bar instead of the
   // browser's native page search, which can't see into a contentEditable
   // region's live state the way our own find can, and can't replace at all.
+  // Escape exits Focus mode when it's active.
   useEffect(() => {
     function handleKeyDown(e) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
         e.preventDefault();
         setFindOpen(true);
       }
+      if (e.key === "Escape" && focusMode) {
+        setFocusMode(false);
+      }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [focusMode]);
 
   function closeFindBar() {
     setFindOpen(false);
@@ -337,144 +343,128 @@ export default function NoteEditor() {
   }
 
   return (
-    <div onClick={handleContentClick} className="max-sm:pb-16">
-      <div className="flex items-center justify-between mb-4">
-        <span className="eyebrow">
-          {isWill ? "WILL & INHERITANCE" : isLocked ? "🔒 LOCKED NOTE" : routeId || noteId ? "EDITING" : "NEW NOTE"}
-        </span>
-        <div className="flex items-center gap-3 print:hidden">
-          {routeId && !isWill && (
-            <button
-              type="button"
-              onClick={toggleLock}
-              className="text-[11px] font-semibold text-ink-muted hover:text-ink"
-              title={isLocked ? "Remove from Locked Notes" : "Move to Locked Notes"}
-            >
-              {isLocked ? "🔓 Unlock note" : "🔒 Lock note"}
-            </button>
-          )}
-          {routeId && (
-            <button
-              type="button"
-              onClick={() => setHistoryOpen(true)}
-              className="text-[11px] font-semibold text-ink-muted hover:text-ink"
-              title="Version history"
-            >
-              🕐 History
-            </button>
-          )}
-          {routeId && !isWill && (
-            <button
-              type="button"
-              onClick={duplicateNote}
-              className="text-[11px] font-semibold text-ink-muted hover:text-ink"
-              title="Duplicate this note"
-            >
-              ⧉ Duplicate
-            </button>
-          )}
-          {routeId && (
-            <ExportMenu note={{ title, content: latestHTML.current, tags, createdAt: noteMeta.createdAt, updatedAt: noteMeta.updatedAt }} />
-          )}
-          {routeId && !isWill && !isLocked && (
-            <ShareMenu noteId={routeId} shareEnabled={shareState.shareEnabled} shareToken={shareState.shareToken} onChange={setShareState} />
-          )}
-          <button
-            type="button"
-            onClick={() => setFindOpen((o) => !o)}
-            className="text-[11px] font-semibold text-ink-muted hover:text-ink"
-            title="Find & replace (Ctrl/Cmd+F)"
-          >
-            🔍 Find
-          </button>
-          <SaveStatus status={saveStatus} error={saveError} />
-        </div>
-      </div>
-
-      <div className="flex gap-2.5 mb-4 flex-wrap">
-        <select value={folderId} onChange={(e) => setFolderId(e.target.value)} className="chip bg-app-panel2 outline-none" title="Move to folder…">
-          <option value="">📁 Move to folder…</option>
-          {folders.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.icon} {f.name}
-            </option>
-          ))}
-        </select>
-        <select value={mood} onChange={(e) => setMood(e.target.value)} className="chip bg-app-panel2 outline-none">
-          <option value="">Mood (optional)</option>
-          <option value="happy">🙂 Happy</option>
-          <option value="focused">🎯 Focused</option>
-          <option value="tired">😴 Tired</option>
-          <option value="stressed">😣 Stressed</option>
-          <option value="grateful">🙏 Grateful</option>
-        </select>
-        <TagInput tags={tags} setTags={setTags} />
-      </div>
-
-      <input
-        className="w-full bg-transparent outline-none text-[26px] font-bold tracking-tight text-ink mb-3.5 placeholder:text-ink-muted"
-        placeholder="Untitled (title is optional — just start writing)"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-      />
-
-      <AttachmentList attachments={attachments} uploading={uploading} onRemove={removeAttachment} />
-
-      {findOpen && <FindReplaceBar editorRef={editorRef} onClose={closeFindBar} />}
-
-      <EditorToolbar editorRef={editorRef} onOpenInsertMenu={openInsertMenuFromButton} />
-
-      <div className="-mt-px">
-        <PaginatedEditor
-          ref={editorRef}
-          initialHTML={initialHTML}
-          placeholder="Start writing, or type / for commands…"
-          fontSize={editorFontSize}
-          onChange={(html) => {
-            latestHTML.current = html;
-            setStats(computeStats(html));
-            scheduleAutosave();
-          }}
-          onSlash={handleSlash}
-          onNoteLink={handleNoteLink}
-          onImageDrop={(files) => files.forEach((f) => uploadOne(f, { inline: true }))}
-          onTableFocus={setTableToolbarRect}
-        />
-      </div>
-
-      {stats.words > 0 && (
-        <p className="text-[10.5px] text-ink-muted mt-2 text-right">{formatStats(stats)}</p>
-      )}
-
-      {backlinks.length > 0 && (
-        <div className="border-t border-app-border mt-5 pt-4">
-          <p className="text-[11px] font-bold text-ink-muted mb-2 tracking-wide">LINKED FROM</p>
-          <div className="flex flex-col gap-1">
-            {backlinks.map((b) => (
-              <Link key={b.id} to={`/notes/${b.id}`} className="text-[12px] text-accent-notes hover:underline">
-                {b.title || "Untitled"}
-              </Link>
-            ))}
+    <div className={focusMode ? "fixed inset-0 z-50 bg-app-bg overflow-y-auto px-4 sm:px-6 md:px-10 py-6" : ""}>
+      <div onClick={handleContentClick} className="max-sm:pb-16 max-w-[760px] mx-auto">
+        <div className="flex items-center justify-between mb-4">
+          <span className="eyebrow">
+            {isWill ? "WILL & INHERITANCE" : isLocked ? "🔒 LOCKED NOTE" : routeId || noteId ? "EDITING" : "NEW NOTE"}
+          </span>
+          <div className="flex items-center gap-1.5 print:hidden">
+            {routeId && (
+              <ExportMenu
+                compact
+                note={{ title, content: latestHTML.current, tags, createdAt: noteMeta.createdAt, updatedAt: noteMeta.updatedAt }}
+              />
+            )}
+            {routeId && !isWill && !isLocked && (
+              <ShareMenu
+                noteId={routeId}
+                shareEnabled={shareState.shareEnabled}
+                shareToken={shareState.shareToken}
+                onChange={setShareState}
+              />
+            )}
+            <NoteOptionsMenu
+              routeId={routeId}
+              isOwner
+              isWill={isWill}
+              isLocked={isLocked}
+              onToggleFind={() => setFindOpen((o) => !o)}
+              onOpenHistory={() => setHistoryOpen(true)}
+              onDuplicate={duplicateNote}
+              onToggleLock={toggleLock}
+              focusMode={focusMode}
+              onToggleFocusMode={() => setFocusMode((f) => !f)}
+            />
+            <SaveStatus status={saveStatus} error={saveError} />
           </div>
         </div>
-      )}
 
-      <TableToolbar rect={tableToolbarRect} editorRef={editorRef} />
+        <div className="flex gap-2.5 mb-4 flex-wrap">
+          <select value={folderId} onChange={(e) => setFolderId(e.target.value)} className="chip bg-app-panel2 outline-none" title="Move to folder…">
+            <option value="">📁 Move to folder…</option>
+            {folders.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.icon} {f.name}
+              </option>
+            ))}
+          </select>
+          <select value={mood} onChange={(e) => setMood(e.target.value)} className="chip bg-app-panel2 outline-none">
+            <option value="">Mood (optional)</option>
+            <option value="happy">🙂 Happy</option>
+            <option value="focused">🎯 Focused</option>
+            <option value="tired">😴 Tired</option>
+            <option value="stressed">😣 Stressed</option>
+            <option value="grateful">🙏 Grateful</option>
+          </select>
+          <TagInput tags={tags} setTags={setTags} />
+        </div>
 
-      <input ref={imageInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImagePicked} />
-      <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFilePicked} />
+        <input
+          className="w-full bg-transparent outline-none text-[26px] font-bold tracking-tight text-ink mb-3.5 placeholder:text-ink-muted"
+          placeholder="Untitled (title is optional — just start writing)"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
 
-      {insertMenu && (
-        <InsertMenu x={insertMenu.x} y={insertMenu.y} onPick={pickInsertBlock} onClose={() => setInsertMenu(null)} />
-      )}
+        <AttachmentList attachments={attachments} uploading={uploading} onRemove={removeAttachment} />
 
-      {noteLinkMenu && (
-        <NoteLinkMenu x={noteLinkMenu.x} y={noteLinkMenu.y} onPick={pickNoteLink} onClose={() => setNoteLinkMenu(null)} />
-      )}
+        {findOpen && <FindReplaceBar editorRef={editorRef} onClose={closeFindBar} />}
 
-      {historyOpen && (
-        <VersionHistory noteId={routeId} onClose={() => setHistoryOpen(false)} onRestored={loadNote} />
-      )}
+        <EditorToolbar editorRef={editorRef} onOpenInsertMenu={openInsertMenuFromButton} />
+
+        <div className="-mt-px">
+          <PaginatedEditor
+            ref={editorRef}
+            initialHTML={initialHTML}
+            placeholder="Start writing, or type / for commands…"
+            fontSize={editorFontSize}
+            onChange={(html) => {
+              latestHTML.current = html;
+              setStats(computeStats(html));
+              scheduleAutosave();
+            }}
+            onSlash={handleSlash}
+            onNoteLink={handleNoteLink}
+            onImageDrop={(files) => files.forEach((f) => uploadOne(f, { inline: true }))}
+            onTableFocus={setTableToolbarRect}
+          />
+        </div>
+
+        {stats.words > 0 && (
+          <p className="text-[10.5px] text-ink-muted mt-2 text-right">{formatStats(stats)}</p>
+        )}
+
+        {backlinks.length > 0 && (
+          <div className="border-t border-app-border mt-5 pt-4">
+            <p className="text-[11px] font-bold text-ink-muted mb-2 tracking-wide">LINKED FROM</p>
+            <div className="flex flex-col gap-1">
+              {backlinks.map((b) => (
+                <Link key={b.id} to={`/notes/${b.id}`} className="text-[12px] text-accent-notes hover:underline">
+                  {b.title || "Untitled"}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <TableToolbar rect={tableToolbarRect} editorRef={editorRef} />
+
+        <input ref={imageInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImagePicked} />
+        <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFilePicked} />
+
+        {insertMenu && (
+          <InsertMenu x={insertMenu.x} y={insertMenu.y} onPick={pickInsertBlock} onClose={() => setInsertMenu(null)} />
+        )}
+
+        {noteLinkMenu && (
+          <NoteLinkMenu x={noteLinkMenu.x} y={noteLinkMenu.y} onPick={pickNoteLink} onClose={() => setNoteLinkMenu(null)} />
+        )}
+
+        {historyOpen && (
+          <VersionHistory noteId={routeId} onClose={() => setHistoryOpen(false)} onRestored={loadNote} />
+        )}
+      </div>
     </div>
   );
 }

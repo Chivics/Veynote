@@ -495,7 +495,7 @@ const PaginatedEditor = forwardRef(function PaginatedEditor(
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
             style={{ minHeight: PAGE_HEIGHT_PX, maxHeight: PAGE_HEIGHT_PX, fontSize }}
-            className="border border-app-border bg-app-panel p-6 leading-[1.8] text-ink-soft outline-none focus:border-accent-notes overflow-hidden rounded-xl empty-placeholder editor-page"
+            className="border border-app-border/70 bg-app-panel p-6 sm:p-8 md:p-9 leading-[1.85] text-ink-soft outline-none focus:border-accent-notes/60 overflow-hidden rounded-2xl shadow-sm empty-placeholder editor-page transition-colors"
           />
           <div className="text-center text-[10px] text-ink-muted mt-1.5 select-none">
             Page {i + 1}

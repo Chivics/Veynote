@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-// Consolidates the secondary note actions (find, comments, history,
+// Consolidates the secondary note actions (find, focus, history,
 // duplicate, lock) into one "⋯" menu instead of a row of separate
 // buttons competing for space in the header — Export and Share stay as
 // their own icon buttons next to this one, since they're self-contained
@@ -12,16 +12,17 @@ export default function NoteOptionsMenu({
   isWill,
   isLocked,
   onToggleFind,
-  onToggleComments,
   onOpenHistory,
   onDuplicate,
   onToggleLock,
+  focusMode,
+  onToggleFocusMode,
 }) {
   const [open, setOpen] = useState(false);
 
   function pick(action) {
     setOpen(false);
-    action();
+    action?.();
   }
 
   return (
@@ -41,11 +42,9 @@ export default function NoteOptionsMenu({
             <button type="button" onClick={() => pick(onToggleFind)} className="block w-full text-left px-3 py-2 text-ink hover:bg-app-panel2">
               🔍 Find &amp; replace
             </button>
-            {routeId && (
-              <button type="button" onClick={() => pick(onToggleComments)} className="block w-full text-left px-3 py-2 text-ink hover:bg-app-panel2">
-                💬 Comments
-              </button>
-            )}
+            <button type="button" onClick={() => pick(onToggleFocusMode)} className="block w-full text-left px-3 py-2 text-ink hover:bg-app-panel2">
+              {focusMode ? "🔲 Exit focus mode" : "🎯 Focus mode"}
+            </button>
             {isOwner && routeId && (
               <button type="button" onClick={() => pick(onOpenHistory)} className="block w-full text-left px-3 py-2 text-ink hover:bg-app-panel2">
                 🕐 Version history
