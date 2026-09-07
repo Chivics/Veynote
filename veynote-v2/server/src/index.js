@@ -31,7 +31,10 @@ const app = express();
  * Allow requests from the Veynote production frontend.
  */
 const cors = require('cors');
-app.use(cors({ origin: 'https://veynote.pxxl.click' }));
+app.use(cors({
+  origin: ["https://veynote.pxxl.click"],
+  credentials: true,
+}));
 
 app.use(express.json());
 
