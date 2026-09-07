@@ -30,27 +30,8 @@ const app = express();
  * CORS
  * Allow requests from the Veynote production frontend.
  */
-app.use((req, res, next) => {
-  const allowedOrigin = "https://veynote.pxxl.click";
-
-  res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-  );
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-Vault-Token, X-Will-Token"
-  );
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-
-  // Handle browser CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
-  }
-
-  next();
-});
+const cors = require('cors');
+app.use(cors({ origin: 'https://veynote.pxxl.click' }));
 
 app.use(express.json());
 
