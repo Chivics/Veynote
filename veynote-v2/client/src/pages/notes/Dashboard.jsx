@@ -25,13 +25,12 @@ export default function NotesDashboard() {
 
   return (
     <div className="px-1 sm:px-0">
-      {/* HEADER — stack on phone, row from md */}
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 md:gap-6 mb-5 md:mb-7">
         <div className="min-w-0">
           <span className="eyebrow">
             {new Date().toDateString().toUpperCase()}
           </span>
-          <h1 className="text-[22px] leading-tight sm:text-[26px] md:text-[30px] tracking-tight my-1.5 break-words">
+          <h1 className="font-bold text-[22px] leading-tight sm:text-[26px] md:text-[30px] tracking-tight my-1.5 break-words">
             {greeting}, {user?.name}
           </h1>
           <p className="text-ink-muted text-[13px] m-0 max-w-[520px]">
@@ -52,7 +51,6 @@ export default function NotesDashboard() {
         </div>
       </div>
 
-      {/* PROMO — column on phone, row from sm/md */}
       <div className="rounded-2xl p-4 md:p-5 flex flex-col md:flex-row md:items-center gap-3.5 mb-5 md:mb-7 border border-app-border bg-gradient-to-br from-app-panel to-accent-notes-soft">
         <div className="flex items-start gap-3 min-w-0">
           <div className="w-[38px] h-[38px] rounded-xl bg-accent-notes-soft text-[#a89fff] flex items-center justify-center text-base shrink-0">
@@ -81,7 +79,6 @@ export default function NotesDashboard() {
         </div>
       </div>
 
-      {/* STATS — already 2-col on phone, 4-col from md. Keep it. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 md:gap-3 mb-5 md:mb-7">
         <StatCard
           label="Total notes"
