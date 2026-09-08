@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = env("mysql://avnadmin:AVNS_zUW7FYqSNOrwIIa6YF5@veynote-v2-victorychigaemezu6-49ac.k.aivencloud.com:27611/defaultdb?sslaccept=accept_invalid_certs")
+  url      = env("DATABASE_URL")
 }
 
 enum Mode {

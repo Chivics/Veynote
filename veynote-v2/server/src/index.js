@@ -30,9 +30,13 @@ const app = express();
  * CORS
  * Allow requests from the Veynote production frontend.
  */
-const cors = require('cors');
+const cors = require("cors");
+
 app.use(cors({
-  origin: ["https://veynote.pxxl.click"],
+  origin: [
+    "https://veynote.newdayfeeds.org",
+    "http://localhost:5173",
+  ],
   credentials: true,
 }));
 
