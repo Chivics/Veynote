@@ -19,8 +19,8 @@ export default function TradingDashboard() {
   const recent = (entries || []).slice(0, 4);
 
   return (
-    <div className="px-1 sm:px-0">
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 md:gap-6 mb-8 md:mb-6">
+    <div className="flex flex-col gap-12 md:gap-7 px-1 sm:px-0 pb-10">
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-5 md:gap-6">
         <div className="min-w-0">
           <span className="eyebrow">{new Date().toDateString().toUpperCase()}</span>
           <h1 className="font-bold text-[22px] leading-tight sm:text-[26px] md:text-[30px] tracking-tight mt-1.5 mb-2 break-words">
@@ -38,19 +38,19 @@ export default function TradingDashboard() {
         </Link>
       </div>
 
-      <div className="rounded-2xl p-4 md:p-5 flex flex-col md:flex-row md:items-center gap-4 md:gap-3.5 mb-8 md:mb-7 border border-app-border bg-gradient-to-br from-app-panel to-accent-trade-soft">
-        <div className="flex items-start gap-3 min-w-0">
+      <div className="rounded-2xl p-5 flex flex-col md:flex-row md:items-center gap-5 md:gap-3.5 border border-app-border bg-gradient-to-br from-app-panel to-accent-trade-soft">
+        <div className="flex items-start gap-3.5 min-w-0">
           <div className="w-[38px] h-[38px] rounded-xl bg-accent-trade-soft text-[#7db9ff] flex items-center justify-center text-base shrink-0">
             📈
           </div>
           <div className="min-w-0">
-            <strong className="block text-[13.5px] mb-0.5">What did you trade today?</strong>
-            <span className="text-[11.5px] text-ink-muted leading-snug">
+            <strong className="block text-[13.5px] mb-1">What did you trade today?</strong>
+            <span className="text-[11.5px] text-ink-muted leading-relaxed">
               Log a setup, review a past trade, or add a psychology note.
             </span>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 md:ml-auto shrink-0">
+        <div className="flex flex-wrap gap-2.5 md:ml-auto shrink-0">
           <Link to="/trading/entries/new" className="chip hover:bg-app-border">
             📈 Trade setup
           </Link>
@@ -60,7 +60,7 @@ export default function TradingDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8 md:mb-7">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard
           label="Win rate"
           value={analytics?.hasData ? `${analytics.winRate}%` : "—"}
@@ -87,68 +87,70 @@ export default function TradingDashboard() {
         <StatCard label="Total entries" value={entries ? entries.length : "0"} />
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mt-10 mb-4">
-        <div className="min-w-0">
-          <span className="eyebrow">RECENT</span>
-          <h2 className="text-[16px] md:text-[19px] tracking-[-.02em] mt-[5px] mb-0">
-            Continue where you left off
-          </h2>
+      <section className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+          <div className="min-w-0">
+            <span className="eyebrow">RECENT</span>
+            <h2 className="text-[16px] md:text-[19px] tracking-[-.02em] mt-[5px] mb-0">
+              Continue where you left off
+            </h2>
+          </div>
+          <Link to="/trading/entries" className="text-ink-soft text-[12px] shrink-0">
+            View all →
+          </Link>
         </div>
-        <Link to="/trading/entries" className="text-ink-soft text-[12px] shrink-0">
-          View all →
-        </Link>
-      </div>
 
-      {entries === null ? (
-        <p className="text-ink-muted text-[12px]">Loading…</p>
-      ) : recent.length === 0 ? (
-        <EmptyState
-          icon="📈"
-          title="No trades yet"
-          description="Log your first trade to start tracking performance."
-          action={
-            <Link to="/trading/entries/new" className="btn-primary">
-              Log your first trade
-            </Link>
-          }
-          className="mb-8"
-        />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
-          {recent.map((e) => (
-            <EntryCard key={e.id} entry={e} />
-          ))}
-        </div>
-      )}
+        {entries === null ? (
+          <p className="text-ink-muted text-[12px]">Loading…</p>
+        ) : recent.length === 0 ? (
+          <EmptyState
+            icon="📈"
+            title="No trades yet"
+            description="Log your first trade to start tracking performance."
+            action={
+              <Link to="/trading/entries/new" className="btn-primary">
+                Log your first trade
+              </Link>
+            }
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {recent.map((e) => (
+              <EntryCard key={e.id} entry={e} />
+            ))}
+          </div>
+        )}
+      </section>
 
-      <div className="flex items-end justify-between mt-10 mb-4">
-        <div className="min-w-0">
+      <section className="flex flex-col gap-4">
+        <div>
           <span className="eyebrow">ACCOUNTS</span>
           <h2 className="text-[16px] md:text-[19px] tracking-[-.02em] mt-[5px] mb-0">
             Your accounts
           </h2>
         </div>
-      </div>
-      {accounts === null ? (
-        <p className="text-ink-muted text-[12px]">Loading…</p>
-      ) : accounts.length === 0 ? (
-        <EmptyState
-          icon="◆"
-          title="No accounts yet"
-          description="Add your prop-firm or personal account to start organizing trades."
-          action={
-            <Link to="/trading/accounts" className="btn-primary">
-              Add your first account
-            </Link>
-          }
-        />
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-          {accounts.map((a) => (
-            <AccountCard key={a.id} account={a} />
-          ))}
-        </div>
-      )}
+
+        {accounts === null ? (
+          <p className="text-ink-muted text-[12px]">Loading…</p>
+        ) : accounts.length === 0 ? (
+          <EmptyState
+            icon="◆"
+            title="No accounts yet"
+            description="Add your prop-firm or personal account to start organizing trades."
+            action={
+              <Link to="/trading/accounts" className="btn-primary">
+                Add your first account
+              </Link>
+            }
+          />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            {accounts.map((a) => (
+              <AccountCard key={a.id} account={a} />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
