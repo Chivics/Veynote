@@ -1,6 +1,5 @@
 
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
 import VaultGate from "../../components/VaultGate";
 import { clearVaultToken, getVaultToken } from "../../utils/vault";
