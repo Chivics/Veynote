@@ -32,6 +32,8 @@ const app = express();
  */
 const cors = require("cors");
 
+const cors = require("cors");
+
 app.use(cors({
   origin: [
     "https://veynote.newdayfeeds.org",
