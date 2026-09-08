@@ -30,7 +30,7 @@ function ToolbarButton({ onMouseDown, children, title, active }) {
         e.preventDefault(); // keep the editor's text selection alive
         onMouseDown();
       }}
-      className={`w-7 h-7 rounded-md flex items-center justify-center text-[12px] transition ${
+      className={`w-7 h-7 max-sm:w-11 max-sm:h-11 rounded-md flex items-center justify-center text-[12px] max-sm:text-[15px] transition ${
         active ? "bg-app-panel2 text-ink" : "text-ink-muted hover:bg-app-panel2 hover:text-ink"
       }`}
     >
@@ -80,7 +80,7 @@ export default function EditorToolbar({ editorRef, onOpenInsertMenu }) {
   }
 
   return (
-    <div className="flex gap-0.5 flex-wrap items-center border border-app-border rounded-t-xl px-2.5 py-2 bg-app-panel sticky top-0 z-10 max-sm:fixed max-sm:bottom-0 max-sm:top-auto max-sm:left-0 max-sm:right-0 max-sm:rounded-none max-sm:border-x-0 max-sm:border-b-0 max-sm:z-30 max-sm:justify-center max-sm:py-2.5 print:hidden">
+    <div className="flex gap-0.5 max-sm:gap-1 flex-wrap items-center border border-app-border rounded-t-xl px-2.5 py-2 bg-app-panel sticky top-0 z-10 max-sm:fixed max-sm:bottom-0 max-sm:top-auto max-sm:left-0 max-sm:right-0 max-sm:rounded-none max-sm:border-x-0 max-sm:border-b-0 max-sm:z-30 max-sm:justify-center max-sm:py-2 print:hidden max-sm:[padding-bottom:max(0.5rem,env(safe-area-inset-bottom))]">
       <ToolbarButton title="Insert block" onMouseDown={onOpenInsertMenu}>
         +
       </ToolbarButton>

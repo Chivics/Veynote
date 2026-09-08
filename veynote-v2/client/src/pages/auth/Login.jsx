@@ -24,9 +24,9 @@ export default function Login() {
     }
   }
 
-  function handleGoogle() {
-    window.location.href = "/api/auth/google";
-  }
+ function handleGoogle() {
+  window.location.href = `${import.meta.env.VITE_API_URL}/api/auth/google`;
+}
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-app-bg px-4">

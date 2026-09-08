@@ -87,6 +87,35 @@ router.patch("/images/:imageId", async (req, res) => {
   res.json({ image: { ...updated, url: `/uploads/${updated.storedName}` } });
 });
 
+// PATCH /api/trading/images/:imageId/file — swaps the underlying file
+// for an existing image, keeping the same record (id, caption, stage,
+// timeframe) rather than deleting and recreating it. That distinction
+// matters: a delete+recreate would briefly leave the slot empty and
+// would generate a new id, which is a real difference from the user's
+// perspective ("replace this chart" vs "remove it, then add a new one").
+router.patch("/images/:imageId/file", upload.single("file"), async (req, res) => {
+  const image = await prisma.tradeImage.findFirst({ where: { id: req.params.imageId, userId: req.userId } });
+  if (!image) {
+    if (req.file) fs.unlink(req.file.path, () => {});
+    return res.status(404).json({ error: "Image not found." });
+  }
+  if (!req.file) return res.status(400).json({ error: "No replacement image was uploaded." });
+
+  const oldStoredName = image.storedName;
+  const updated = await prisma.tradeImage.update({
+    where: { id: image.id },
+    data: {
+      originalName: req.file.originalname,
+      storedName: req.file.filename,
+      mimeType: req.file.mimetype,
+      sizeBytes: req.file.size,
+    },
+  });
+  fs.unlink(path.join(UPLOAD_DIR, oldStoredName), () => {}); // best-effort cleanup of the file being replaced
+
+  res.json({ image: { ...updated, url: `/uploads/${updated.storedName}` } });
+});
+
 router.delete("/images/:imageId", async (req, res) => {
   const image = await prisma.tradeImage.findFirst({ where: { id: req.params.imageId, userId: req.userId } });
   if (!image) return res.status(404).json({ error: "Image not found." });

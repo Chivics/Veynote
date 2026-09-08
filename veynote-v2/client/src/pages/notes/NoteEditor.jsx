@@ -358,6 +358,7 @@ export default function NoteEditor() {
             )}
             {routeId && !isWill && !isLocked && (
               <ShareMenu
+                compact
                 noteId={routeId}
                 shareEnabled={shareState.shareEnabled}
                 shareToken={shareState.shareToken}

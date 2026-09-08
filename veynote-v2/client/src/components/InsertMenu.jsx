@@ -68,7 +68,7 @@ export default function InsertMenu({ x, y, onPick, onClose }) {
               e.preventDefault();
               onPick(b);
             }}
-            className="w-full flex items-center gap-2.5 text-left px-3 py-2 text-[12px] text-ink hover:bg-app-panel2"
+            className="w-full flex items-center gap-2.5 text-left px-3 py-2 max-sm:py-3 text-[12px] max-sm:text-[13px] text-ink hover:bg-app-panel2"
           >
             <span className="w-5 text-center text-ink-muted text-[11px]">{b.icon}</span>
             {b.label}

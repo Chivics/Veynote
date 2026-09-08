@@ -49,7 +49,7 @@ export default function NoteLinkMenu({ x, y, onPick, onClose }) {
                 key={n.id}
                 type="button"
                 onClick={() => onPick(n)}
-                className="block w-full text-left px-3 py-2 text-[12px] text-ink hover:bg-app-panel2 truncate"
+                className="block w-full text-left px-3 py-2 max-sm:py-3 text-[12px] max-sm:text-[13px] text-ink hover:bg-app-panel2 truncate"
               >
                 {n.title || "Untitled"}
               </button>

@@ -49,9 +49,11 @@ async function request(path, { method = "GET", body, params } = {}) {
   return data;
 }
 
-async function uploadFile(path, file, onProgress, extraFields) {
+async function uploadFile(path, file, onProgress, extraFields, method = "POST") {
   // Uses XMLHttpRequest instead of fetch so we get real upload progress
-  // events — fetch has no progress API for request bodies.
+  // events — fetch has no progress API for request bodies. method is
+  // overridable (PATCH) for in-place file replacement endpoints, which
+  // are otherwise identical multipart uploads.
   return new Promise((resolve, reject) => {
     const form = new FormData();
     form.append("file", file);
@@ -62,7 +64,7 @@ async function uploadFile(path, file, onProgress, extraFields) {
     }
 
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${BASE}${path}`);
+    xhr.open(method, `${BASE}${path}`);
     const token = getToken();
     if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     Object.entries(vaultHeaders()).forEach(([k, v]) => xhr.setRequestHeader(k, v));

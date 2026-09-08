@@ -204,8 +204,16 @@ body {
   .trade-image-card img { width:100%; height:100%; object-fit:cover; display:block; transition:transform .25s ease; }
   .trade-image-card:hover img { transform:scale(1.025); }
   .trade-image-card:focus-within { border-color:#5fa8ff; }
-  .image-remove { position:absolute; top:7px; right:7px; width:24px; height:24px; border:1px solid rgba(255,255,255,.12); border-radius:7px; background:rgba(0,0,0,.72); color:#fff; opacity:0; cursor:pointer; transition:.2s; }
-  .trade-image-card:hover .image-remove,.trade-image-card:focus-within .image-remove { opacity:1; }
+  .image-card-actions { position:absolute; top:7px; right:7px; display:flex; gap:4px; opacity:0; transition:.2s; }
+  .trade-image-card:hover .image-card-actions,.trade-image-card:focus-within .image-card-actions { opacity:1; }
+  .image-remove,.image-replace { width:24px; height:24px; border:1px solid rgba(255,255,255,.12); border-radius:7px; background:rgba(0,0,0,.72); color:#fff; cursor:pointer; transition:.2s; display:flex; align-items:center; justify-content:center; font-size:12px; }
+  .image-remove:hover,.image-replace:hover { background:rgba(0,0,0,.88); }
+  @media (max-width:640px) {
+    /* Hover-to-reveal doesn't exist on touch — without this, these
+       controls would be effectively invisible/unreachable on phones. */
+    .image-card-actions { opacity:1; }
+    .image-remove,.image-replace { width:32px; height:32px; font-size:15px; }
+  }
   .image-caption { position:absolute; left:7px; right:7px; bottom:7px; width:calc(100% - 14px); padding:5px 7px; border:1px solid rgba(255,255,255,.08); border-radius:7px; background:rgba(5,7,10,.82); color:#fff; outline:0; font-size:9px; backdrop-filter:blur(8px); }
   .image-caption::placeholder { color:#8892a0; }
   .image-add { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; color:#7d8795; cursor:pointer; border-style:dashed; }

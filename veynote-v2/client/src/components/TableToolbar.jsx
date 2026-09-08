@@ -15,7 +15,7 @@ export default function TableToolbar({ rect, editorRef }) {
         type="button"
         title={title}
         onMouseDown={(e) => { e.preventDefault(); onClick(); }}
-        className="px-2 py-1.5 text-[11px] font-semibold text-ink hover:bg-app-panel2 rounded-md whitespace-nowrap"
+        className="px-2.5 py-2 max-sm:px-3 max-sm:py-2.5 text-[11px] max-sm:text-[12.5px] font-semibold text-ink hover:bg-app-panel2 rounded-md whitespace-nowrap"
       >
         {label}
       </button>

@@ -256,7 +256,7 @@ export default function TradeEditor() {
             <button
               key={t.key}
               onClick={() => toggleSetupType(t.key)}
-              className={`text-[10px] px-2.5 py-1 rounded-full border transition ${
+              className={`text-[10px] max-sm:text-[11.5px] px-2.5 py-1 max-sm:px-3 max-sm:py-2 rounded-full border transition ${
                 form.setupTypes.includes(t.key)
                   ? "bg-accent-trade-soft text-[#9ecbff] border-accent-trade/40"
                   : "bg-app-panel2 text-ink-soft border-app-border"
@@ -283,9 +283,9 @@ export default function TradeEditor() {
       </div>
 
       <div className="flex gap-0.5 border border-app-border border-b-0 rounded-t-xl px-2.5 py-2 bg-app-panel">
-        <button onClick={() => exec("bold")} className="w-7 h-7 rounded-md text-ink-muted hover:bg-app-panel2 hover:text-ink font-bold text-[12px]">B</button>
-        <button onClick={() => exec("italic")} className="w-7 h-7 rounded-md text-ink-muted hover:bg-app-panel2 hover:text-ink italic text-[12px]">I</button>
-        <button onClick={() => exec("insertUnorderedList")} className="w-7 h-7 rounded-md text-ink-muted hover:bg-app-panel2 hover:text-ink text-[12px]">☰</button>
+        <button onClick={() => exec("bold")} className="w-7 h-7 max-sm:w-11 max-sm:h-11 rounded-md text-ink-muted hover:bg-app-panel2 hover:text-ink font-bold text-[12px] max-sm:text-[15px]">B</button>
+        <button onClick={() => exec("italic")} className="w-7 h-7 max-sm:w-11 max-sm:h-11 rounded-md text-ink-muted hover:bg-app-panel2 hover:text-ink italic text-[12px] max-sm:text-[15px]">I</button>
+        <button onClick={() => exec("insertUnorderedList")} className="w-7 h-7 max-sm:w-11 max-sm:h-11 rounded-md text-ink-muted hover:bg-app-panel2 hover:text-ink text-[12px] max-sm:text-[15px]">☰</button>
       </div>
       <div
         ref={bodyRef}

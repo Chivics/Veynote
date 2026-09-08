@@ -30,7 +30,6 @@ const app = express();
  * CORS
  * Allow requests from the Veynote production frontend.
  */
-const cors = require("cors");
 
 const cors = require("cors");
 

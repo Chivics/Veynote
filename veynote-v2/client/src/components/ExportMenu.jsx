@@ -16,7 +16,7 @@ export default function ExportMenu({ note, compact = false }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={compact ? "w-7 h-7 flex items-center justify-center rounded-md text-ink-muted hover:text-ink hover:bg-app-panel2 text-[13px]" : "text-[11px] font-semibold text-ink-muted hover:text-ink"}
+        className={compact ? "w-7 h-7 max-sm:w-11 max-sm:h-11 flex items-center justify-center rounded-md text-ink-muted hover:text-ink hover:bg-app-panel2 text-[13px] max-sm:text-[16px]" : "text-[11px] font-semibold text-ink-muted hover:text-ink"}
         title="Export"
       >
         {compact ? "⬇" : "⬇ Export"}

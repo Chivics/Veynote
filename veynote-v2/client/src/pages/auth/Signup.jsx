@@ -37,7 +37,9 @@ export default function Signup() {
         <h1 className="text-[19px] font-bold m-0">Create your account</h1>
 
         <button
-          onClick={() => (window.location.href = "/api/auth/google")}
+          onClick={() =>
+          (window.location.href = `${import.meta.env.VITE_API_URL}/api/auth/google`)
+          }
           className="btn-outline w-full flex items-center justify-center gap-2"
         >
           Continue with Google

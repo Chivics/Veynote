@@ -96,6 +96,15 @@ export default function TradeDocumentation({ entryId, ensureEntryId }) {
   }
   async function caption(id, value) { const { image } = await api.patch(`/trading/images/${id}`, { caption: value }); setImages((p) => p.map((i) => i.id === id ? image : i)); }
 
+  async function replaceImage(id, file) {
+    try {
+      const { image } = await api.upload(`/trading/images/${id}/file`, file, null, undefined, "PATCH");
+      setImages((prev) => prev.map((i) => (i.id === id ? image : i)));
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
   function addTimeframe(value) {
     const clean = value.trim();
     if (!clean) return;
@@ -111,7 +120,7 @@ export default function TradeDocumentation({ entryId, ensureEntryId }) {
     const key = `${stage}:`;
     return <section className="doc-section">
       <div className="doc-section-head"><div><span className="doc-kicker">{title}</span><p>{desc}</p></div><span className="doc-count">{stageImages.length} {stageImages.length === 1 ? "image" : "images"}</span></div>
-      <TradeImageUploader images={stageImages} uploading={uploading[key] || []} onUpload={(files) => handleUpload(stage, null, files)} onRemove={remove} onCaptionChange={caption} onOpenLightbox={openLightbox} />
+      <TradeImageUploader images={stageImages} uploading={uploading[key] || []} onUpload={(files) => handleUpload(stage, null, files)} onRemove={remove} onCaptionChange={caption} onReplace={replaceImage} onOpenLightbox={openLightbox} />
     </section>;
   };
 
@@ -140,7 +149,7 @@ export default function TradeDocumentation({ entryId, ensureEntryId }) {
           const key = `SETUP:${tf}`;
           return <div className="timeframe-card" key={tf}>
             <div className="timeframe-card-head"><div><span className="timeframe-badge">{tf}</span><span className="timeframe-meta">{tfImages.length} {tfImages.length === 1 ? "chart" : "charts"}</span></div><button type="button" className="text-action" onClick={() => { setTimeframe(tf); setOpen(true); }}>Add / change</button></div>
-            <TradeImageUploader images={tfImages} uploading={uploading[key] || []} onUpload={(files) => handleUpload("SETUP", tf, files)} onRemove={remove} onCaptionChange={caption} onOpenLightbox={openLightbox} compact />
+            <TradeImageUploader images={tfImages} uploading={uploading[key] || []} onUpload={(files) => handleUpload("SETUP", tf, files)} onRemove={remove} onCaptionChange={caption} onReplace={replaceImage} onOpenLightbox={openLightbox} compact />
           </div>;
         })}
       </div>}

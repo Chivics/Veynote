@@ -43,7 +43,7 @@ export default function FindReplaceBar({ editorRef, onClose }) {
     <div className="flex items-center gap-2 bg-app-panel border border-app-border rounded-lg px-3 py-2 mb-3 flex-wrap">
       <input
         autoFocus
-        className="bg-transparent outline-none text-[12px] text-ink w-32"
+        className="bg-transparent outline-none text-[12px] text-ink w-32 max-sm:w-full max-sm:order-first"
         placeholder="Find…"
         value={query}
         onChange={(e) => { setQuery(e.target.value); runFind(e.target.value); }}
@@ -55,11 +55,11 @@ export default function FindReplaceBar({ editorRef, onClose }) {
       <span className="text-[10.5px] text-ink-muted whitespace-nowrap min-w-[70px]">
         {matchCount > 0 ? `${matchIndex + 1} of ${matchCount}` : query ? "No matches" : ""}
       </span>
-      <button type="button" onMouseDown={(e) => { e.preventDefault(); step(-1); }} className="text-ink-muted hover:text-ink text-[14px] px-1" title="Previous match">‹</button>
-      <button type="button" onMouseDown={(e) => { e.preventDefault(); step(1); }} className="text-ink-muted hover:text-ink text-[14px] px-1" title="Next match">›</button>
+      <button type="button" onMouseDown={(e) => { e.preventDefault(); step(-1); }} className="text-ink-muted hover:text-ink text-[14px] w-7 h-7 max-sm:w-9 max-sm:h-9 flex items-center justify-center rounded-md hover:bg-app-panel2" title="Previous match">‹</button>
+      <button type="button" onMouseDown={(e) => { e.preventDefault(); step(1); }} className="text-ink-muted hover:text-ink text-[14px] w-7 h-7 max-sm:w-9 max-sm:h-9 flex items-center justify-center rounded-md hover:bg-app-panel2" title="Next match">›</button>
       <span className="w-px h-4 bg-app-border" />
       <input
-        className="bg-transparent outline-none text-[12px] text-ink w-32"
+        className="bg-transparent outline-none text-[12px] text-ink w-32 max-sm:w-full max-sm:order-first"
         placeholder="Replace with…"
         value={replacement}
         onChange={(e) => setReplacement(e.target.value)}
@@ -67,7 +67,7 @@ export default function FindReplaceBar({ editorRef, onClose }) {
       />
       <button type="button" onMouseDown={(e) => { e.preventDefault(); replaceOne(); }} className="text-[10.5px] font-semibold text-accent-notes whitespace-nowrap">Replace</button>
       <button type="button" onMouseDown={(e) => { e.preventDefault(); replaceAll(); }} className="text-[10.5px] font-semibold text-accent-notes whitespace-nowrap">Replace all</button>
-      <button type="button" onMouseDown={(e) => { e.preventDefault(); onClose(); }} className="ml-auto text-ink-muted hover:text-ink text-[14px] px-1" title="Close (Esc)">×</button>
+      <button type="button" onMouseDown={(e) => { e.preventDefault(); onClose(); }} className="ml-auto text-ink-muted hover:text-ink text-[14px] w-7 h-7 max-sm:w-9 max-sm:h-9 flex items-center justify-center rounded-md hover:bg-app-panel2 shrink-0" title="Close (Esc)">×</button>
     </div>
   );
 }

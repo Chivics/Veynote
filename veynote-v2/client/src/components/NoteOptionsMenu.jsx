@@ -30,7 +30,7 @@ export default function NoteOptionsMenu({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-7 h-7 flex items-center justify-center rounded-md text-ink-muted hover:text-ink hover:bg-app-panel2 text-[15px]"
+        className="w-7 h-7 max-sm:w-11 max-sm:h-11 flex items-center justify-center rounded-md text-ink-muted hover:text-ink hover:bg-app-panel2 text-[15px] max-sm:text-[17px]"
         title="More options"
       >
         ⋯

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../api/client";
 
-export default function ShareMenu({ noteId, shareEnabled, shareToken, onChange }) {
+export default function ShareMenu({ noteId, shareEnabled, shareToken, onChange, compact }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -38,8 +38,17 @@ export default function ShareMenu({ noteId, shareEnabled, shareToken, onChange }
 
   return (
     <div className="relative">
-      <button type="button" onClick={() => setOpen((o) => !o)} className="text-[11px] font-semibold text-ink-muted hover:text-ink">
-        {shareEnabled ? "🌐 Shared" : "🔗 Share"}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={
+          compact
+            ? "w-7 h-7 max-sm:w-11 max-sm:h-11 flex items-center justify-center rounded-md text-ink-muted hover:text-ink hover:bg-app-panel2 text-[13px] max-sm:text-[16px]"
+            : "text-[11px] font-semibold text-ink-muted hover:text-ink"
+        }
+        title="Share"
+      >
+        {compact ? (shareEnabled ? "🌐" : "🔗") : shareEnabled ? "🌐 Shared" : "🔗 Share"}
       </button>
       {open && (
         <>
@@ -47,7 +56,9 @@ export default function ShareMenu({ noteId, shareEnabled, shareToken, onChange }
           <div className="absolute right-0 top-full mt-1.5 z-20 bg-app-panel border border-app-border rounded-lg shadow-2xl p-3 w-[260px]">
             {!shareEnabled ? (
               <>
-                <p className="text-[11.5px] text-ink-soft mb-2.5">Anyone with the link can view this note — no login needed. Nobody can edit it.</p>
+                <p className="text-[11.5px] text-ink-soft mb-2.5">
+                  Anyone with the link can view this note — no login needed. Nobody can edit it.
+                </p>
                 <button type="button" onClick={enable} disabled={busy} className="btn-primary text-[11px] w-full">
                   Create share link
                 </button>
