@@ -20,7 +20,7 @@ export default function TradingDashboard() {
 
   return (
     <div className="px-1 sm:px-0">
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 md:gap-6 mb-5 md:mb-6">
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 md:gap-6 mb-8 md:mb-6">
         <div className="min-w-0">
           <span className="eyebrow">{new Date().toDateString().toUpperCase()}</span>
           <h1 className="font-bold text-[22px] leading-tight sm:text-[26px] md:text-[30px] tracking-tight mt-1.5 mb-2 break-words">
@@ -38,7 +38,7 @@ export default function TradingDashboard() {
         </Link>
       </div>
 
-      <div className="rounded-2xl p-4 md:p-5 flex flex-col md:flex-row md:items-center gap-3.5 mb-5 md:mb-7 border border-app-border bg-gradient-to-br from-app-panel to-accent-trade-soft">
+      <div className="rounded-2xl p-4 md:p-5 flex flex-col md:flex-row md:items-center gap-4 md:gap-3.5 mb-8 md:mb-7 border border-app-border bg-gradient-to-br from-app-panel to-accent-trade-soft">
         <div className="flex items-start gap-3 min-w-0">
           <div className="w-[38px] h-[38px] rounded-xl bg-accent-trade-soft text-[#7db9ff] flex items-center justify-center text-base shrink-0">
             📈
@@ -60,7 +60,7 @@ export default function TradingDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 md:gap-3 mb-5 md:mb-7">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8 md:mb-7">
         <StatCard
           label="Win rate"
           value={analytics?.hasData ? `${analytics.winRate}%` : "—"}
@@ -87,7 +87,7 @@ export default function TradingDashboard() {
         <StatCard label="Total entries" value={entries ? entries.length : "0"} />
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-1 mt-8 md:mt-10 mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mt-10 mb-4">
         <div className="min-w-0">
           <span className="eyebrow">RECENT</span>
           <h2 className="text-[16px] md:text-[19px] tracking-[-.02em] mt-[5px] mb-0">
@@ -121,7 +121,7 @@ export default function TradingDashboard() {
         </div>
       )}
 
-      <div className="flex items-end justify-between mt-8 md:mt-10 mb-4">
+      <div className="flex items-end justify-between mt-10 mb-4">
         <div className="min-w-0">
           <span className="eyebrow">ACCOUNTS</span>
           <h2 className="text-[16px] md:text-[19px] tracking-[-.02em] mt-[5px] mb-0">

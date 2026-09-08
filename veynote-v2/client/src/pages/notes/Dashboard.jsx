@@ -25,7 +25,7 @@ export default function NotesDashboard() {
 
   return (
     <div className="px-1 sm:px-0">
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 md:gap-6 mb-5 md:mb-7">
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 md:gap-6 mb-8 md:mb-7">
         <div className="min-w-0">
           <span className="eyebrow">
             {new Date().toDateString().toUpperCase()}
@@ -51,7 +51,7 @@ export default function NotesDashboard() {
         </div>
       </div>
 
-      <div className="rounded-2xl p-4 md:p-5 flex flex-col md:flex-row md:items-center gap-3.5 mb-5 md:mb-7 border border-app-border bg-gradient-to-br from-app-panel to-accent-notes-soft">
+      <div className="rounded-2xl p-4 md:p-5 flex flex-col md:flex-row md:items-center gap-4 md:gap-3.5 mb-8 md:mb-7 border border-app-border bg-gradient-to-br from-app-panel to-accent-notes-soft">
         <div className="flex items-start gap-3 min-w-0">
           <div className="w-[38px] h-[38px] rounded-xl bg-accent-notes-soft text-[#a89fff] flex items-center justify-center text-base shrink-0">
             ✨
@@ -79,7 +79,7 @@ export default function NotesDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 md:gap-3 mb-5 md:mb-7">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8 md:mb-7">
         <StatCard
           label="Total notes"
           value={stats?.hasData ? stats.totalNotes : "0"}
@@ -105,13 +105,13 @@ export default function NotesDashboard() {
 
       {pinned.length > 0 && (
         <>
-          <div className="flex items-end justify-between mb-3.5">
+          <div className="flex items-end justify-between mb-4 md:mb-3.5">
             <div>
               <span className="eyebrow">PINNED</span>
               <h2 className="text-[15.5px] mt-1 mb-0">Pinned notes</h2>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-7">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8 md:mb-7">
             {pinned.map((n) => (
               <NoteCard key={n.id} note={n} />
             ))}
@@ -119,7 +119,7 @@ export default function NotesDashboard() {
         </>
       )}
 
-      <div className="flex items-end justify-between mb-3.5">
+      <div className="flex items-end justify-between mb-4 md:mb-3.5">
         <div>
           <span className="eyebrow">RECENT</span>
           <h2 className="text-[15.5px] mt-1 mb-0">Recent notes</h2>
