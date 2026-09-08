@@ -24,8 +24,8 @@ export default function NotesDashboard() {
     hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   return (
-    <div className="flex flex-col gap-12 md:gap-7 px-1 sm:px-0 pb-10">
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-5 md:gap-6">
+    <div className="px-1 sm:px-0">
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 md:gap-6 mb-8 md:mb-7">
         <div className="min-w-0">
           <span className="eyebrow">
             {new Date().toDateString().toUpperCase()}
@@ -38,7 +38,7 @@ export default function NotesDashboard() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 w-full md:w-auto shrink-0">
+        <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
           <div className="flex-1 md:flex-none min-w-0">
             <TemplateMenu />
           </div>
@@ -51,22 +51,22 @@ export default function NotesDashboard() {
         </div>
       </div>
 
-      <div className="rounded-2xl p-5 flex flex-col md:flex-row md:items-center gap-5 md:gap-3.5 border border-app-border bg-gradient-to-br from-app-panel to-accent-notes-soft">
-        <div className="flex items-start gap-3.5 min-w-0">
+      <div className="rounded-2xl p-4 md:p-5 flex flex-col md:flex-row md:items-center gap-4 md:gap-3.5 mb-8 md:mb-7 border border-app-border bg-gradient-to-br from-app-panel to-accent-notes-soft">
+        <div className="flex items-start gap-3 min-w-0">
           <div className="w-[38px] h-[38px] rounded-xl bg-accent-notes-soft text-[#a89fff] flex items-center justify-center text-base shrink-0">
             ✨
           </div>
           <div className="min-w-0">
-            <strong className="block text-[13.5px] mb-1">
+            <strong className="block text-[13.5px] mb-0.5">
               What are you working on?
             </strong>
-            <span className="text-[11.5px] text-ink-muted leading-relaxed">
+            <span className="text-[11.5px] text-ink-muted leading-snug">
               Start a note, capture a reminder, or reflect on today.
             </span>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2.5 md:ml-auto shrink-0">
+        <div className="flex flex-wrap gap-2 md:ml-auto shrink-0">
           <Link to="/notes/new" className="chip hover:bg-app-border">
             ✎ New note
           </Link>
@@ -79,7 +79,7 @@ export default function NotesDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8 md:mb-7">
         <StatCard
           label="Total notes"
           value={stats?.hasData ? stats.totalNotes : "0"}
@@ -104,33 +104,35 @@ export default function NotesDashboard() {
       </div>
 
       {pinned.length > 0 && (
-        <section className="flex flex-col gap-4">
-          <div>
-            <span className="eyebrow">PINNED</span>
-            <h2 className="text-[15.5px] mt-1 mb-0">Pinned notes</h2>
+        <>
+          <div className="flex items-end justify-between mb-4 md:mb-3.5">
+            <div>
+              <span className="eyebrow">PINNED</span>
+              <h2 className="text-[15.5px] mt-1 mb-0">Pinned notes</h2>
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8 md:mb-7">
             {pinned.map((n) => (
               <NoteCard key={n.id} note={n} />
             ))}
           </div>
-        </section>
+        </>
       )}
 
-      <section className="flex flex-col gap-4">
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <span className="eyebrow">RECENT</span>
-            <h2 className="text-[15.5px] mt-1 mb-0">Recent notes</h2>
-          </div>
-          <Link to="/notes/all" className="text-ink-soft text-[11.5px] shrink-0">
-            View all →
-          </Link>
+      <div className="flex items-end justify-between mb-4 md:mb-3.5">
+        <div>
+          <span className="eyebrow">RECENT</span>
+          <h2 className="text-[15.5px] mt-1 mb-0">Recent notes</h2>
         </div>
+        <Link to="/notes/all" className="text-ink-soft text-[11.5px]">
+          View all →
+        </Link>
+      </div>
 
-        {notes === null ? (
-          <p className="text-ink-muted text-[12px]">Loading…</p>
-        ) : recent.length === 0 ? (
+      {notes === null ? (
+        <p className="text-ink-muted text-[12px]">Loading…</p>
+      ) : recent.length === 0 ? (
+        <div className="grid grid-cols-1">
           <EmptyState
             icon="📓"
             title="No notes yet."
@@ -141,14 +143,14 @@ export default function NotesDashboard() {
               </Link>
             }
           />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {recent.map((n) => (
-              <NoteCard key={n.id} note={n} />
-            ))}
-          </div>
-        )}
-      </section>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {recent.map((n) => (
+            <NoteCard key={n.id} note={n} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
