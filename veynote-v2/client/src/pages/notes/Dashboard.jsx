@@ -25,7 +25,7 @@ export default function NotesDashboard() {
 
   return (
     <div className="px-1 sm:px-0">
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 md:gap-6 mb-8 md:mb-7">
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-5 md:gap-6 mb-8 md:mb-7">
         <div className="min-w-0 mb-2">
           <span className="eyebrow">
             {new Date().toDateString().toUpperCase()}
