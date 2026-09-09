@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import AuthImage from "./AuthImage";
 
 // Full-screen viewer for trade/note images. Previously every image thumb
 // just linked to the raw file in a new browser tab — this keeps the user
