@@ -27,15 +27,15 @@ export default function EntryListPage({ mode }) {
 
   return (
     <div>
-      <div className="flex items-end justify-between gap-6 mb-6">
-        <div>
+      <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
+        <div className="min-w-0">
           <span className="eyebrow">JOURNAL</span>
-          <h1 className="text-[30px] tracking-tight mt-1.5 mb-2">
+          <h1 className="text-[22px] sm:text-[30px] tracking-tight mt-1.5 mb-2 break-words">
             {activeAccount ? activeAccount.name : mode === "search" ? "Search" : "All entries"}
           </h1>
           <p className="text-ink-muted m-0">{entries ? `${entries.length} total` : ""}</p>
         </div>
-        <Link to="/trading/entries/new" className="btn-primary">+ Log trade</Link>
+        <Link to="/trading/entries/new" className="btn-primary shrink-0">+ Log trade</Link>
       </div>
 
       {mode === "search" && (

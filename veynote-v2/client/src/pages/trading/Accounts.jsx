@@ -29,13 +29,13 @@ export default function Accounts() {
 
   return (
     <div>
-      <div className="flex items-end justify-between gap-6 mb-6">
-        <div>
+      <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
+        <div className="min-w-0">
           <span className="eyebrow">WORKSPACES</span>
-          <h1 className="text-[30px] tracking-tight mt-1.5 mb-2">Accounts</h1>
+          <h1 className="text-[22px] sm:text-[30px] tracking-tight mt-1.5 mb-2">Accounts</h1>
           <p className="text-ink-muted m-0">{accounts ? `${accounts.length} accounts` : ""}</p>
         </div>
-        <button onClick={() => setCreating((c) => !c)} className="btn-primary">+ Add account</button>
+        <button onClick={() => setCreating((c) => !c)} className="btn-primary shrink-0">+ Add account</button>
       </div>
 
       {creating && (

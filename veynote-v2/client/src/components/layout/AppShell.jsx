@@ -57,7 +57,7 @@ function SidebarContent({ nav, newHref, newLabel, mode, onNavigate }) {
             end={item.end}
             onClick={onNavigate}
             className={({ isActive }) =>
-              `flex items-center gap-2 px-2.5 py-2 rounded-lg text-[12.5px] transition ${
+              `flex items-center gap-2 px-2.5 py-2 max-sm:py-3 rounded-lg text-[12.5px] max-sm:text-[13.5px] transition ${
                 isActive ? "bg-app-panel2 text-ink" : "text-ink-muted hover:text-ink"
               }`
             }
@@ -73,7 +73,7 @@ function SidebarContent({ nav, newHref, newLabel, mode, onNavigate }) {
           to="/settings"
           onClick={onNavigate}
           className={({ isActive }) =>
-            `flex items-center gap-2 px-2.5 py-2 rounded-lg text-[12.5px] transition ${
+            `flex items-center gap-2 px-2.5 py-2 max-sm:py-3 rounded-lg text-[12.5px] max-sm:text-[13.5px] transition ${
               isActive ? "bg-app-panel2 text-ink" : "text-ink-muted hover:text-ink"
             }`
           }
@@ -82,7 +82,7 @@ function SidebarContent({ nav, newHref, newLabel, mode, onNavigate }) {
         </NavLink>
         <button
           onClick={logout}
-          className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-[12.5px] text-ink-muted hover:text-ink transition text-left"
+          className="flex items-center gap-2 px-2.5 py-2 max-sm:py-3 rounded-lg text-[12.5px] max-sm:text-[13.5px] text-ink-muted hover:text-ink transition text-left"
         >
           ⏻ Log out
         </button>
@@ -136,7 +136,7 @@ export default function AppShell() {
           <aside className="relative z-50 w-[270px] max-w-[80vw] h-full bg-app-bg border-r border-app-border p-3.5 flex flex-col gap-1 shadow-2xl">
             <button
               onClick={() => setDrawerOpen(false)}
-              className="absolute top-3 right-3 w-7 h-7 rounded-md bg-app-panel2 text-ink-muted flex items-center justify-center text-sm"
+              className="absolute top-3 right-3 w-10 h-10 rounded-md bg-app-panel2 text-ink-muted flex items-center justify-center text-[15px]"
             >
               ✕
             </button>
@@ -149,7 +149,7 @@ export default function AppShell() {
         <div className="h-[56px] border-b border-app-border/80 flex items-center px-4 md:px-7 gap-3 bg-app-bg/80 backdrop-blur-xl sticky top-0 z-20 print:hidden">
           <button
             onClick={() => setDrawerOpen(true)}
-            className="md:hidden w-8 h-8 rounded-md flex items-center justify-center text-ink-muted hover:bg-app-panel2 shrink-0"
+            className="md:hidden w-11 h-11 -ml-1.5 rounded-md flex items-center justify-center text-ink-muted hover:bg-app-panel2 shrink-0 text-[17px]"
             aria-label="Open menu"
           >
             ☰

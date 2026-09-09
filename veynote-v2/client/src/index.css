@@ -254,6 +254,19 @@ body {
   .lightbox-img { max-width:94vw; max-height:64vh; }
 }
 
+/* Mobile touch-target + iOS zoom fixes for the core reusable classes
+   used site-wide (buttons, inputs, chips) — fixing these four here
+   propagates to every page that uses them, rather than patching each
+   page's forms individually.
+   The .input font-size bump to 16px is not cosmetic: any input under
+   16px causes iOS Safari to auto-zoom the whole page on focus, which
+   would otherwise happen on every single form in the app. */
+@media (max-width: 640px) {
+  .btn-primary,.btn-outline { padding-top:0.7rem; padding-bottom:0.7rem; font-size:13.5px; }
+  .input { padding-top:0.8rem; padding-bottom:0.8rem; font-size:16px; }
+  .chip { padding-top:0.55rem; padding-bottom:0.55rem; font-size:11.5px; }
+}
+
 /* Print: the dark theme's colors are wrong for paper regardless of which
    page is being printed, and app chrome (sidebar/header/buttons) is
    hidden via print:hidden at the layout level — this just fixes colors

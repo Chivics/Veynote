@@ -139,10 +139,10 @@ export default function LockedNotes() {
 
   return (
     <div>
-      <div className="flex items-end justify-between gap-6 mb-6">
-        <div>
+      <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
+        <div className="min-w-0">
           <span className="eyebrow">PROTECTED</span>
-          <h1 className="text-[30px] tracking-tight my-1.5">Locked Notes</h1>
+          <h1 className="text-[22px] sm:text-[30px] tracking-tight my-1.5">Locked Notes</h1>
           <p className="text-ink-muted text-[13px] m-0">{notes ? `${notes.length} total` : ""}</p>
         </div>
       </div>
