@@ -31,11 +31,11 @@ export default function TradeImageUploader({ images, uploading, onUpload, onRemo
           <div key={img.id} className="trade-image-card">
             {onOpenLightbox ? (
               <button type="button" onClick={() => onOpenLightbox(img)} className="block w-full h-full">
-                <AuthImage src={img.url} alt={img.caption || img.originalName} />
+               <AuthImage src={img.url} imageId={img.id} alt={img.caption || img.originalName} />
               </button>
             ) : (
               <a href={img.url} target="_blank" rel="noreferrer">
-                <AuthImage src={img.url} alt={img.caption || img.originalName} />
+               <AuthImage src={img.url} imageId={img.id} alt={img.caption || img.originalName} />
               </a>
             )}
             <div className="image-card-actions">

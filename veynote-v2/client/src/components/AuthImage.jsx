@@ -1,23 +1,6 @@
 import { useEffect, useState } from "react";
 
-const API_HOST = "https://api-veynote.newdayfeeds.org";
-const API_BASE = `${API_HOST}/api`;
-
-const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|svg|heic|heif|avif)$/i;
-
-export function isImageFile({ mimeType, originalName, name } = {}) {
-  if (mimeType && mimeType.startsWith("image/")) return true;
-  return IMAGE_EXT.test(originalName || name || "");
-}
-
-export function resolveFileUrl(url) {
-  if (!url) return "";
-  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  if (url.startsWith("/api/")) return `${API_HOST}${url}`;
-  if (url.startsWith("/")) return `${API_BASE}${url}`;
-  return `${API_BASE}/${url}`;
-}
+const API_BASE = "https://api-veynote.newdayfeeds.org/api";
 
 function authHeaders() {
   const token = localStorage.getItem("veynote_token");
@@ -30,46 +13,83 @@ function authHeaders() {
   };
 }
 
-const blobCache = new Map();
-
-export async function fetchAuthedBlobUrl(url) {
-  const resolved = resolveFileUrl(url);
-  if (!resolved) return "";
-  if (resolved.startsWith("blob:") || resolved.startsWith("data:")) return resolved;
-  if (blobCache.has(resolved)) return blobCache.get(resolved);
-
-  const res = await fetch(resolved, { headers: authHeaders() });
-  if (!res.ok) throw new Error("Could not load image");
-  const blob = await res.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  blobCache.set(resolved, objectUrl);
-  return objectUrl;
+function candidates({ src, imageId, attachmentId }) {
+  const list = [];
+  if (imageId) list.push(`${API_BASE}/trading/images/${imageId}/file`);
+  if (attachmentId) {
+    list.push(`${API_BASE}/trading/attachments/${attachmentId}/file`);
+    list.push(`${API_BASE}/trading/attachments/${attachmentId}`);
+  }
+  if (src) {
+    if (src.startsWith("blob:") || src.startsWith("data:")) return [src];
+    if (src.startsWith("http://") || src.startsWith("https://")) list.push(src);
+    else if (src.startsWith("/api/")) list.push(`https://api-veynote.newdayfeeds.org${src}`);
+    else if (src.startsWith("/")) list.push(`${API_BASE}${src}`);
+    else list.push(`${API_BASE}/${src}`);
+    if (typeof src === "string" && !src.endsWith("/file") && src.includes("/images/")) {
+      list.push(src.startsWith("http") ? `${src.replace(/\/$/, "")}/file` : `${API_BASE}${src}/file`);
+    }
+  }
+  return [...new Set(list.filter(Boolean))];
 }
 
-export default function AuthImage({ src, alt = "", className, style, onClick }) {
+async function loadBlob(urls) {
+  let lastErr = "Could not load image";
+  for (const url of urls) {
+    if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+    try {
+      const res = await fetch(url, { headers: authHeaders() });
+      if (!res.ok) {
+        lastErr = `${res.status} ${url}`;
+        continue;
+      }
+      const blob = await res.blob();
+      const type = (blob.type || res.headers.get("content-type") || "").toLowerCase();
+      if (type.includes("json") || type.includes("text/html") || type.includes("text/plain")) {
+        lastErr = `not an image: ${type}`;
+        continue;
+      }
+      return URL.createObjectURL(blob);
+    } catch (e) {
+      lastErr = e.message || lastErr;
+    }
+  }
+  throw new Error(lastErr);
+}
+
+export function isImageFile({ mimeType, originalName, name } = {}) {
+  if (mimeType && mimeType.startsWith("image/")) return true;
+  return /\.(png|jpe?g|gif|webp|bmp|svg|heic|heif|avif)$/i.test(originalName || name || "");
+}
+
+export default function AuthImage({ src, alt = "", className, style, onClick, imageId, attachmentId }) {
   const [blobUrl, setBlobUrl] = useState("");
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    let created = "";
     setFailed(false);
     setBlobUrl("");
-    if (!src) return undefined;
-    if (src.startsWith("blob:") || src.startsWith("data:")) {
-      setBlobUrl(src);
+    const urls = candidates({ src, imageId, attachmentId });
+    if (!urls.length) {
+      setFailed(true);
       return undefined;
     }
-    fetchAuthedBlobUrl(src)
+    loadBlob(urls)
       .then((u) => {
+        created = u;
         if (!cancelled) setBlobUrl(u);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("AuthImage failed", err.message, { src, imageId, urls });
         if (!cancelled) setFailed(true);
       });
     return () => {
       cancelled = true;
+      if (created && created.startsWith("blob:")) URL.revokeObjectURL(created);
     };
-  }, [src]);
+  }, [src, imageId, attachmentId]);
 
   if (failed) {
     return (
@@ -93,22 +113,8 @@ export default function AuthImage({ src, alt = "", className, style, onClick }) 
   }
 
   if (!blobUrl) {
-    return (
-      <span
-        className={className}
-        style={{ display: "block", background: "#0c0f13", ...style }}
-        aria-hidden
-      />
-    );
+    return <span className={className} style={{ display: "block", background: "#0c0f13", ...style }} aria-hidden />;
   }
 
-  return (
-    <img
-      src={blobUrl}
-      alt={alt}
-      className={className}
-      style={style}
-      onClick={onClick}
-    />
-  );
+  return <img src={blobUrl} alt={alt} className={className} style={style} onClick={onClick} />;
 }
