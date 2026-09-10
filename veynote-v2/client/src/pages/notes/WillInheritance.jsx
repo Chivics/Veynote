@@ -1,1063 +1,246 @@
 
-import { useEffect, useMemo, useState } from "react";
-import { api } from "../../api/client";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import VaultGate from "../../components/VaultGate";
 import { clearVaultToken, getVaultToken } from "../../utils/vault";
+import { willApi } from "../../api/will";
+import WillModal from "../../components/will/WillModal";
+import DeleteConfirmation from "../../components/will/DeleteConfirmation";
+import CompletionCard from "../../components/will/CompletionCard";
+import WillDocuments from "../../components/will/WillDocuments";
+import { AssetForm, BeneficiaryForm, ContactForm, EMPTY_ASSET, EMPTY_BENEFICIARY, EMPTY_CONTACT, EMPTY_DETAIL, EMPTY_EXECUTOR, ExecutorForm, WillDetailForm, WillProfileForm } from "../../components/will/WillForms";
+import { EmptyState, RecordCard, Section } from "../../components/will/WillSection";
 
-const EMPTY_ASSET = {
-  name: "",
-  description: "",
-  estimatedValue: "",
-  instructions: "",
-};
+const ASSET_FILTERS = [["All", "All"], ["property", "Property"], ["bank", "Bank Account"], ["investment", "Investment"], ["vehicle", "Vehicle"], ["digital_asset", "Digital Asset"], ["other", "Other"]];
+const BENEFICIARY_FILTERS = [["All", "All"], ["PERSON", "Person"], ["ORGANISATION", "Organisation"], ["CHARITY", "Charity"], ["TRUST", "Trust"], ["OTHER", "Other"]];
 
-const EMPTY_BENEFICIARY = {
-  name: "",
-  relationship: "",
-  contact: "",
-  allocation: "",
-  notes: "",
-};
-
-const EMPTY_WILL = {
-  title: "My Will & Inheritance",
-  wishes: "",
-  instructions: "",
-};
-
-function formatDate(value) {
-  if (!value) return "Not saved yet";
-
-  return new Intl.DateTimeFormat(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value));
+function date(value) {
+  if (!value) return "Not updated yet";
+  return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
+}
+function shortDate(value) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
+}
+function sortRecords(items, sort, valueKey = "") {
+  return [...items].sort((a, b) => {
+    if (sort === "name") return String(a.name || a.title || "").localeCompare(String(b.name || b.title || ""));
+    if (sort === "value") return String(b.estimatedValue || "").localeCompare(String(a.estimatedValue || ""), undefined, { numeric: true });
+    if (sort === "allocation") return String(b.allocation || "").localeCompare(String(a.allocation || ""), undefined, { numeric: true });
+    return new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
+  });
 }
 
-function SectionHeader({ eyebrow, title, description, count }) {
-  return (
-    <div className="flex items-start justify-between gap-4 mb-5">
-      <div>
-        <span className="eyebrow">{eyebrow}</span>
-
-        <h2 className="text-[17px] font-bold mt-1">
-          {title}
-        </h2>
-
-        {description && (
-          <p className="text-[11.5px] text-ink-muted mt-1 max-w-2xl">
-            {description}
-          </p>
-        )}
-      </div>
-
-      {count !== undefined && (
-        <span className="chip shrink-0">
-          {count}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function Field({ label, hint, children }) {
-  return (
-    <label className="block">
-      <span className="block text-[10.5px] font-semibold text-ink-soft mb-1.5">
-        {label}
-      </span>
-
-      {children}
-
-      {hint && (
-        <span className="block text-[9.5px] text-ink-muted mt-1">
-          {hint}
-        </span>
-      )}
-    </label>
-  );
+function ErrorBanner({ message, onDismiss }) {
+  if (!message) return null;
+  return <div className="rounded-xl border border-danger/30 bg-danger/5 px-3.5 py-3 mb-4 text-[11px] text-danger flex items-start justify-between gap-3"><span>{message}</span><button type="button" onClick={onDismiss} className="font-bold">×</button></div>;
 }
 
 export default function WillInheritance() {
-  const [unlocked, setUnlocked] = useState(
-    Boolean(getVaultToken("will"))
-  );
-
+  const [unlocked, setUnlocked] = useState(Boolean(getVaultToken("will")));
   const [will, setWill] = useState(null);
-
-  const [form, setForm] = useState(EMPTY_WILL);
-
-  const [asset, setAsset] = useState(EMPTY_ASSET);
-  const [beneficiary, setBeneficiary] = useState(EMPTY_BENEFICIARY);
-
-  const [editingAssetId, setEditingAssetId] = useState(null);
-  const [editingBeneficiaryId, setEditingBeneficiaryId] = useState(null);
-
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [modal, setModal] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [assetQuery, setAssetQuery] = useState("");
+  const [assetFilter, setAssetFilter] = useState("All");
+  const [assetSort, setAssetSort] = useState("recent");
+  const [beneficiaryQuery, setBeneficiaryQuery] = useState("");
+  const [beneficiaryFilter, setBeneficiaryFilter] = useState("All");
+  const [beneficiarySort, setBeneficiarySort] = useState("recent");
 
-  // ---------------------------------------------------------
-  // Load Will
-  // ---------------------------------------------------------
-
-  async function load() {
-    setLoading(true);
-    setError("");
-
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
     try {
-      const { will: data } = await api.get("/will");
-
-      setWill(data);
-
-      setForm({
-        title: data?.title || EMPTY_WILL.title,
-        wishes: data?.wishes || "",
-        instructions: data?.instructions || "",
-      });
-
-      setUnlocked(true);
+      const { will: data } = await willApi.get();
+      setWill(data); setUnlocked(true);
     } catch (err) {
+      console.error("[WillInheritance] load failed", err);
       if (err.requiresVault) {
-        clearVaultToken("will");
-        setUnlocked(false);
-      } else {
-        setError(
-          err.message ||
-            "Could not load your Will & Inheritance record."
-        );
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    if (unlocked) {
-      load();
-    }
-
-    // Unlock state intentionally controls this initial fetch.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        clearVaultToken("will"); setUnlocked(false); setWill(null);
+      } else setError(err.message || "We couldn't load your Will right now. Please try again.");
+    } finally { setLoading(false); }
   }, []);
 
-  // ---------------------------------------------------------
-  // Vault
-  // ---------------------------------------------------------
+  useEffect(() => { if (unlocked) load(); }, [unlocked, load]);
 
-  function handleUnlocked() {
-    setUnlocked(true);
-    load();
+  function lock() {
+    clearVaultToken("will"); setUnlocked(false); setWill(null); setError(""); setNotice(""); setModal(null);
   }
+  function flash(message) { setNotice(message); window.setTimeout(() => setNotice(""), 3500); }
+  function closeModal() { if (!busy) setModal(null); }
 
-  function lockPage() {
-    clearVaultToken("will");
-
-    setUnlocked(false);
-    setWill(null);
-
-    setError("");
-    setNotice("");
-  }
-
-  // ---------------------------------------------------------
-  // Save Will
-  // ---------------------------------------------------------
-
-  async function saveWill(e) {
-    e.preventDefault();
-
-    setSaving(true);
-    setError("");
-    setNotice("");
-
+  async function saveProfile(form) {
+    if (!form.title.trim()) return setError("Document title is required.");
+    setBusy(true); setError("");
     try {
-      const { will: data } = await api.patch("/will", form);
-
-      setWill(data);
-
-      setForm({
-        title: data.title || EMPTY_WILL.title,
-        wishes: data.wishes || "",
-        instructions: data.instructions || "",
-      });
-
-      setNotice("Will details saved.");
-    } catch (err) {
-      setError(err.message || "Could not save your Will.");
-    } finally {
-      setSaving(false);
-    }
+      const { will: data } = await willApi.update(form);
+      setWill(data); setModal(null); flash("Will title updated.");
+    } catch (err) { console.error("[WillInheritance] profile update failed", err); setError(err.message || "We couldn't update the Will title."); }
+    finally { setBusy(false); }
   }
 
-  // ---------------------------------------------------------
-  // Assets
-  // ---------------------------------------------------------
-
-  async function saveAsset(e) {
-    e.preventDefault();
-
-    if (!asset.name.trim()) {
-      setError("Asset name is required.");
-      return;
-    }
-
-    setSaving(true);
-    setError("");
-    setNotice("");
-
+  async function saveDetail(form) {
+    if (!form.title.trim()) return setError("Detail title is required.");
+    if (!form.content.trim()) return setError("Detail content is required.");
+    setBusy(true); setError("");
     try {
-      if (editingAssetId) {
-        const { asset: updated } = await api.patch(
-          `/will/assets/${editingAssetId}`,
-          asset
-        );
-
-        setWill((current) => ({
-          ...current,
-          assets: current.assets.map((item) =>
-            item.id === updated.id ? updated : item
-          ),
-        }));
-
-        setNotice("Asset updated.");
-      } else {
-        const { asset: created } = await api.post(
-          "/will/assets",
-          asset
-        );
-
-        setWill((current) => ({
-          ...current,
-          assets: [...(current.assets || []), created],
-        }));
-
-        setNotice("Asset added.");
-      }
-
-      setAsset(EMPTY_ASSET);
-      setEditingAssetId(null);
-    } catch (err) {
-      setError(err.message || "Could not save this asset.");
-    } finally {
-      setSaving(false);
-    }
+      const response = modal.id ? await willApi.details.update(modal.id, form) : await willApi.details.create(form);
+      setWill((current) => ({ ...current, details: modal.id ? current.details.map((x) => x.id === response.detail.id ? response.detail : x) : [response.detail, ...(current.details || [])] }));
+      setModal(null); flash(modal.id ? "Will detail updated." : "Will detail added.");
+    } catch (err) { console.error("[WillInheritance] detail save failed", err); setError(err.message || "We couldn't save this Will detail."); }
+    finally { setBusy(false); }
   }
 
-  function editAsset(item) {
-    setAsset({
-      name: item.name || "",
-      description: item.description || "",
-      estimatedValue: item.estimatedValue || "",
-      instructions: item.instructions || "",
-    });
-
-    setEditingAssetId(item.id);
-    setNotice("");
-    setError("");
-  }
-
-  function cancelAssetEdit() {
-    setEditingAssetId(null);
-    setAsset(EMPTY_ASSET);
-  }
-
-  async function removeAsset(id) {
-    if (
-      !window.confirm(
-        "Remove this asset from your Will & Inheritance record?"
-      )
-    ) {
-      return;
-    }
-
+  async function saveAsset(form) {
+    if (!form.name.trim()) return setError("Asset name is required.");
+    setBusy(true); setError("");
     try {
-      await api.delete(`/will/assets/${id}`);
-
-      setWill((current) => ({
-        ...current,
-        assets: current.assets.filter(
-          (item) => item.id !== id
-        ),
-      }));
-
-      if (editingAssetId === id) {
-        cancelAssetEdit();
-      }
-
-      setNotice("Asset removed.");
-    } catch (err) {
-      setError(
-        err.message || "Could not remove the asset."
-      );
-    }
+      const response = modal.id ? await willApi.assets.update(modal.id, form) : await willApi.assets.create(form);
+      setWill((current) => ({ ...current, assets: modal.id ? current.assets.map((x) => x.id === response.asset.id ? response.asset : x) : [response.asset, ...(current.assets || [])] }));
+      setModal(null); flash(modal.id ? "Asset updated." : "Asset added.");
+    } catch (err) { console.error("[WillInheritance] asset save failed", err); setError(err.message || "We couldn't save this asset."); }
+    finally { setBusy(false); }
   }
 
-  // ---------------------------------------------------------
-  // Beneficiaries
-  // ---------------------------------------------------------
-
-  async function saveBeneficiary(e) {
-    e.preventDefault();
-
-    if (!beneficiary.name.trim()) {
-      setError("Beneficiary name is required.");
-      return;
-    }
-
-    setSaving(true);
-    setError("");
-    setNotice("");
-
+  async function saveBeneficiary(form) {
+    if (!form.name.trim()) return setError("Beneficiary name is required.");
+    setBusy(true); setError("");
     try {
-      if (editingBeneficiaryId) {
-        const { beneficiary: updated } = await api.patch(
-          `/will/beneficiaries/${editingBeneficiaryId}`,
-          beneficiary
-        );
-
-        setWill((current) => ({
-          ...current,
-          beneficiaries: current.beneficiaries.map((item) =>
-            item.id === updated.id ? updated : item
-          ),
-        }));
-
-        setNotice("Beneficiary updated.");
-      } else {
-        const { beneficiary: created } = await api.post(
-          "/will/beneficiaries",
-          beneficiary
-        );
-
-        setWill((current) => ({
-          ...current,
-          beneficiaries: [
-            ...(current.beneficiaries || []),
-            created,
-          ],
-        }));
-
-        setNotice("Beneficiary added.");
-      }
-
-      setBeneficiary(EMPTY_BENEFICIARY);
-      setEditingBeneficiaryId(null);
-    } catch (err) {
-      setError(
-        err.message || "Could not save this beneficiary."
-      );
-    } finally {
-      setSaving(false);
-    }
+      const response = modal.id ? await willApi.beneficiaries.update(modal.id, form) : await willApi.beneficiaries.create(form);
+      setWill((current) => ({ ...current, beneficiaries: modal.id ? current.beneficiaries.map((x) => x.id === response.beneficiary.id ? response.beneficiary : x) : [response.beneficiary, ...(current.beneficiaries || [])] }));
+      setModal(null); flash(modal.id ? "Beneficiary updated." : "Beneficiary added.");
+    } catch (err) { console.error("[WillInheritance] beneficiary save failed", err); setError(err.message || "We couldn't save this beneficiary."); }
+    finally { setBusy(false); }
   }
 
-  function editBeneficiary(item) {
-    setBeneficiary({
-      name: item.name || "",
-      relationship: item.relationship || "",
-      contact: item.contact || "",
-      allocation: item.allocation || "",
-      notes: item.notes || "",
-    });
-
-    setEditingBeneficiaryId(item.id);
-    setNotice("");
-    setError("");
-  }
-
-  function cancelBeneficiaryEdit() {
-    setEditingBeneficiaryId(null);
-    setBeneficiary(EMPTY_BENEFICIARY);
-  }
-
-  async function removeBeneficiary(id) {
-    if (
-      !window.confirm(
-        "Remove this beneficiary from your Will & Inheritance record?"
-      )
-    ) {
-      return;
-    }
-
+  async function saveContact(form) {
+    if (!form.name.trim()) return setError("Contact name is required.");
+    setBusy(true); setError("");
     try {
-      await api.delete(`/will/beneficiaries/${id}`);
-
-      setWill((current) => ({
-        ...current,
-        beneficiaries: current.beneficiaries.filter(
-          (item) => item.id !== id
-        ),
-      }));
-
-      if (editingBeneficiaryId === id) {
-        cancelBeneficiaryEdit();
-      }
-
-      setNotice("Beneficiary removed.");
-    } catch (err) {
-      setError(
-        err.message ||
-          "Could not remove the beneficiary."
-      );
-    }
+      const response = modal.id ? await willApi.contacts.update(modal.id, form) : await willApi.contacts.create(form);
+      setWill((current) => ({ ...current, contacts: modal.id ? current.contacts.map((x) => x.id === response.contact.id ? response.contact : x) : [response.contact, ...(current.contacts || [])] }));
+      setModal(null); flash(modal.id ? "Contact updated." : "Contact added.");
+    } catch (err) { console.error("[WillInheritance] contact save failed", err); setError(err.message || "We couldn't save this contact."); }
+    finally { setBusy(false); }
   }
 
-  // ---------------------------------------------------------
-  // Derived Data
-  // ---------------------------------------------------------
+  async function saveExecutor(form) {
+    if (!form.name.trim()) return setError("Executor name is required.");
+    setBusy(true); setError("");
+    try {
+      const response = modal.id ? await willApi.executors.update(modal.id, form) : await willApi.executors.create(form);
+      setWill((current) => ({ ...current, executors: modal.id ? current.executors.map((x) => x.id === response.executor.id ? response.executor : x) : [response.executor, ...(current.executors || [])] }));
+      setModal(null); flash(modal.id ? "Executor updated." : "Executor added.");
+    } catch (err) { console.error("[WillInheritance] executor save failed", err); setError(err.message || "We couldn't save this executor."); }
+    finally { setBusy(false); }
+  }
+
+  async function deleteRecord() {
+    if (!deleteTarget) return;
+    setBusy(true); setError("");
+    try {
+      const { type, id } = deleteTarget;
+      if (type === "detail") await willApi.details.remove(id);
+      if (type === "asset") await willApi.assets.remove(id);
+      if (type === "beneficiary") await willApi.beneficiaries.remove(id);
+      if (type === "contact") await willApi.contacts.remove(id);
+      if (type === "executor") await willApi.executors.remove(id);
+      setWill((current) => ({ ...current, [type === "detail" ? "details" : `${type}s`]: (current[type === "detail" ? "details" : `${type}s`] || []).filter((x) => x.id !== id) }));
+      setDeleteTarget(null); flash(`${deleteTarget.label} removed.`);
+    } catch (err) { console.error("[WillInheritance] delete failed", err); setError(err.message || `We couldn't remove this ${deleteTarget.label.toLowerCase()}.`); }
+    finally { setBusy(false); }
+  }
 
   const assets = will?.assets || [];
   const beneficiaries = will?.beneficiaries || [];
+  const details = will?.details || [];
+  const contacts = will?.contacts || [];
+  const executors = will?.executors || [];
+  const documents = will?.documents || [];
+  const activities = will?.activities || [];
 
-  const completion = useMemo(() => {
-    let complete = 0;
+  const filteredAssets = useMemo(() => sortRecords(assets.filter((x) => (!assetQuery || `${x.name} ${x.description || ""}`.toLowerCase().includes(assetQuery.toLowerCase())) && (assetFilter === "All" || String(x.type || "").toLowerCase() === String(assetFilter).toLowerCase())), assetSort), [assets, assetQuery, assetFilter, assetSort]);
+  const filteredBeneficiaries = useMemo(() => sortRecords(beneficiaries.filter((x) => (!beneficiaryQuery || `${x.name} ${x.relationship || ""}`.toLowerCase().includes(beneficiaryQuery.toLowerCase())) && (beneficiaryFilter === "All" || String(x.beneficiaryType || "").toUpperCase() === String(beneficiaryFilter).toUpperCase())), beneficiarySort), [beneficiaries, beneficiaryQuery, beneficiaryFilter, beneficiarySort]);
 
-    if (form.title.trim()) complete += 1;
-    if (form.wishes.trim()) complete += 1;
-    if (form.instructions.trim()) complete += 1;
-    if (assets.length) complete += 1;
-    if (beneficiaries.length) complete += 1;
+  const completionItems = useMemo(() => [
+    { key: "title", label: "Document title", complete: Boolean(will?.title?.trim()), help: "Give your Will a clear title." },
+    { key: "wishes", label: "Personal wishes", complete: Boolean(will?.wishes?.trim()), help: "Add your personal wishes." },
+    { key: "assets", label: "Assets", complete: assets.length > 0, help: "Add at least one important asset." },
+    { key: "beneficiaries", label: "Beneficiaries", complete: beneficiaries.length > 0, help: "Add at least one beneficiary." },
+    { key: "contacts", label: "Important contacts", complete: contacts.length > 0, help: "Add a person who may need to help." },
+    { key: "executor", label: "Executor / representative", complete: executors.length > 0, help: "Add a trusted personal representative." },
+    { key: "digital", label: "Digital legacy", complete: details.some((x) => String(x.type || "").replaceAll("_", "-") === "digital-legacy"), help: "Document how you want digital assets handled." },
+    { key: "documents", label: "Supporting documents", complete: documents.length > 0, help: "Attach important supporting documents." },
+  ], [will, assets.length, beneficiaries.length, contacts.length, executors.length, details, documents.length]);
 
-    return Math.round((complete / 5) * 100);
-  }, [
-    form,
-    assets.length,
-    beneficiaries.length,
-  ]);
-
-  // ---------------------------------------------------------
-  // Locked State
-  // ---------------------------------------------------------
-
-  if (!unlocked) {
-    return (
-      <div className="max-w-[620px] mx-auto">
-        <div className="mb-7">
-          <span className="eyebrow">
-            PRIVATE & SENSITIVE
-          </span>
-
-          <h1 className="text-[30px] font-bold mt-1.5">
-            Will & Inheritance
-          </h1>
-
-          <p className="text-[13px] text-ink-muted mt-1.5">
-            A protected place to document your wishes,
-            assets, beneficiaries and important instructions.
-          </p>
-        </div>
-
-        <VaultGate
-          vault="will"
-          onUnlock={handleUnlocked}
-        />
-      </div>
-    );
-  }
-
-  // ---------------------------------------------------------
-  // Loading State
-  // ---------------------------------------------------------
-
-  if (loading && !will) {
-    return (
-      <p className="text-ink-muted text-[12.5px] text-center mt-16">
-        Loading your protected record…
-      </p>
-    );
-  }
-
-  // ---------------------------------------------------------
-  // Main UI
-  // ---------------------------------------------------------
+  if (!unlocked) return <div className="max-w-[620px] mx-auto"><div className="mb-7"><span className="eyebrow">PRIVATE & SENSITIVE</span><h1 className="text-[30px] font-bold mt-1.5">Will & Inheritance</h1><p className="text-[13px] text-ink-muted mt-1.5">A protected workspace for your wishes, assets, beneficiaries and estate instructions.</p></div><VaultGate vault="will" onUnlock={() => setUnlocked(true)} /></div>;
+  if (loading && !will) return <div className="max-w-[980px] mx-auto py-8"><p className="text-ink-muted text-[12px]">Loading your Will…</p></div>;
 
   return (
-    <div className="max-w-[1040px] mx-auto pb-12">
-
-      {/* Header */}
-      <header className="mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="eyebrow">
-                PRIVATE & SENSITIVE
-              </span>
-
-              <span className="chip">
-                🔐 Protected
-              </span>
-            </div>
-
-            <h1 className="text-[28px] sm:text-[32px] font-bold">
-              {form.title || "Will & Inheritance"}
-            </h1>
-
-            <p className="text-[12px] text-ink-muted mt-1.5 max-w-2xl">
-              Keep your personal wishes, assets,
-              beneficiaries and instructions organised
-              in one protected record.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            className="btn-outline self-start"
-            onClick={lockPage}
-          >
-            🔒 Lock
-          </button>
-        </div>
-
-        {/* Completion Card */}
-        <div className="card mt-5 p-4 sm:p-5">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <p className="text-[10px] uppercase tracking-[.1em] font-bold text-ink-muted">
-                Record completeness
-              </p>
-
-              <p className="text-[12px] text-ink-soft mt-1">
-                {completion}% of the main sections have
-                information.
-              </p>
-            </div>
-
-            <div className="w-full sm:w-56">
-              <div className="h-1.5 rounded-full bg-app-panel2 overflow-hidden">
-                <div
-                  className="h-full bg-accent-notes rounded-full transition-all"
-                  style={{
-                    width: `${completion}%`,
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-
-          <p className="text-[9.5px] text-ink-muted mt-3">
-            Last updated {formatDate(will?.updatedAt)}.
-            This record is not a substitute for a legally
-            executed will or professional legal advice.
-          </p>
+    <div className="max-w-[1120px] mx-auto pb-10">
+      <header className="mb-5">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div className="min-w-0"><span className="eyebrow">PRIVATE & SENSITIVE</span><div className="flex items-center gap-2 mt-1.5"><h1 className="text-[28px] sm:text-[30px] font-bold tracking-tight truncate">{will?.title || "My Will & Inheritance"}</h1><span className="chip shrink-0">🔐 Protected</span></div><p className="text-[11.5px] text-ink-muted mt-1">Last updated {date(will?.updatedAt)}</p></div>
+          <div className="flex flex-wrap gap-2 shrink-0"><button type="button" className="btn-outline" onClick={() => setModal({ type: "profile", initial: { title: will?.title || "My Will & Inheritance" } })}>Edit title</button><button type="button" className="btn-outline" onClick={lock}>🔒 Lock</button></div>
         </div>
       </header>
 
-      {/* Alerts */}
-      {(error || notice) && (
-        <div
-          className={`mb-4 rounded-lg border px-3.5 py-2.5 text-[11px] ${
-            error
-              ? "border-danger/30 bg-danger/10 text-danger"
-              : "border-success/30 bg-success/10 text-success"
-          }`}
-        >
-          {error || notice}
-        </div>
-      )}
+      <ErrorBanner message={error} onDismiss={() => setError("")} />
+      {notice && <div className="rounded-xl border border-accent-notes/30 bg-accent-notes/5 px-3.5 py-3 mb-4 text-[11px] text-accent-notes">✓ {notice}</div>}
 
-      {/* ---------------------------------------------------
-          01 · WILL DETAILS
-      --------------------------------------------------- */}
+      <div className="grid gap-4">
+        <CompletionCard items={completionItems} />
 
-      <form
-        onSubmit={saveWill}
-        className="card p-4 sm:p-6 mb-4"
-      >
-        <SectionHeader
-          eyebrow="01 · YOUR WISHES"
-          title="Will details"
-          description="Start with the overall document title, your wishes and any instructions that should be easy to find."
-        />
+        <Section eyebrow="01 · WILL DETAILS" title="Your wishes & instructions" count={`${details.length} ${details.length === 1 ? "detail" : "details"}`} description="Create focused records instead of putting your entire estate plan into one long form." action={<button type="button" className="btn-primary" onClick={() => setModal({ type: "detail", initial: EMPTY_DETAIL })}>+ Add Will Detail</button>}>
+          {details.length === 0 ? <EmptyState title="No Will details yet" description="Add personal wishes, funeral wishes, digital legacy instructions, family messages or other special requests." action={<button type="button" className="btn-outline" onClick={() => setModal({ type: "detail", initial: EMPTY_DETAIL })}>+ Add Will Detail</button>} /> : <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">{details.map((item) => <RecordCard key={item.id} to={`/will/details/${item.id}`} title={item.title} meta={`Updated ${shortDate(item.updatedAt)}`} badge={item.type.replaceAll("-", " ")} description={item.content} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => setModal({ type: "detail", id: item.id, initial: { type: item.type, title: item.title, content: item.content } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => setDeleteTarget({ type: "detail", id: item.id, label: "Will detail", name: item.title })}>Delete</button></>} />)}</div>}
+        </Section>
 
-        <div className="grid gap-4">
+        <Section eyebrow="02 · ASSETS" title="What you own" count={`${assets.length} ${assets.length === 1 ? "asset" : "assets"}`} description="Keep concise summaries here. Open an asset to see its full record and supporting documents." action={<button type="button" className="btn-primary" onClick={() => setModal({ type: "asset", initial: EMPTY_ASSET })}>+ Add Asset</button>}>
+          {assets.length > 0 && <div className="grid sm:grid-cols-[1fr_auto_auto] gap-2 mb-4"><input className="input" value={assetQuery} onChange={(e) => setAssetQuery(e.target.value)} placeholder="Search assets…" /><select className="input sm:w-[170px]" value={assetFilter} onChange={(e) => setAssetFilter(e.target.value)}>{ASSET_FILTERS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><select className="input sm:w-[170px]" value={assetSort} onChange={(e) => setAssetSort(e.target.value)}><option value="recent">Recently updated</option><option value="name">Name</option><option value="value">Estimated value</option></select></div>}
+          {assets.length === 0 ? <EmptyState title="No assets yet" description="Keep property, accounts, investments, vehicles, valuables and digital assets organised here." action={<button type="button" className="btn-outline" onClick={() => setModal({ type: "asset", initial: EMPTY_ASSET })}>+ Add Asset</button>} /> : filteredAssets.length === 0 ? <EmptyState title="No matching assets" description="Try another search or filter." /> : <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">{filteredAssets.map((item) => <RecordCard key={item.id} to={`/will/assets/${item.id}`} title={item.name} meta={item.estimatedValue || "Value not specified"} badge={item.type} description={item.description} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => setModal({ type: "asset", id: item.id, initial: { ...EMPTY_ASSET, ...item } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => setDeleteTarget({ type: "asset", id: item.id, label: "Asset", name: item.name })}>Delete</button></>} />)}</div>}
+        </Section>
 
-          <Field label="Document title">
-            <input
-              className="input"
-              value={form.title}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  title: e.target.value,
-                })
-              }
-              placeholder="My Will & Inheritance"
-            />
-          </Field>
+        <Section eyebrow="03 · BENEFICIARIES" title="Who should receive what" count={`${beneficiaries.length} ${beneficiaries.length === 1 ? "beneficiary" : "beneficiaries"}`} description="Record people, organisations, charities or trusts and describe their entitlement clearly." action={<button type="button" className="btn-primary" onClick={() => setModal({ type: "beneficiary", initial: EMPTY_BENEFICIARY })}>+ Add Beneficiary</button>}>
+          {beneficiaries.length > 0 && <div className="grid sm:grid-cols-[1fr_auto_auto] gap-2 mb-4"><input className="input" value={beneficiaryQuery} onChange={(e) => setBeneficiaryQuery(e.target.value)} placeholder="Search beneficiaries…" /><select className="input sm:w-[170px]" value={beneficiaryFilter} onChange={(e) => setBeneficiaryFilter(e.target.value)}>{BENEFICIARY_FILTERS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><select className="input sm:w-[170px]" value={beneficiarySort} onChange={(e) => setBeneficiarySort(e.target.value)}><option value="recent">Recently updated</option><option value="name">Name</option><option value="allocation">Allocation</option></select></div>}
+          {beneficiaries.length === 0 ? <EmptyState title="No beneficiaries yet" description="Add the people or organisations you want your Will to recognise." action={<button type="button" className="btn-outline" onClick={() => setModal({ type: "beneficiary", initial: EMPTY_BENEFICIARY })}>+ Add Beneficiary</button>} /> : filteredBeneficiaries.length === 0 ? <EmptyState title="No matching beneficiaries" description="Try another search or filter." /> : <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">{filteredBeneficiaries.map((item) => <RecordCard key={item.id} to={`/will/beneficiaries/${item.id}`} title={item.name} meta={item.allocation || "Entitlement not specified"} badge={item.beneficiaryType} description={item.relationship || item.specificEntitlement} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => setModal({ type: "beneficiary", id: item.id, initial: { ...EMPTY_BENEFICIARY, ...item } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => setDeleteTarget({ type: "beneficiary", id: item.id, label: "Beneficiary", name: item.name })}>Delete</button></>} />)}</div>}
+        </Section>
 
-          <Field
-            label="Personal wishes"
-            hint="Describe your wishes in your own words. You can return and update this at any time."
-          >
-            <textarea
-              className="input min-h-[190px] resize-y"
-              value={form.wishes}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  wishes: e.target.value,
-                })
-              }
-              placeholder="Write your personal wishes…"
-            />
-          </Field>
+        <Section eyebrow="04 · DIGITAL LEGACY" title="Your digital estate" count={`${details.filter((x) => String(x.type || "").replaceAll("_", "-") === "digital-legacy").length} ${details.filter((x) => String(x.type || "").replaceAll("_", "-") === "digital-legacy").length === 1 ? "record" : "records"}`} description="Document how you want email, domains, cloud files, subscriptions, cryptocurrency and other digital assets handled. Never store raw passwords here." action={<button type="button" className="btn-outline" onClick={() => setModal({ type: "detail", initial: { ...EMPTY_DETAIL, type: "digital-legacy", title: "Digital Legacy" } })}>+ Add Digital Legacy</button>}>
+          {details.filter((x) => String(x.type || "").replaceAll("_", "-") === "digital-legacy").length === 0 ? <EmptyState title="No digital legacy record yet" description="Create a focused record for digital accounts, files, domains, subscriptions or cryptocurrency instructions." /> : <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">{details.filter((x) => String(x.type || "").replaceAll("_", "-") === "digital-legacy").map((item) => <RecordCard key={item.id} to={`/will/details/${item.id}`} title={item.title} meta={`Updated ${shortDate(item.updatedAt)}`} badge="digital legacy" description={item.content} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => setModal({ type: "detail", id: item.id, initial: { type: item.type, title: item.title, content: item.content } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => setDeleteTarget({ type: "detail", id: item.id, label: "Will detail", name: item.title })}>Delete</button></>} />)}</div>}
+        </Section>
 
-          <Field
-            label="Important instructions"
-            hint="Add practical information, preferences, or anything your beneficiaries should know."
-          >
-            <textarea
-              className="input min-h-[140px] resize-y"
-              value={form.instructions}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  instructions: e.target.value,
-                })
-              }
-              placeholder="Important instructions…"
-            />
-          </Field>
+        <div className="grid lg:grid-cols-2 gap-4">
+          <Section eyebrow="05 · EXECUTORS" title="Personal representatives" count={`${executors.length} ${executors.length === 1 ? "executor" : "executors"}`} description="Optionally record the people you trust to help administer your wishes." action={<button type="button" className="btn-outline" onClick={() => setModal({ type: "executor", initial: EMPTY_EXECUTOR })}>+ Add Executor</button>}>
+            {executors.length === 0 ? <EmptyState title="No executor added" description="Add one or more personal representatives if appropriate." /> : <div className="grid gap-2.5">{executors.map((item) => <RecordCard key={item.id} to={`/will/executors/${item.id}`} title={item.name} meta={item.relationship || "Personal representative"} description={item.contact} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => setModal({ type: "executor", id: item.id, initial: { ...EMPTY_EXECUTOR, ...item } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => setDeleteTarget({ type: "executor", id: item.id, label: "Executor", name: item.name })}>Delete</button></>} />)}</div>}
+          </Section>
 
+          <Section eyebrow="06 · IMPORTANT CONTACTS" title="People who may need to help" count={`${contacts.length} ${contacts.length === 1 ? "contact" : "contacts"}`} action={<button type="button" className="btn-outline" onClick={() => setModal({ type: "contact", initial: EMPTY_CONTACT })}>+ Add Contact</button>}>
+            {contacts.length === 0 ? <EmptyState title="No important contacts" description="Lawyers, advisers, family members and other people can be kept here." /> : <div className="grid gap-2.5">{contacts.map((item) => <RecordCard key={item.id} to={`/will/contacts/${item.id}`} title={item.name} meta={item.type} description={[item.phone, item.email].filter(Boolean).join(" · ")} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => setModal({ type: "contact", id: item.id, initial: { ...EMPTY_CONTACT, ...item } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => setDeleteTarget({ type: "contact", id: item.id, label: "Contact", name: item.name })}>Delete</button></>} />)}</div>}
+          </Section>
         </div>
 
-        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 mt-5 pt-4 border-t border-app-border">
-          <span className="text-[9.5px] text-ink-muted">
-            Changes are saved only when you press Save.
-          </span>
+        <Section eyebrow="07 · DOCUMENTS" title="Supporting documents" count={`${documents.length} ${documents.length === 1 ? "file" : "files"}`} description="Documents are stored separately from the Will text and can be attached to specific records from their detail pages." action={<Link to="/will" className="text-[10.5px] font-semibold text-accent-notes">Protected files</Link>}>
+          <WillDocuments documents={documents} onChange={(next) => setWill((current) => ({ ...current, documents: next }))} />
+        </Section>
 
-          <button
-            className="btn-primary"
-            type="submit"
-            disabled={saving}
-          >
-            {saving ? "Saving…" : "Save Will details"}
-          </button>
-        </div>
-      </form>
+        <Section eyebrow="08 · ACTIVITY" title="Recent activity" description="A lightweight audit trail of changes made inside this protected workspace.">
+          {activities.length === 0 ? <p className="text-[10.5px] text-ink-muted">No activity recorded yet.</p> : <div className="grid gap-2">{activities.slice(0, 8).map((item) => <div key={item.id} className="flex items-start justify-between gap-4 rounded-lg border border-app-border bg-app-panel2 px-3 py-2.5"><div><p className="text-[10.5px] font-semibold">{item.message}</p><p className="text-[9.5px] text-ink-muted mt-0.5">{item.action} · {item.entityType}</p></div><time className="text-[9.5px] text-ink-muted shrink-0">{shortDate(item.createdAt)}</time></div>)}</div>}
+        </Section>
 
-      {/* ---------------------------------------------------
-          02 · ASSETS
-      --------------------------------------------------- */}
+        <p className="text-[9.5px] text-ink-muted leading-relaxed max-w-3xl">Veynote is a private record-keeping workspace. Information stored here is not a substitute for a legally executed Will, estate-planning instrument or professional legal advice. Review important arrangements with a qualified professional where appropriate.</p>
+      </div>
 
-      <section className="card p-4 sm:p-6 mb-4">
-        <SectionHeader
-          eyebrow="02 · ASSETS"
-          title="What you own"
-          description="Record important assets and add enough detail for someone to understand what the asset is and what should happen to it."
-          count={`${assets.length} ${
-            assets.length === 1 ? "asset" : "assets"
-          }`}
-        />
-
-        {assets.length > 0 ? (
-          <div className="grid gap-2.5 mb-5">
-            {assets.map((item) => (
-              <div
-                key={item.id}
-                className="rounded-xl border border-app-border bg-app-panel2 p-3.5 sm:p-4"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="text-[12.5px] font-bold truncate">
-                      {item.name}
-                    </h3>
-
-                    {item.description && (
-                      <p className="text-[10.5px] text-ink-muted mt-1 whitespace-pre-wrap">
-                        {item.description}
-                      </p>
-                    )}
-
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {item.estimatedValue && (
-                        <span className="chip">
-                          Value: {item.estimatedValue}
-                        </span>
-                      )}
-
-                      {item.instructions && (
-                        <span className="chip">
-                          Has instructions
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3 shrink-0">
-                    <button
-                      type="button"
-                      className="text-[10.5px] font-semibold text-ink-soft"
-                      onClick={() => editAsset(item)}
-                    >
-                      Edit
-                    </button>
-
-                    <button
-                      type="button"
-                      className="text-[10.5px] font-semibold text-danger"
-                      onClick={() => removeAsset(item.id)}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-
-                {item.instructions && (
-                  <div className="mt-3 pt-3 border-t border-app-border">
-                    <p className="text-[9.5px] uppercase tracking-[.08em] font-bold text-ink-muted">
-                      Instructions
-                    </p>
-
-                    <p className="text-[10.5px] text-ink-soft mt-1 whitespace-pre-wrap">
-                      {item.instructions}
-                    </p>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-xl border border-dashed border-app-border p-6 text-center mb-5">
-            <p className="text-[12px] font-semibold">
-              No assets added yet
-            </p>
-
-            <p className="text-[10.5px] text-ink-muted mt-1">
-              Add property, accounts, investments,
-              valuables or other assets you want documented.
-            </p>
-          </div>
-        )}
-
-        {/* Asset Form */}
-        <form
-          onSubmit={saveAsset}
-          className="rounded-xl border border-app-border bg-app-panel2 p-4"
-        >
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <div>
-              <p className="text-[11.5px] font-bold">
-                {editingAssetId
-                  ? "Edit asset"
-                  : "Add an asset"}
-              </p>
-
-              <p className="text-[9.5px] text-ink-muted mt-0.5">
-                All fields except the name are optional.
-              </p>
-            </div>
-
-            {editingAssetId && (
-              <button
-                type="button"
-                className="text-[10px] font-semibold text-ink-muted"
-                onClick={cancelAssetEdit}
-              >
-                Cancel edit
-              </button>
-            )}
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-3">
-
-            <Field label="Asset name">
-              <input
-                className="input"
-                value={asset.name}
-                onChange={(e) =>
-                  setAsset({
-                    ...asset,
-                    name: e.target.value,
-                  })
-                }
-                placeholder="e.g. House in Lagos"
-              />
-            </Field>
-
-            <Field label="Estimated value">
-              <input
-                className="input"
-                value={asset.estimatedValue}
-                onChange={(e) =>
-                  setAsset({
-                    ...asset,
-                    estimatedValue: e.target.value,
-                  })
-                }
-                placeholder="e.g. ₦25,000,000"
-              />
-            </Field>
-
-            <div className="md:col-span-2">
-              <Field label="Description">
-                <textarea
-                  className="input min-h-[90px] resize-y"
-                  value={asset.description}
-                  onChange={(e) =>
-                    setAsset({
-                      ...asset,
-                      description: e.target.value,
-                    })
-                  }
-                  placeholder="Location, account details, identifying information, etc."
-                />
-              </Field>
-            </div>
-
-            <div className="md:col-span-2">
-              <Field label="Asset-specific instructions">
-                <textarea
-                  className="input min-h-[80px] resize-y"
-                  value={asset.instructions}
-                  onChange={(e) =>
-                    setAsset({
-                      ...asset,
-                      instructions: e.target.value,
-                    })
-                  }
-                  placeholder="What should happen to this asset?"
-                />
-              </Field>
-            </div>
-
-          </div>
-
-          <button
-            className="btn-outline mt-3"
-            type="submit"
-            disabled={saving}
-          >
-            {saving
-              ? "Saving…"
-              : editingAssetId
-                ? "Update asset"
-                : "+ Add asset"}
-          </button>
-        </form>
-      </section>
-
-      {/* ---------------------------------------------------
-          03 · BENEFICIARIES
-      --------------------------------------------------- */}
-
-      <section className="card p-4 sm:p-6">
-        <SectionHeader
-          eyebrow="03 · BENEFICIARIES"
-          title="Who should receive what"
-          description="Document the people or organisations you intend to benefit, together with the relationship, contact and allocation details."
-          count={`${beneficiaries.length} ${
-            beneficiaries.length === 1
-              ? "beneficiary"
-              : "beneficiaries"
-          }`}
-        />
-
-        {beneficiaries.length > 0 ? (
-          <div className="grid gap-2.5 mb-5">
-            {beneficiaries.map((item) => (
-              <div
-                key={item.id}
-                className="rounded-xl border border-app-border bg-app-panel2 p-3.5 sm:p-4"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                  <div className="min-w-0">
-
-                    <h3 className="text-[12.5px] font-bold">
-                      {item.name}
-                    </h3>
-
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {item.relationship && (
-                        <span className="chip">
-                          {item.relationship}
-                        </span>
-                      )}
-
-                      {item.allocation && (
-                        <span className="chip">
-                          {item.allocation}
-                        </span>
-                      )}
-                    </div>
-
-                    {item.contact && (
-                      <p className="text-[10.5px] text-ink-muted mt-2">
-                        Contact: {item.contact}
-                      </p>
-                    )}
-
-                    {item.notes && (
-                      <p className="text-[10.5px] text-ink-soft mt-2 whitespace-pre-wrap">
-                        {item.notes}
-                      </p>
-                    )}
-
-                  </div>
-
-                  <div className="flex gap-3 shrink-0">
-                    <button
-                      type="button"
-                      className="text-[10.5px] font-semibold text-ink-soft"
-                      onClick={() =>
-                        editBeneficiary(item)
-                      }
-                    >
-                      Edit
-                    </button>
-
-                    <button
-                      type="button"
-                      className="text-[10.5px] font-semibold text-danger"
-                      onClick={() =>
-                        removeBeneficiary(item.id)
-                      }
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-xl border border-dashed border-app-border p-6 text-center mb-5">
-            <p className="text-[12px] font-semibold">
-              No beneficiaries added yet
-            </p>
-
-            <p className="text-[10.5px] text-ink-muted mt-1">
-              Add the people or organisations you want
-              documented in this record.
-            </p>
-          </div>
-        )}
-
-        {/* Beneficiary Form */}
-        <form
-          onSubmit={saveBeneficiary}
-          className="rounded-xl border border-app-border bg-app-panel2 p-4"
-        >
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <div>
-              <p className="text-[11.5px] font-bold">
-                {editingBeneficiaryId
-                  ? "Edit beneficiary"
-                  : "Add a beneficiary"}
-              </p>
-
-              <p className="text-[9.5px] text-ink-muted mt-0.5">
-                Use clear allocation language such as
-                “50% of estate” or “House in Lagos”.
-              </p>
-            </div>
-
-            {editingBeneficiaryId && (
-              <button
-                type="button"
-                className="text-[10px] font-semibold text-ink-muted"
-                onClick={cancelBeneficiaryEdit}
-              >
-                Cancel edit
-              </button>
-            )}
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-3">
-
-            <Field label="Full name / organisation">
-              <input
-                className="input"
-                value={beneficiary.name}
-                onChange={(e) =>
-                  setBeneficiary({
-                    ...beneficiary,
-                    name: e.target.value,
-                  })
-                }
-                placeholder="Beneficiary name"
-              />
-            </Field>
-
-            <Field label="Relationship">
-              <input
-                className="input"
-                value={beneficiary.relationship}
-                onChange={(e) =>
-                  setBeneficiary({
-                    ...beneficiary,
-                    relationship: e.target.value,
-                  })
-                }
-                placeholder="e.g. Daughter, Brother, Charity"
-              />
-            </Field>
-
-            <Field label="Contact">
-              <input
-                className="input"
-                value={beneficiary.contact}
-                onChange={(e) =>
-                  setBeneficiary({
-                    ...beneficiary,
-                    contact: e.target.value,
-                  })
-                }
-                placeholder="Phone, email or other contact"
-              />
-            </Field>
-
-            <Field label="Allocation / entitlement">
-              <input
-                className="input"
-                value={beneficiary.allocation}
-                onChange={(e) =>
-                  setBeneficiary({
-                    ...beneficiary,
-                    allocation: e.target.value,
-                  })
-                }
-                placeholder="e.g. 50% of estate"
-              />
-            </Field>
-
-            <div className="md:col-span-2">
-              <Field label="Notes / special instructions">
-                <textarea
-                  className="input min-h-[85px] resize-y"
-                  value={beneficiary.notes}
-                  onChange={(e) =>
-                    setBeneficiary({
-                      ...beneficiary,
-                      notes: e.target.value,
-                    })
-                  }
-                  placeholder="Additional information about this beneficiary…"
-                />
-              </Field>
-            </div>
-
-          </div>
-
-          <button
-            className="btn-outline mt-3"
-            type="submit"
-            disabled={saving}
-          >
-            {saving
-              ? "Saving…"
-              : editingBeneficiaryId
-                ? "Update beneficiary"
-                : "+ Add beneficiary"}
-          </button>
-        </form>
-      </section>
+      <WillModal open={modal?.type === "profile"} title="Edit Will Title" onClose={closeModal}><WillProfileForm initialTitle={modal?.initial?.title} onSubmit={saveProfile} onCancel={closeModal} busy={busy} /></WillModal>
+      <WillModal open={modal?.type === "detail"} title={modal?.id ? "Edit Will Detail" : "Add Will Detail"} description="Create one focused record for a specific part of your wishes." onClose={closeModal}><WillDetailForm initial={modal?.initial || EMPTY_DETAIL} onSubmit={saveDetail} onCancel={closeModal} busy={busy} /></WillModal>
+      <WillModal open={modal?.type === "asset"} title={modal?.id ? "Edit Asset" : "Add Asset"} description="Only add the information relevant to this asset." wide onClose={closeModal}><AssetForm initial={modal?.initial || EMPTY_ASSET} onSubmit={saveAsset} onCancel={closeModal} busy={busy} /></WillModal>
+      <WillModal open={modal?.type === "beneficiary"} title={modal?.id ? "Edit Beneficiary" : "Add Beneficiary"} description="Describe the intended entitlement clearly." wide onClose={closeModal}><BeneficiaryForm initial={modal?.initial || EMPTY_BENEFICIARY} assets={assets} onSubmit={saveBeneficiary} onCancel={closeModal} busy={busy} /></WillModal>
+      <WillModal open={modal?.type === "contact"} title={modal?.id ? "Edit Contact" : "Add Important Contact"} onClose={closeModal}><ContactForm initial={modal?.initial || EMPTY_CONTACT} onSubmit={saveContact} onCancel={closeModal} busy={busy} /></WillModal>
+      <WillModal open={modal?.type === "executor"} title={modal?.id ? "Edit Executor" : "Add Executor"} description="You can add more than one personal representative." wide onClose={closeModal}><ExecutorForm initial={modal?.initial || EMPTY_EXECUTOR} onSubmit={saveExecutor} onCancel={closeModal} busy={busy} /></WillModal>
+      <DeleteConfirmation open={Boolean(deleteTarget)} title={`Delete ${deleteTarget?.label || "record"}?`} message={`Are you sure you want to remove ${deleteTarget?.name ? `“${deleteTarget.name}”` : "this record"}? This action cannot be undone.`} busy={busy} onCancel={() => !busy && setDeleteTarget(null)} onConfirm={deleteRecord} />
     </div>
   );
 }

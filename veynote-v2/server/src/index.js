@@ -23,6 +23,7 @@ const linkPreviewRoutes = require("./routes/linkPreview.routes");
 const securityRoutes = require("./routes/security.routes");
 const webauthnRoutes = require("./routes/webauthn.routes");
 const publicRoutes = require("./routes/public.routes");
+const willRoutes = require("./routes/will.routes");
 
 const app = express();
 
@@ -86,6 +87,8 @@ app.use("/api/security", securityRoutes);
 app.use("/api/webauthn", webauthnRoutes);
 
 app.use("/api/public", publicRoutes);
+
+app.use("/api/will", willRoutes);
 
 /*
  * Global error handler

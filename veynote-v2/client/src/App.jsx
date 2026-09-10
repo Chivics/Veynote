@@ -20,6 +20,11 @@ import LockedNotes from "./pages/notes/LockedNotes";
 import WillInheritance from "./pages/notes/WillInheritance";
 import NotesCalendar from "./pages/notes/Calendar";
 import Tags from "./pages/notes/Tags";
+import WillDetail from "./pages/notes/WillDetail";
+import WillAssetDetail from "./pages/notes/WillAssetDetail";
+import WillBeneficiaryDetail from "./pages/notes/WillBeneficiaryDetail";
+import WillContactDetail from "./pages/notes/WillContactDetail";
+import WillExecutorDetail from "./pages/notes/WillExecutorDetail";
 
 import LibraryDashboard from "./pages/library/LibraryDashboard";
 import ReadingPage from "./pages/library/ReadingPage";
@@ -94,7 +99,40 @@ export default function App() {
           <Route path="notes/files" element={<Files />} />
           <Route path="notes/files/:id" element={<Files />} />
           <Route path="notes/locked" element={<LockedNotes />} />
-          <Route path="notes/will" element={<WillInheritance />} />
+          <Route
+          path="notes/will"
+          element={<Navigate to="/will" replace />}
+        />
+
+        <Route
+          path="will"
+          element={<WillInheritance />}
+        />
+
+        <Route
+          path="will/details/:id"
+          element={<WillDetail />}
+        />
+
+        <Route
+          path="will/assets/:id"
+          element={<WillAssetDetail />}
+        />
+
+        <Route
+          path="will/beneficiaries/:id"
+          element={<WillBeneficiaryDetail />}
+        />
+
+        <Route
+          path="will/contacts/:id"
+          element={<WillContactDetail />}
+        />
+
+        <Route
+          path="will/executors/:id"
+          element={<WillExecutorDetail />}
+        />
           <Route path="notes/calendar" element={<NotesCalendar />} />
 
           {/* Library (no Calendar anywhere in here, per the approved update) */}

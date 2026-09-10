@@ -76,6 +76,14 @@ model User {
   tradeImages     TradeImage[]
   fileNodes       FileNode[]
   webauthnCredentials WebAuthnCredential[]
+  will             Will?
+  willDetails      WillDetail[]
+  willAssets       WillAsset[]
+  willBeneficiaries WillBeneficiary[]
+  willContacts     WillContact[]
+  willExecutors    WillExecutor[]
+  willDocuments   WillDocument[]
+  willActivities  WillActivity[]
 }
 
 model Folder {
@@ -487,4 +495,173 @@ model WebAuthnCredential {
   createdAt    DateTime @default(now())
 
   @@index([userId])
+}
+
+
+model Will {
+  id           String           @id @default(cuid())
+  userId       String           @unique
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String           @default("My Will & Inheritance")
+  wishes       String?          @db.LongText
+  instructions String?          @db.LongText
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  details       WillDetail[]
+  assets        WillAsset[]
+  beneficiaries WillBeneficiary[]
+  contacts      WillContact[]
+  executors     WillExecutor[]
+  documents     WillDocument[]
+  activities    WillActivity[]
+}
+
+model WillDetail {
+  id        String   @id @default(cuid())
+  userId    String
+  willId    String
+  will      Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  content   String   @db.LongText
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents WillDocument[]
+
+  @@index([willId])
+  @@index([userId])
+  @@index([type])
+}
+
+model WillAsset {
+  id               String   @id @default(cuid())
+  userId           String
+  willId           String
+  will             Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  type             String   @default("Other")
+  description      String?  @db.Text
+  estimatedValue   String?
+  location         String?
+  accountReference String?
+  ownership        String?
+  instructions     String?  @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  documents     WillDocument[]
+  beneficiaries WillBeneficiary[]
+
+  @@index([willId])
+  @@index([userId])
+  @@index([type])
+}
+
+model WillBeneficiary {
+  id                  String      @id @default(cuid())
+  userId              String
+  willId              String
+  will                Will        @relation(fields: [willId], references: [id], onDelete: Cascade)
+  user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                String
+  beneficiaryType     String      @default("Person")
+  relationship        String?
+  contact             String?
+  allocation          String?     @db.Text
+  specificEntitlement String?     @db.Text
+  specificAssetId     String?
+  specificAsset       WillAsset?  @relation(fields: [specificAssetId], references: [id], onDelete: SetNull)
+  notes               String?     @db.Text
+  specialInstructions String?     @db.Text
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  documents WillDocument[]
+
+  @@index([willId])
+  @@index([userId])
+  @@index([specificAssetId])
+}
+
+model WillContact {
+  id        String   @id @default(cuid())
+  userId    String
+  willId    String
+  will      Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  type      String   @default("Other")
+  phone     String?
+  email     String?
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([willId])
+  @@index([userId])
+  @@index([type])
+}
+
+model WillExecutor {
+  id           String   @id @default(cuid())
+  userId       String
+  willId       String
+  will         Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  relationship String?
+  contact      String?
+  address      String?  @db.Text
+  notes        String?  @db.Text
+  instructions String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([willId])
+  @@index([userId])
+}
+
+model WillDocument {
+  id            String           @id @default(cuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  willId        String
+  will          Will             @relation(fields: [willId], references: [id], onDelete: Cascade)
+  detailId      String?
+  detail        WillDetail?      @relation(fields: [detailId], references: [id], onDelete: Cascade)
+  assetId       String?
+  asset         WillAsset?       @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  beneficiaryId String?
+  beneficiary   WillBeneficiary? @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
+  originalName  String
+  storedName    String
+  mimeType      String
+  sizeBytes     Int
+  createdAt     DateTime         @default(now())
+
+  @@index([willId])
+  @@index([userId])
+  @@index([detailId])
+  @@index([assetId])
+  @@index([beneficiaryId])
+}
+
+model WillActivity {
+  id         String   @id @default(cuid())
+  userId     String
+  willId     String
+  will       Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action     String
+  entityType String
+  entityId   String?
+  message    String
+  createdAt  DateTime @default(now())
+
+  @@index([willId, createdAt])
+  @@index([userId, createdAt])
 }
