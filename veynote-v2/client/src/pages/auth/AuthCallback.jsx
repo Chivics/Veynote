@@ -24,7 +24,7 @@ export default function AuthCallback() {
       return;
     }
 
-    localStorage.setItem("veynote_token", token);
+    localStorage.setItem("veynote_token", data.token);
     api
       .get("/auth/me")
       .then(({ user }) => {

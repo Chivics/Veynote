@@ -28,7 +28,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   function applySession(token, user) {
-    localStorage.setItem("veynote_token", token);
+    localStorage.setItem("veynote_token", data.token);
     setUser(user);
   }
 
