@@ -1,5 +1,6 @@
-export const API_BASE =
-import.meta.env.VITE_API_URL || "https://api.veynote.app/api";
+const BASE = import.meta.env.VITE_API_URL || "https://api.veynote.app/api";
+
+export const API_BASE = BASE;
 
 function getAuthToken() {
   return localStorage.getItem("token");
