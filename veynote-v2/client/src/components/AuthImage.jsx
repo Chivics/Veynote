@@ -24,7 +24,7 @@ function candidates({ src, imageId, attachmentId }) {
   if (src) {
     if (src.startsWith("blob:") || src.startsWith("data:")) return [src];
     if (src.startsWith("http://") || src.startsWith("https://")) list.push(src);
-    else if (src.startsWith("/api/")) list.push(`https://api-veynote.newdayfeeds.org${src}`);
+    else if (src.startsWith("/api/")) list.push(`https://api.veynote.app${src}`);
     else if (src.startsWith("/")) list.push(`${API_BASE}${src}`);
     else list.push(`${API_BASE}/${src}`);
     if (typeof src === "string" && !src.endsWith("/file") && src.includes("/images/")) {
