@@ -3,7 +3,7 @@ const BASE = import.meta.env.VITE_API_URL || "https://api.veynote.app/api";
 export const API_BASE = BASE;
 
 function getAuthToken() {
-  return localStorage.getItem("token");
+  return localStorage.getItem("veynote_token") || localStorage.getItem("token");
 }
 
 function getVaultToken() {
@@ -47,73 +47,44 @@ async function parseResponse(response) {
     case 400:
       message = data?.error || "The request could not be completed.";
       break;
-
     case 401:
-      message =
-        data?.error ||
-        "Your session or secure access has expired.";
+      message = data?.error || "Your session or secure access has expired.";
       break;
-
     case 403:
-      message =
-        data?.error ||
-        "You do not have permission to access this resource.";
+      message = data?.error || "You do not have permission to access this resource.";
       break;
-
     case 404:
-      message =
-        data?.error ||
-        "The requested resource could not be found.";
+      message = data?.error || "The requested resource could not be found.";
       break;
-
     case 413:
-      message =
-        data?.error ||
-        "The uploaded file is too large.";
+      message = data?.error || "The uploaded file is too large.";
       break;
-
     case 415:
-      message =
-        data?.error ||
-        "This file type is not supported.";
+      message = data?.error || "This file type is not supported.";
       break;
-
     case 500:
-      message =
-        data?.error ||
-        "The server encountered an error.";
+      message = data?.error || "The server encountered an error.";
       break;
-
     case 502:
-      message =
-        data?.error ||
-        "The server gateway is unavailable.";
+      message = data?.error || "The server gateway is unavailable.";
       break;
-
     case 503:
-      message =
-        data?.error ||
-        "The service is temporarily unavailable.";
+      message = data?.error || "The service is temporarily unavailable.";
       break;
-
     default:
       break;
   }
 
   const error = new Error(message);
-
   error.status = response.status;
   error.data = data;
   error.requiresVault = data?.requiresVault || null;
-
   throw error;
 }
 
 async function request(path, options = {}) {
   const headers = {
-    ...(options.body instanceof FormData
-      ? {}
-      : { "Content-Type": "application/json" }),
+    ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers || {}),
   };
 
@@ -121,17 +92,9 @@ async function request(path, options = {}) {
   const vaultToken = getVaultToken();
   const willToken = getWillToken();
 
-  if (authToken) {
-    headers.Authorization = `Bearer ${authToken}`;
-  }
-
-  if (vaultToken) {
-    headers["X-Vault-Token"] = vaultToken;
-  }
-
-  if (willToken) {
-    headers["X-Will-Token"] = willToken;
-  }
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  if (vaultToken) headers["X-Vault-Token"] = vaultToken;
+  if (willToken) headers["X-Will-Token"] = willToken;
 
   const response = await fetch(`${BASE}${path}`, {
     ...options,
@@ -149,10 +112,7 @@ export const api = {
   post(path, body) {
     return request(path, {
       method: "POST",
-      body:
-        body instanceof FormData
-          ? body
-          : JSON.stringify(body),
+      body: body instanceof FormData ? body : JSON.stringify(body),
     });
   },
 
@@ -171,88 +131,49 @@ export const api = {
   },
 
   delete(path) {
-    return request(path, {
-      method: "DELETE",
-    });
+    return request(path, { method: "DELETE" });
   },
 
   upload(path, formData, onProgress) {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-
       xhr.open("POST", `${BASE}${path}`);
 
       const authToken = getAuthToken();
       const vaultToken = getVaultToken();
       const willToken = getWillToken();
 
-      if (authToken) {
-        xhr.setRequestHeader(
-          "Authorization",
-          `Bearer ${authToken}`
-        );
-      }
-
-      if (vaultToken) {
-        xhr.setRequestHeader(
-          "X-Vault-Token",
-          vaultToken
-        );
-      }
-
-      if (willToken) {
-        xhr.setRequestHeader(
-          "X-Will-Token",
-          willToken
-        );
-      }
+      if (authToken) xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
+      if (vaultToken) xhr.setRequestHeader("X-Vault-Token", vaultToken);
+      if (willToken) xhr.setRequestHeader("X-Will-Token", willToken);
 
       xhr.upload.onprogress = (event) => {
         if (!event.lengthComputable) return;
-
-        const percent = Math.round(
-          (event.loaded / event.total) * 100
-        );
-
-        if (onProgress) {
-          onProgress(percent);
-        }
+        const percent = Math.round((event.loaded / event.total) * 100);
+        if (onProgress) onProgress(percent);
       };
 
       xhr.onload = () => {
         let data = {};
-
         try {
           data = JSON.parse(xhr.responseText || "{}");
         } catch {
           data = {};
         }
-
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve(data);
           return;
         }
-
-        const error = new Error(
-          data?.error ||
-            "The upload could not be completed."
-        );
-
+        const error = new Error(data?.error || "The upload could not be completed.");
         error.status = xhr.status;
         error.data = data;
-        error.requiresVault =
-          data?.requiresVault || null;
-
+        error.requiresVault = data?.requiresVault || null;
         reject(error);
       };
 
       xhr.onerror = () => {
-        const error = new Error(
-          "Network error while uploading the file."
-        );
-
+        const error = new Error("Network error while uploading the file.");
         error.status = 0;
-
         reject(error);
       };
 
