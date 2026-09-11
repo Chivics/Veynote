@@ -36,9 +36,10 @@ const cors = require("cors");
 
 app.use(cors({
   origin: [
-    "https://veynote.newdayfeeds.org",
-    "http://localhost:5173",
-  ],
+    "https://veynote.app",
+    "https://www.veynote.app",
+    process.env.CLIENT_URL,
+  ].filter(Boolean),
   credentials: true,
 }));
 

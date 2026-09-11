@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-const API_BASE = "https://api-veynote.newdayfeeds.org/api";
+const API_HOST = "https://api.veynote.app";
+const API_BASE = `${API_HOST}/api`;
 
 function authHeaders() {
   const token = localStorage.getItem("veynote_token");
