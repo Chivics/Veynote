@@ -6,6 +6,7 @@ const prisma = require("../lib/prisma");
 const { signToken } = require("../utils/jwt");
 const { requireAuth } = require("../middleware/auth");
 const { userPublic } = require("../utils/userPublic");
+const { asyncHandler } = require("../middleware/asyncHandler");
 
 const router = express.Router();
 
@@ -55,7 +56,7 @@ if (GOOGLE_ENABLED) {
 }
 
 // -- Register (email/password) --------------------------------------------
-router.post("/register", async (req, res) => {
+router.post("/register", asyncHandler(async (req, res) => {
   const { name, email, password } = req.body;
 
   if (!name || !email || !password) {
@@ -77,10 +78,10 @@ router.post("/register", async (req, res) => {
 
   const token = signToken(user.id);
   res.status(201).json({ token, user: userPublic(user) });
-});
+}));
 
 // -- Login (email/password) ------------------------------------------------
-router.post("/login", async (req, res) => {
+router.post("/login", asyncHandler(async (req, res) => {
   const { email, password } = req.body;
   const user = await prisma.user.findUnique({ where: { email } });
 
@@ -95,7 +96,7 @@ router.post("/login", async (req, res) => {
 
   const token = signToken(user.id);
   res.json({ token, user: userPublic(user) });
-});
+}));
 
 // -- Google SSO -------------------------------------------------------------
 router.get("/google", (req, res, next) => {
@@ -123,14 +124,14 @@ router.get(
 );
 
 // -- Current user -------------------------------------------------------------
-router.get("/me", requireAuth, async (req, res) => {
+router.get("/me", requireAuth, asyncHandler(async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.userId } });
   if (!user) return res.status(404).json({ error: "User not found." });
   res.json({ user: userPublic(user) });
-});
+}));
 
 // -- Set default/last-active mode + remembered path (§2 of the board) ------
-router.patch("/me", requireAuth, async (req, res) => {
+router.patch("/me", requireAuth, asyncHandler(async (req, res) => {
   const { defaultMode, lastActiveNotesPath, lastActiveTradingPath, theme, editorFontSize, name } = req.body;
   const user = await prisma.user.update({
     where: { id: req.userId },
@@ -144,10 +145,10 @@ router.patch("/me", requireAuth, async (req, res) => {
     },
   });
   res.json({ user: userPublic(user) });
-});
+}));
 
 // -- Change password ---------------------------------------------------
-router.post("/change-password", requireAuth, async (req, res) => {
+router.post("/change-password", requireAuth, asyncHandler(async (req, res) => {
   const { currentPassword, newPassword, confirmPassword } = req.body;
 
   if (!newPassword || !confirmPassword) {
@@ -182,6 +183,6 @@ router.post("/change-password", requireAuth, async (req, res) => {
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash: newHash } });
 
   res.json({ ok: true, message: "Password updated." });
-});
+}));
 
 module.exports = { router, GOOGLE_ENABLED };

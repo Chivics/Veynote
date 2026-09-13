@@ -7,8 +7,12 @@ delete process.env.GOOGLE_CLIENT_SECRET;
 
 // HTTP policy tests use a database double; never access the configured DB.
 let writes = 0;
+let databaseFailure = null;
 const prisma = {
-  user: { async findUnique() { return { id: "alice", name: "Alice", passwordHash: "secret", lockedNotesPasswordHash: "vault-secret", willPasswordHash: "will-secret", webauthnChallenge: "private" }; } },
+  user: { async findUnique() {
+    if (databaseFailure) throw databaseFailure;
+    return { id: "alice", name: "Alice", passwordHash: "secret", lockedNotesPasswordHash: "vault-secret", willPasswordHash: "will-secret", webauthnChallenge: "private" };
+  } },
   folder: { async findFirst() { return null; } },
   tradingAccount: { async findFirst() { return null; } },
   note: { async create() { writes++; throw new Error("unexpected write"); } },
@@ -18,10 +22,12 @@ const prismaPath = require.resolve("../src/lib/prisma");
 require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: prisma };
 const { signToken, signVaultToken } = require("../src/utils/jwt");
 const app = express();
+app.use(require("cors")({ origin: "https://veynote.app", credentials: true }));
 app.use(express.json());
 app.use("/api/auth", require("../src/routes/auth.routes").router);
 app.use("/api/notes", require("../src/routes/notes.routes"));
 app.use("/api/trading", require("../src/routes/trading.routes"));
+app.use(require("../src/middleware/errorHandler").errorHandler);
 let server;
 let base;
 test.before(async () => {
@@ -57,4 +63,31 @@ test("note/trade creation rejects foreign references before database mutation", 
     assert.deepEqual(await response.json(), { error: "Linked record not found." });
   }
   assert.equal(writes, 0);
+});
+
+test("engine panics return safe JSON with CORS; the auth server remains responsive", async (t) => {
+  const logs = [];
+  t.mock.method(console, "error", (message) => logs.push(message));
+  t.after(() => { databaseFailure = null; });
+  databaseFailure = Object.assign(new Error("PANIC: timer has gone away; private-query-and-password"), { name: "PrismaClientRustPanicError" });
+  for (const [path, method, body] of [
+    ["/api/auth/login", "POST", { email: "test@example.invalid", password: "example-password" }],
+    ["/api/auth/register", "POST", { name: "Test", email: "test@example.invalid", password: "example-password" }],
+    ["/api/auth/me", "GET", undefined],
+  ]) {
+    const response = await fetch(`${base}${path}`, { method, headers: {
+      Origin: "https://veynote.app", Authorization: `Bearer ${signToken("alice")}`, "Content-Type": "application/json",
+    }, body: body ? JSON.stringify(body) : undefined });
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get("access-control-allow-origin"), "https://veynote.app");
+    assert.equal(response.headers.get("retry-after"), "30");
+    const result = await response.json();
+    assert.equal(result.code, "DATABASE_UNAVAILABLE");
+    assert.equal(JSON.stringify(result).includes("private-query"), false);
+  }
+  assert.equal(logs.length, 3);
+  assert.equal(logs.every((line) => !line.includes("private-query")), true);
+  databaseFailure = null;
+  const response = await fetch(`${base}/api/auth/me`, { headers: { Authorization: `Bearer ${signToken("alice")}` } });
+  assert.equal(response.status, 200);
 });

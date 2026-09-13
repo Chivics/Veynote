@@ -2,6 +2,9 @@ require("dotenv").config();
 const express = require("express");
 const path = require("path");
 const passport = require("passport");
+const prisma = require("./lib/prisma");
+const { asyncHandler } = require("./middleware/asyncHandler");
+const { errorHandler } = require("./middleware/errorHandler");
 
 const { router: authRoutes } = require("./routes/auth.routes");
 const folderRoutes = require("./routes/folders.routes");
@@ -52,6 +55,14 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
 
+// Liveness above deliberately does not touch MySQL. Readiness must prove
+// the database engine can execute a query before a deployment is healthy.
+app.get("/api/ready", asyncHandler(async (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  await prisma.$queryRaw`SELECT 1`;
+  res.json({ ok: true });
+}));
+
 app.use("/api/auth", authRoutes);
 
 app.use("/api/folders", folderRoutes);
@@ -90,13 +101,7 @@ app.use("/api/will", willRoutes);
 /*
  * Global error handler
  */
-app.use((err, _req, res, _next) => {
-  console.error(err);
-
-  res.status(500).json({
-    error: "Something went wrong on our end.",
-  });
-});
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 4000;
 
