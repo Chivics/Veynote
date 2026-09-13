@@ -4,9 +4,13 @@ const prisma = require("../lib/prisma");
 const { requireAuth } = require("../middleware/auth");
 const { hasValidVaultAccess } = require("../utils/vaultAccess");
 const { ownedReference } = require("../middleware/ownedReference");
+const { sanitizeDocument, sanitizeContent } = require("../utils/documentHtml");
+const { asyncHandler } = require("../middleware/asyncHandler");
+const { compareAndUpdateNote } = require("../utils/noteConcurrency");
 
 const router = express.Router();
 router.use(requireAuth);
+router.use(sanitizeContent);
 
 // Checks vaultGuardFor() below for the actual per-note gate; this file
 // only needs the shared hasValidVaultAccess() helper (also used by
@@ -31,6 +35,7 @@ function vaultGuardFor(req, note) {
 function serializeNote(note) {
   return {
     ...note,
+    content: sanitizeDocument(note.content),
     tags: note.tags?.map((t) => t.tag.name) || [],
     attachments: note.attachments?.map((a) => ({ ...a, url: `/uploads/${a.storedName}` })) || undefined,
   };
@@ -127,12 +132,12 @@ router.get("/:id", async (req, res) => {
   res.json({ note: serializeNote(note) });
 });
 
-async function resolveTags(userId, tagNames = []) {
+async function resolveTags(userId, tagNames = [], db = prisma) {
   const tags = [];
   for (const rawName of tagNames) {
     const name = rawName.trim().toLowerCase();
     if (!name) continue;
-    const tag = await prisma.tag.upsert({
+    const tag = await db.tag.upsert({
       where: { userId_name: { userId, name } },
       update: {},
       create: { userId, name },
@@ -148,29 +153,29 @@ async function resolveTags(userId, tagNames = []) {
 // NoteLink row per link (rather than re-scanning HTML on every
 // backlinks lookup) means the "Linked from:" panel is a plain indexed
 // query instead of a text search across every note's content.
-async function syncNoteLinks(sourceNoteId, content) {
+async function syncNoteLinks(sourceNoteId, content, db = prisma) {
   const targetIds = new Set();
   const re = /data-note-id="([a-zA-Z0-9_-]+)"/g;
   let match;
   while ((match = re.exec(content || ""))) targetIds.add(match[1]);
   targetIds.delete(sourceNoteId); // a note linking to itself isn't a backlink worth tracking
 
-  const existing = await prisma.noteLink.findMany({ where: { sourceNoteId } });
+  const existing = await db.noteLink.findMany({ where: { sourceNoteId } });
   const existingIds = new Set(existing.map((l) => l.targetNoteId));
 
   const toRemove = existing.filter((l) => !targetIds.has(l.targetNoteId)).map((l) => l.id);
   const toAdd = [...targetIds].filter((id) => !existingIds.has(id));
 
-  if (toRemove.length) await prisma.noteLink.deleteMany({ where: { id: { in: toRemove } } });
+  if (toRemove.length) await db.noteLink.deleteMany({ where: { id: { in: toRemove } } });
   if (toAdd.length) {
     // Only link to notes that actually exist and belong to this user —
     // a stale/tampered data-note-id shouldn't silently create a dangling
     // or cross-account row.
-    const validTargets = await prisma.note.findMany({
-      where: { id: { in: toAdd }, userId: (await prisma.note.findUnique({ where: { id: sourceNoteId } })).userId },
+    const validTargets = await db.note.findMany({
+      where: { id: { in: toAdd }, userId: (await db.note.findUnique({ where: { id: sourceNoteId } })).userId, isLocked: false, isWill: false, isTrashed: false },
       select: { id: true },
     });
-    await prisma.noteLink.createMany({
+    await db.noteLink.createMany({
       data: validTargets.map((t) => ({ sourceNoteId, targetNoteId: t.id })),
       skipDuplicates: true,
     });
@@ -183,15 +188,15 @@ async function syncNoteLinks(sourceNoteId, content) {
 // version, burying anything worth actually reverting to.
 const VERSION_SNAPSHOT_INTERVAL_MS = 10 * 60 * 1000;
 
-async function maybeSnapshotVersion(note) {
-  const lastVersion = await prisma.noteVersion.findFirst({
+async function maybeSnapshotVersion(note, db = prisma) {
+  const lastVersion = await db.noteVersion.findFirst({
     where: { noteId: note.id },
     orderBy: { createdAt: "desc" },
   });
   const dueForSnapshot = !lastVersion || Date.now() - new Date(lastVersion.createdAt).getTime() > VERSION_SNAPSHOT_INTERVAL_MS;
   if (!dueForSnapshot) return;
 
-  await prisma.noteVersion.create({
+  await db.noteVersion.create({
     data: { noteId: note.id, title: note.title, content: note.content },
   });
 }
@@ -228,7 +233,7 @@ router.post("/", ownedReference(prisma.folder, "folderId"), async (req, res) => 
   res.status(201).json({ note: serializeNote(note) });
 });
 
-router.patch("/:id", ownedReference(prisma.folder, "folderId"), async (req, res) => {
+router.patch("/:id", ownedReference(prisma.folder, "folderId"), asyncHandler(async (req, res) => {
   const existing = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!existing) return res.status(404).json({ error: "Note not found." });
 
@@ -236,25 +241,18 @@ router.patch("/:id", ownedReference(prisma.folder, "folderId"), async (req, res)
   if (!guard.ok) return res.status(401).json({ error: "This note is protected.", requiresVault: guard.requiresVault });
 
   const { title, content, folderId, mood, isFavorite, isPinned, isArchived, tags, entryDate } = req.body;
-
-  // Snapshot BEFORE applying the change, and only when content/title are
-  // actually part of this request — a favorite/pin/archive toggle
-  // shouldn't count as an edit worth versioning.
-  if (title !== undefined || content !== undefined) {
-    await maybeSnapshotVersion(existing);
+  const editsWriting = title !== undefined || content !== undefined;
+  if (editsWriting && !req.body.expectedUpdatedAt) {
+    return res.status(428).json({ code: "NOTE_VERSION_REQUIRED", error: "Reload this note before saving. Your editor needs its latest version." });
   }
-
-  if (tags) {
-    const tagRecords = await resolveTags(req.userId, tags);
-    await prisma.noteTag.deleteMany({ where: { noteId: existing.id } });
-    await prisma.noteTag.createMany({
-      data: tagRecords.map((t) => ({ noteId: existing.id, tagId: t.id })),
-    });
+  if (editsWriting && new Date(req.body.expectedUpdatedAt).getTime() !== new Date(existing.updatedAt).getTime()) {
+    return res.status(409).json({ code: "NOTE_CONFLICT", error: "This note changed elsewhere. Your changes have not overwritten it." });
   }
-
-  const note = await prisma.note.update({
-    where: { id: existing.id },
-    data: {
+  if (tags !== undefined && (!Array.isArray(tags) || tags.some((tag) => typeof tag !== "string"))) {
+    return res.status(400).json({ error: "Tags must be a list of names." });
+  }
+  const note = await prisma.$transaction(async (db) => {
+    await compareAndUpdateNote(db, existing, {
       ...(title !== undefined && { title }),
       ...(content !== undefined && { content }),
       ...(folderId !== undefined && { folderId: folderId || null }),
@@ -263,14 +261,19 @@ router.patch("/:id", ownedReference(prisma.folder, "folderId"), async (req, res)
       ...(isPinned !== undefined && { isPinned }),
       ...(isArchived !== undefined && { isArchived }),
       ...(entryDate !== undefined && { entryDate: new Date(entryDate) }),
-    },
-    include: { tags: { include: { tag: true } }, folder: true, attachments: true },
+    });
+    if (editsWriting) await maybeSnapshotVersion(existing, db);
+    if (tags !== undefined) {
+      const records = await resolveTags(req.userId, [...new Set(tags)], db);
+      await db.noteTag.deleteMany({ where: { noteId: existing.id } });
+      if (records.length) await db.noteTag.createMany({ data: records.map((tag) => ({ noteId: existing.id, tagId: tag.id })) });
+    }
+    if (content !== undefined) await syncNoteLinks(existing.id, content, db);
+    return db.note.findUnique({ where: { id: existing.id }, include: { tags: { include: { tag: true } }, folder: true, attachments: true } });
   });
 
-  if (content !== undefined) await syncNoteLinks(note.id, content);
-
   res.json({ note: serializeNote(note) });
-});
+}));
 
 // GET /api/notes/:id/versions — history list (title + timestamp only,
 // not full content, to keep the list cheap)
@@ -296,7 +299,7 @@ router.get("/:id/versions/:versionId", async (req, res) => {
 
   const version = await prisma.noteVersion.findFirst({ where: { id: req.params.versionId, noteId: note.id } });
   if (!version) return res.status(404).json({ error: "Version not found." });
-  res.json({ version });
+  res.json({ version: { ...version, content: sanitizeDocument(version.content) } });
 });
 
 // POST /api/notes/:id/versions/:versionId/restore — snapshots the
@@ -404,7 +407,7 @@ router.patch("/:id/lock", async (req, res) => {
 
   const note = await prisma.note.update({
     where: { id: existing.id },
-    data: { isLocked: Boolean(req.body.locked) },
+    data: { isLocked: Boolean(req.body.locked), ...(req.body.locked && { shareEnabled: false, shareToken: null }) },
     include: { tags: { include: { tag: true } }, folder: true, attachments: true },
   });
   res.json({ note: serializeNote(note) });

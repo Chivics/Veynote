@@ -17,6 +17,8 @@ import ShareMenu from "../../components/ShareMenu";
 import NoteOptionsMenu from "../../components/NoteOptionsMenu";
 import { computeStats, formatStats } from "../../utils/textStats";
 import { getTemplate } from "../../data/noteTemplates";
+import { escapeHtml } from "../../utils/safeHtml";
+import { createNoteWriter } from "../../utils/noteWriter";
 
 const FONT_SIZE_PX = { small: "13px", medium: "15px", large: "18px", comfort: "16px", display: "22px", xlarge: "28px" };
 
@@ -36,6 +38,10 @@ export default function NoteEditor() {
   const saveTimer = useRef(null);
   const saveSeq = useRef(0);
   const dirtyRef = useRef(false);
+  const writer = useRef(createNoteWriter(api));
+  const createdNoteId = useRef(null);
+  const navigatedNoteId = useRef(routeId || null);
+  const loadSequence = useRef(0);
 
   const [noteId, setNoteId] = useState(routeId || null);
   const [title, setTitle] = useState("");
@@ -85,10 +91,19 @@ export default function NoteEditor() {
 
   function loadNote() {
     if (!routeId) return;
+    if (createdNoteId.current === routeId) { createdNoteId.current = null; return; }
+    const requestSequence = ++loadSequence.current;
+    navigatedNoteId.current = routeId;
+    writer.current = createNoteWriter(api, { id: routeId });
+    clearTimeout(saveTimer.current);
+    setLoaded(false);
     setVaultRequired(null);
     api
       .get(`/notes/${routeId}`)
       .then((d) => {
+        if (requestSequence !== loadSequence.current) return;
+        writer.current = createNoteWriter(api, { id: d.note.id, updatedAt: d.note.updatedAt });
+        setNoteId(d.note.id);
         setTitle(d.note.title || "");
         setFolderId(d.note.folderId || "");
         setMood(d.note.mood || "");
@@ -105,6 +120,7 @@ export default function NoteEditor() {
         api.get(`/notes/${routeId}/backlinks`).then((b) => setBacklinks(b.backlinks)).catch(() => {});
       })
       .catch((err) => {
+        if (requestSequence !== loadSequence.current) return;
         if (err.requiresVault) {
           setVaultRequired(err.requiresVault);
         } else {
@@ -118,6 +134,7 @@ export default function NoteEditor() {
   async function toggleLock() {
     try {
       const { note } = await api.patch(`/notes/${routeId}/lock`, { locked: !isLocked });
+      writer.current = createNoteWriter(api, { id: note.id, updatedAt: note.updatedAt });
       setIsLocked(Boolean(note.isLocked));
     } catch (err) {
       if (err.requiresVault) {
@@ -140,7 +157,7 @@ export default function NoteEditor() {
   // ---------------- autosave ----------------
   const doSave = useCallback(
     async (fields) => {
-      const mySeq = ++saveSeq.current;
+      const mySeq = fields.sequence ?? saveSeq.current;
       const payload = {
         title: fields.title,
         content: fields.html,
@@ -150,26 +167,31 @@ export default function NoteEditor() {
       };
 
       if (!fields.noteId && !hasMeaningfulContent({ title: fields.title, html: fields.html, mood: fields.mood, tags: fields.tags })) {
+        dirtyRef.current = false;
+        setSaveStatus("idle");
         return; // nothing worth saving yet — stay quietly idle, no error shown
       }
 
       setSaveStatus("saving");
+      const currentWriter = writer.current;
       try {
-        if (!fields.noteId) {
-          const { note } = await api.post("/notes", payload);
-          if (mySeq !== saveSeq.current) return; // a newer save superseded this one
-          setNoteId(note.id);
+        const note = await currentWriter.save(payload);
+        if (currentWriter !== writer.current) return;
+        setNoteId(note.id);
+        if (!fields.noteId && navigatedNoteId.current !== note.id) {
+          navigatedNoteId.current = note.id;
+          createdNoteId.current = note.id;
           navigate(`/notes/${note.id}`, { replace: true });
-        } else {
-          await api.patch(`/notes/${fields.noteId}`, payload);
         }
         if (mySeq === saveSeq.current) {
+          dirtyRef.current = false;
           setSaveStatus("saved");
           setSaveError("");
         }
       } catch (err) {
+        if (currentWriter !== writer.current) return;
         if (mySeq === saveSeq.current) {
-          setSaveStatus("error");
+          setSaveStatus(err.status === 409 || err.status === 428 ? "conflict" : navigator.onLine ? "error" : "offline");
           setSaveError(err.message);
         }
       }
@@ -179,18 +201,17 @@ export default function NoteEditor() {
 
   function scheduleAutosave() {
     dirtyRef.current = true;
+    const sequence = ++saveSeq.current;
+    setSaveStatus(navigator.onLine ? "pending" : "offline");
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      doSave({ noteId, title, html: latestHTML.current, folderId, mood, tags });
+      doSave({ noteId, title, html: latestHTML.current, folderId, mood, tags, sequence });
     }, 900);
   }
 
   // Belt-and-braces: the 900ms autosave debounce is short, but if someone
   // closes the tab in that window (or a save is actively in flight), warn
   // instead of silently losing the last keystrokes.
-  useEffect(() => {
-    if (saveStatus === "saved" || saveStatus === "idle") dirtyRef.current = false;
-  }, [saveStatus]);
   useEffect(() => {
     function handleBeforeUnload(e) {
       if (!dirtyRef.current) return;
@@ -235,8 +256,9 @@ export default function NoteEditor() {
   // if the user attaches something before typing a single word, create an
   // empty draft immediately rather than blocking the action.
   async function ensureSaved() {
-    if (noteId) return noteId;
-    const { note } = await api.post("/notes", {
+    if (writer.current.id) return writer.current.id;
+    const currentWriter = writer.current;
+    const note = await currentWriter.save({
       title,
       content: latestHTML.current,
       folderId: folderId || null,
@@ -244,8 +266,13 @@ export default function NoteEditor() {
       tags,
       draftForAttachment: true,
     });
+    if (currentWriter !== writer.current) throw new Error("The open note changed. Return to the original note to attach this file.");
     setNoteId(note.id);
-    navigate(`/notes/${note.id}`, { replace: true });
+    if (navigatedNoteId.current !== note.id) {
+      navigatedNoteId.current = note.id;
+      createdNoteId.current = note.id;
+      navigate(`/notes/${note.id}`, { replace: true });
+    }
     return note.id;
   }
 
@@ -260,7 +287,7 @@ export default function NoteEditor() {
       );
       setUploading((u) => u.filter((x) => x.tempId !== tempId));
       if (inline) {
-        editorRef.current?.insertHTML(`<img src="${attachment.url}" alt="${attachment.originalName}" />`);
+        editorRef.current?.insertHTML(`<img src="${escapeHtml(attachment.url)}" alt="${escapeHtml(attachment.originalName)}" />`);
       } else {
         setAttachments((prev) => [...prev, attachment]);
       }
@@ -305,7 +332,7 @@ export default function NoteEditor() {
     if (noteLinkMenu?.blockEl) noteLinkMenu.blockEl.textContent = "";
     setNoteLinkMenu(null);
     editorRef.current?.insertHTML(
-      `<a class="note-link" href="/notes/${note.id}" data-note-id="${note.id}">${note.title || "Untitled"}</a>&nbsp;`
+      `<a class="note-link" href="/notes/${escapeHtml(note.id)}" data-note-id="${escapeHtml(note.id)}">${escapeHtml(note.title || "Untitled")}</a>&nbsp;`
     );
   }
 
@@ -378,6 +405,13 @@ export default function NoteEditor() {
               onToggleFocusMode={() => setFocusMode((f) => !f)}
             />
             <SaveStatus status={saveStatus} error={saveError} />
+            {["error", "offline"].includes(saveStatus) && <button type="button" className="btn-outline" onClick={scheduleAutosave}>Retry save</button>}
+            {saveStatus === "conflict" && <button type="button" className="btn-outline" onClick={() => {
+              const blob = new Blob([latestHTML.current], { type: "text/plain" });
+              const url = URL.createObjectURL(blob); const a = document.createElement("a");
+              a.href = url; a.download = "veynote-unsaved-writing.html.txt"; a.click();
+              setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }}>Download my unsaved writing</button>}
           </div>
         </div>
 

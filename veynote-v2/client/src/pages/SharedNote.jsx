@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { API_BASE } from "../api/client";
+import DocumentContent from "../components/DocumentContent";
 
 // No auth, no AppShell/sidebar — this is what someone with a shared
 // link sees, whether or not they have (or are logged into) a Veynote
@@ -11,13 +13,16 @@ export default function SharedNote() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/public/notes/${token}`)
+    setNote(null); setError("");
+    const controller = new AbortController();
+    fetch(`${API_BASE}/public/notes/${token}`, { signal: controller.signal })
       .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
       .then(({ ok, data }) => {
         if (ok) setNote(data.note);
         else setError(data.error || "This link isn't available.");
       })
-      .catch(() => setError("Couldn't load this note."));
+      .catch((err) => { if (err.name !== "AbortError") setError("Couldn't load this note."); });
+    return () => controller.abort();
   }, [token]);
 
   return (
@@ -38,7 +43,7 @@ export default function SharedNote() {
             <p className="text-ink-muted text-[11.5px] mb-6">
               Last updated {new Date(note.updatedAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })} · Read-only
             </p>
-            <div className="editor-page text-[14px] leading-[1.8] text-ink-soft" dangerouslySetInnerHTML={{ __html: note.content || "" }} />
+            <DocumentContent className="editor-page text-[14px] leading-[1.8] text-ink-soft" html={note.content} />
           </>
         )}
       </div>

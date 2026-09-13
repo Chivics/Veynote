@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from "react";
 import { handleLinkPaste } from "../utils/linkify";
+import { observeMedia, persistentHTML } from "../utils/media";
+import { safeHtml } from "../utils/safeHtml";
 
 /**
  * A writing surface that behaves like a document: once a page's visible
@@ -29,6 +31,7 @@ const PaginatedEditor = forwardRef(function PaginatedEditor(
 ) {
   const containerRef = useRef(null);
   const pageRefs = useRef([]);
+  useEffect(() => containerRef.current ? observeMedia(containerRef.current) : undefined, []);
   const [pageCount, setPageCount] = useState(1);
   const reflowScheduled = useRef(false);
   const savedRange = useRef(null);
@@ -105,7 +108,7 @@ const PaginatedEditor = forwardRef(function PaginatedEditor(
   }
 
   useImperativeHandle(ref, () => ({
-    getHTML: () => pageRefs.current.filter(Boolean).map((p) => p.innerHTML).join(""),
+    getHTML: () => pageRefs.current.filter(Boolean).map(persistentHTML).join(""),
 
     exec: (cmd, arg) => {
       restoreSelection();
@@ -115,7 +118,7 @@ const PaginatedEditor = forwardRef(function PaginatedEditor(
 
     insertHTML: (html) => {
       restoreSelection();
-      document.execCommand("insertHTML", false, html);
+      document.execCommand("insertHTML", false, safeHtml(html));
       reflow();
     },
 
@@ -126,7 +129,7 @@ const PaginatedEditor = forwardRef(function PaginatedEditor(
     // execCommand happened to land.
     insertBlock: (html) => {
       restoreSelection();
-      document.execCommand("insertHTML", false, html);
+      document.execCommand("insertHTML", false, safeHtml(html));
       reflow();
       requestAnimationFrame(() => {
         for (const page of pageRefs.current) {
@@ -332,7 +335,7 @@ const PaginatedEditor = forwardRef(function PaginatedEditor(
   // across further pages on mount if it's already longer than one page.
   useEffect(() => {
     if (pageRefs.current[0]) {
-      pageRefs.current[0].innerHTML = initialHTML || "";
+      pageRefs.current[0].innerHTML = safeHtml(initialHTML);
       reflow();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -410,7 +413,7 @@ const PaginatedEditor = forwardRef(function PaginatedEditor(
         setPageCount(target);
       }
 
-      onChange?.(pages.map((p) => p.innerHTML).join(""));
+      onChange?.(pages.map(persistentHTML).join(""));
     });
   }, [onChange]);
 
@@ -483,7 +486,7 @@ const PaginatedEditor = forwardRef(function PaginatedEditor(
             suppressContentEditableWarning
             data-placeholder={i === 0 ? placeholder : undefined}
             onInput={handleInput}
-            onPaste={handleLinkPaste}
+            onPaste={(event) => { if (handleLinkPaste(event)) reflow(); }}
             onBlur={() => {
               saveSelection();
               reflow();

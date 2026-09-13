@@ -3,6 +3,9 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
 import ImageLightbox from "../../components/ImageLightbox";
+import AuthImage from "../../components/AuthImage";
+import FileDownload from "../../components/FileDownload";
+import { resolveMediaUrl } from "../../utils/media";
 
 function formatSize(bytes) {
   if (bytes == null) return "";
@@ -113,13 +116,18 @@ export default function Files() {
     load();
   }
 
-  function openNode(node) {
+  async function openNode(node) {
     if (node.isDirectory) {
       navigate(`/notes/files/${node.id}`);
     } else if (node.mimeType?.startsWith("image/")) {
       openLightbox(node);
     } else {
-      window.open(node.url, "_blank", "noopener");
+      try {
+        const url = await resolveMediaUrl(node.url);
+        const link = document.createElement("a");
+        link.href = url; link.download = node.name; link.rel = "noreferrer";
+        link.click();
+      } catch (err) { alert(err.message); }
     }
   }
 
@@ -219,7 +227,7 @@ export default function Files() {
             <div key={node.id} className="card p-3 relative group">
               <button type="button" onClick={() => openNode(node)} className="w-full flex flex-col items-center gap-2 text-center">
                 {!node.isDirectory && node.mimeType?.startsWith("image/") ? (
-                  <img src={node.url} alt={node.name} className="w-full aspect-square object-cover rounded-lg border border-app-border" />
+                  <AuthImage src={node.url} alt={node.name} className="w-full aspect-square object-cover rounded-lg border border-app-border" />
                 ) : (
                   <div className="w-full aspect-square rounded-lg border border-app-border bg-app-panel2 flex items-center justify-center text-3xl">
                     {iconFor(node)}
@@ -251,9 +259,9 @@ export default function Files() {
               {menuOpenId === node.id && (
                 <div className="absolute top-9 right-2 z-10 bg-app-panel border border-app-border rounded-lg shadow-lg overflow-hidden text-[11.5px] min-w-[110px]">
                   {!node.isDirectory && (
-                    <a href={node.url} target="_blank" rel="noreferrer" download={node.name} className="block px-3 py-2 hover:bg-app-panel2 text-ink">
+                    <FileDownload url={node.url} name={node.name} className="block px-3 py-2 hover:bg-app-panel2 text-ink">
                       Download
-                    </a>
+                    </FileDownload>
                   )}
                   <button
                     type="button"

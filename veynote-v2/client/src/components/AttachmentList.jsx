@@ -1,5 +1,7 @@
 import { useState } from "react";
 import ImageLightbox from "./ImageLightbox";
+import AuthImage from "./AuthImage";
+import FileDownload from "./FileDownload";
 
 function formatSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -51,7 +53,7 @@ export default function AttachmentList({ attachments, uploading, onRemove, accen
                 className="shrink-0"
                 title="Click to view full size"
               >
-                <img src={a.url} alt={a.originalName} className="w-12 h-12 object-cover rounded-md border border-app-border" />
+                <AuthImage src={a.url} alt={a.originalName} className="w-12 h-12 object-cover rounded-md border border-app-border" />
               </button>
             ) : (
               <span className="text-base shrink-0">{iconFor(a.mimeType)}</span>
@@ -63,9 +65,7 @@ export default function AttachmentList({ attachments, uploading, onRemove, accen
               </p>
             </div>
             {!isImage && (
-              <a href={a.url} target="_blank" rel="noreferrer" className={`text-[10.5px] font-semibold shrink-0 ${accentClass}`}>
-                Open
-              </a>
+              <FileDownload url={a.url} name={a.originalName} className={`text-[10.5px] font-semibold shrink-0 ${accentClass}`} />
             )}
             <button onClick={() => onRemove(a.id)} className="text-[10.5px] text-danger font-semibold shrink-0">
               Remove

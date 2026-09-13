@@ -2,9 +2,11 @@ const express = require("express");
 const prisma = require("../lib/prisma");
 const { requireAuth } = require("../middleware/auth");
 const { ownedReference } = require("../middleware/ownedReference");
+const { sanitizeContent, sanitizeDocument } = require("../utils/documentHtml");
 
 const router = express.Router();
 router.use(requireAuth);
+router.use(sanitizeContent);
 
 // GET /api/trading/entries?accountId=&result=&q=
 router.get("/entries", async (req, res) => {
@@ -23,7 +25,7 @@ router.get("/entries", async (req, res) => {
     orderBy: { entryDate: "desc" },
   });
 
-  res.json({ entries });
+  res.json({ entries: entries.map((entry) => ({ ...entry, content: sanitizeDocument(entry.content) })) });
 });
 
 router.get("/entries/:id", async (req, res) => {
@@ -32,7 +34,7 @@ router.get("/entries/:id", async (req, res) => {
     include: { account: true },
   });
   if (!entry) return res.status(404).json({ error: "Entry not found." });
-  res.json({ entry });
+  res.json({ entry: { ...entry, content: sanitizeDocument(entry.content) } });
 });
 
 function computeRR(entry, direction) {

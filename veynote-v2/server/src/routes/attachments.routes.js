@@ -6,6 +6,8 @@ const crypto = require("crypto");
 const prisma = require("../lib/prisma");
 const { requireAuth } = require("../middleware/auth");
 const { isAllowedMime } = require("../utils/fileTypes");
+const { asyncHandler } = require("../middleware/asyncHandler");
+const { noteAccess, denyNoteAccess } = require("../utils/noteAccess");
 
 const UPLOAD_DIR = path.join(__dirname, "..", "..", "uploads");
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -19,7 +21,8 @@ const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
   filename: (_req, file, cb) => {
     const randomName = crypto.randomBytes(16).toString("hex");
-    const ext = path.extname(file.originalname);
+    const originalExt = path.extname(file.originalname);
+    const ext = /^\.[a-zA-Z0-9_-]{1,16}$/.test(originalExt) ? originalExt : "";
     cb(null, `${randomName}${ext}`);
   },
 });
@@ -59,19 +62,28 @@ function multerErrorHandler(err, _req, res, next) {
 //   findResource: (req) => the parent row, scoped to req.userId, or null
 //   whereClause:  (resource) => the Attachment.where filter for that parent
 //   attachData:   (resource) => extra fields to set on create (e.g. { noteId })
-function createAttachmentRouter({ paramName, findResource, whereClause, attachData }) {
+function createAttachmentRouter({ paramName, findResource, whereClause, attachData, noteParent = false }) {
   const router = express.Router();
   router.use(requireAuth);
 
-  router.post(`/:${paramName}/attachments`, upload.single("file"), async (req, res) => {
+  const checkParent = asyncHandler(async (req, res, next) => {
     const resource = await findResource(req);
-    if (!resource) {
-      if (req.file) fs.unlink(req.file.path, () => {});
-      return res.status(404).json({ error: "Not found." });
+    if (!resource) return res.status(404).json({ error: "Not found." });
+    if (noteParent) {
+      const guard = noteAccess(req, resource);
+      if (!guard.ok) return denyNoteAccess(res, guard);
     }
+    req.attachmentParent = resource;
+    next();
+  });
+
+  router.post(`/:${paramName}/attachments`, checkParent, upload.single("file"), asyncHandler(async (req, res) => {
+    const resource = req.attachmentParent;
     if (!req.file) return res.status(400).json({ error: "No file was uploaded." });
 
-    const attachment = await prisma.attachment.create({
+    let attachment;
+    try {
+      attachment = await prisma.attachment.create({
       data: {
         userId: req.userId,
         kind: kindFor(req.file.mimetype),
@@ -81,35 +93,46 @@ function createAttachmentRouter({ paramName, findResource, whereClause, attachDa
         sizeBytes: req.file.size,
         ...attachData(resource),
       },
-    });
+      });
+    } catch (error) {
+      // Multer already wrote these bytes; a failed metadata write must not
+      // leave an unreferenced upload behind.
+      await fs.promises.unlink(req.file.path).catch(() => {});
+      throw error;
+    }
 
     res.status(201).json({ attachment: { ...attachment, url: `/uploads/${attachment.storedName}` } });
-  });
+  }));
 
-  router.get(`/:${paramName}/attachments`, async (req, res) => {
-    const resource = await findResource(req);
-    if (!resource) return res.status(404).json({ error: "Not found." });
+  router.get(`/:${paramName}/attachments`, checkParent, asyncHandler(async (req, res) => {
+    const resource = req.attachmentParent;
 
     const attachments = await prisma.attachment.findMany({ where: whereClause(resource), orderBy: { createdAt: "asc" } });
     res.json({ attachments: attachments.map((a) => ({ ...a, url: `/uploads/${a.storedName}` })) });
-  });
+  }));
 
-  router.delete("/attachments/:attachmentId", async (req, res) => {
+  router.delete("/attachments/:attachmentId", asyncHandler(async (req, res) => {
     const attachment = await prisma.attachment.findFirst({
-      where: { id: req.params.attachmentId, userId: req.userId },
+      where: { id: req.params.attachmentId, userId: req.userId, ...(noteParent ? { noteId: { not: null } } : { tradingEntryId: { not: null } }) },
+      include: { note: true },
     });
     if (!attachment) return res.status(404).json({ error: "Attachment not found." });
+    if (noteParent) {
+      const guard = noteAccess(req, attachment.note);
+      if (!guard.ok) return denyNoteAccess(res, guard);
+    }
 
     await prisma.attachment.delete({ where: { id: attachment.id } });
     fs.unlink(path.join(UPLOAD_DIR, attachment.storedName), () => {}); // best-effort disk cleanup
     res.json({ ok: true });
-  });
+  }));
 
   router.use(multerErrorHandler);
   return router;
 }
 
 const noteAttachmentRoutes = createAttachmentRouter({
+  noteParent: true,
   paramName: "noteId",
   findResource: (req) => prisma.note.findFirst({ where: { id: req.params.noteId, userId: req.userId } }),
   whereClause: (note) => ({ noteId: note.id }),

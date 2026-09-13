@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
+import DocumentContent from "./DocumentContent";
 
 // Versions are grouped by day in the sidebar list, mirroring the "Today
 // / Yesterday" grouping from the spec's mockup. Preview renders with the
@@ -76,7 +77,7 @@ export default function VersionHistory({ noteId, onClose, onRestored }) {
           {preview ? (
             <>
               <h3 className="text-[15px] font-bold mb-3">{preview.title || "Untitled"}</h3>
-              <div className="editor-page text-[12.5px] text-ink-soft leading-relaxed" dangerouslySetInnerHTML={{ __html: preview.content }} />
+              <DocumentContent className="editor-page text-[12.5px] text-ink-soft leading-relaxed" html={preview.content} />
               <button type="button" onClick={() => restore(preview.id)} disabled={busy} className="btn-primary mt-4 text-[11px]">
                 Restore this version
               </button>

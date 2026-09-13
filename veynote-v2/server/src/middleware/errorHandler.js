@@ -1,5 +1,6 @@
 function errorHandler(error, _req, res, next) {
   if (res.headersSent) return next(error);
+  if (error?.code === "NOTE_CONFLICT") return res.status(409).json({ code: "NOTE_CONFLICT", error: "This note changed elsewhere. Your changes have not overwritten it." });
   const databaseUnavailable = ["PrismaClientRustPanicError", "PrismaClientInitializationError"].includes(error?.name)
     || ["P1001", "P1002", "P1008", "P1017", "P2024"].includes(error?.code);
   // Prisma messages can include queries, private data and generated issue URLs.

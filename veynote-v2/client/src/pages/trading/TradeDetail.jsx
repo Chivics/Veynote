@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../../api/client";
 import ImageLightbox from "../../components/ImageLightbox";
+import DocumentContent from "../../components/DocumentContent";
 
 
 export default function TradeDetail() {
@@ -78,9 +79,9 @@ export default function TradeDetail() {
         </div>
       )}
 
-      <div
+      <DocumentContent
         className="text-[14px] leading-[1.8] text-ink-soft mb-6 trade-body"
-        dangerouslySetInnerHTML={{ __html: entry.content || "<p class='text-ink-muted'>No notes yet.</p>" }}
+        html={entry.content || "<p>No notes yet.</p>"}
       />
 
       {(entry.psychologyBefore || entry.psychologyDuring || entry.psychologyAfter) && (

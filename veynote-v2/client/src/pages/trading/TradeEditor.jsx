@@ -3,6 +3,8 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import TradeDocumentation from "../../components/TradeDocumentation";
 import { handleLinkPaste } from "../../utils/linkify";
+import { safeHtml } from "../../utils/safeHtml";
+import { observeMedia, persistentHTML } from "../../utils/media";
 
 const SETUP_TYPES = [
   { key: "BOS", label: "Break of Structure" },
@@ -22,6 +24,7 @@ export default function TradeEditor() {
   const [entryId, setEntryId] = useState(routeId || null);
   const [accounts, setAccounts] = useState([]);
   const [loaded, setLoaded] = useState(isNew);
+  useEffect(() => bodyRef.current ? observeMedia(bodyRef.current) : undefined, [loaded]);
   const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState({
@@ -79,7 +82,7 @@ export default function TradeEditor() {
           postTradeWentWrong: e.postTradeWentWrong || "",
           postTradeLesson: e.postTradeLesson || "",
         });
-        if (bodyRef.current) bodyRef.current.innerHTML = e.content || "";
+        if (bodyRef.current) bodyRef.current.innerHTML = safeHtml(e.content);
         setLoaded(true);
       });
     }
@@ -100,7 +103,7 @@ export default function TradeEditor() {
   }
 
   function buildPayload() {
-    const content = bodyRef.current?.innerHTML || "";
+    const content = bodyRef.current ? persistentHTML(bodyRef.current) : "";
     return {
       ...form,
       content,

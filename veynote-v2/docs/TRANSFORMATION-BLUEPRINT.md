@@ -129,3 +129,30 @@ Build client and generate Prisma independently of database mutation. Document su
 10. **PWA and release polish:** install, offline/update flow, accessibility/performance budgets, onboarding/marketing, operational drills. Gate: device matrix, restore drill and staged release.
 
 Track each phase as pending until its gate is evidenced. This plan is not a claim that all 120 requirements are delivered.
+
+## Implementation checkpoint — September 13, 2026
+
+Protected local-file delivery, parent-note attachment permissions, revocable
+public image delivery and document HTML sanitization are implemented. The
+existing upload callers now send real multipart files, and downloads obtain
+short-lived authorized URLs. Failed attachment metadata writes clean up their
+uploaded bytes. See [Protected files](PROTECTED-FILES.md) for deployment rules
+and the remaining storage/security work.
+
+Note saves now share a serialized writer and use a timestamp precondition with
+an atomic update inside a transaction. Conflicts stop subsequent writes; the
+editor exposes pending, offline, error and conflict states. New-note navigation
+is triggered once, and stale save completions cannot update a different open
+note. See [Note save concurrency](NOTE-SAVE-CONCURRENCY.md) for limitations.
+
+Verification: 27 server tests and 7 client tests pass; the Vite production build
+passes. HTTP security tests use database doubles and actual multipart/local-file
+operations; these are not MySQL integration or browser/device tests. No schema
+migration or production deployment was performed in this checkpoint.
+
+Next release gates: existing-file and shared-image browser workflows, two-tab
+saves against disposable MySQL, then idempotent note creation, durable ordinary
+note drafts and navigation protection. Session revocation and independent
+per-note grants remain foundation priorities; the current vault-wide token
+does not satisfy the requested per-note security model. Collaboration, business,
+AI and the other later phases remain pending their dependency gates.

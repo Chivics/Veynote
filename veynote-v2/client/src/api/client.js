@@ -1,3 +1,5 @@
+import { uploadForm } from "../utils/uploadForm";
+
 const BASE = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "/api" : "https://api.veynote.app/api")).replace(/\/$/, "");
 
 export const API_BASE = BASE;
@@ -134,10 +136,16 @@ export const api = {
     return request(path, { method: "DELETE" });
   },
 
-  upload(path, formData, onProgress) {
+  uploadMultiple(path, files, onProgress, fields) {
+    return api.upload(path, uploadForm(files, fields, true), onProgress);
+  },
+
+  upload(path, input, onProgress, fields, method = "POST") {
     return new Promise((resolve, reject) => {
+      const formData = uploadForm(input, fields);
       const xhr = new XMLHttpRequest();
-      xhr.open("POST", `${BASE}${path}`);
+      xhr.open(method, `${BASE}${path}`);
+      xhr.timeout = 120000;
 
       const authToken = getAuthToken();
       const vaultToken = getVaultToken();
@@ -176,6 +184,8 @@ export const api = {
         error.status = 0;
         reject(error);
       };
+      xhr.ontimeout = () => reject(new Error("The upload timed out. Check your connection and try again."));
+      xhr.onabort = () => reject(new Error("The upload was cancelled."));
 
       xhr.send(formData);
     });

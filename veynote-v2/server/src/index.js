@@ -1,6 +1,5 @@
 require("dotenv").config();
 const express = require("express");
-const path = require("path");
 const passport = require("passport");
 const prisma = require("./lib/prisma");
 const { asyncHandler } = require("./middleware/asyncHandler");
@@ -46,10 +45,9 @@ app.use(express.json());
 
 app.use(passport.initialize());
 
-app.use(
-  "/uploads",
-  express.static(path.join(__dirname, "..", "uploads"))
-);
+const media = require("./routes/media.routes").createMediaRoutes({ db: prisma });
+app.use("/api/media", media.access);
+app.use("/uploads", media.files);
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
@@ -75,6 +73,7 @@ app.use("/api/accounts", accountRoutes);
 app.use("/api/trading", tradingRoutes);
 app.use("/api/trading", tradeImageRoutes);
 app.use("/api/trading", tradingAttachmentRoutes);
+app.use("/api/trading/entries", tradingAttachmentRoutes);
 
 app.use("/api/analytics", analyticsRoutes);
 

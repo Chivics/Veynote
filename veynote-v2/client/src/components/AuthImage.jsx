@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { API_BASE } from "../api/client";
 import { isApiUrl } from "../utils/apiOrigin";
+import { resolveMediaUrl } from "../utils/media";
 
 const API_HOST = new URL(API_BASE, window.location.href).origin;
 
@@ -17,11 +18,6 @@ function authHeaders() {
 
 function candidates({ src, imageId, attachmentId }) {
   const list = [];
-  if (imageId) list.push(`${API_BASE}/trading/images/${imageId}/file`);
-  if (attachmentId) {
-    list.push(`${API_BASE}/trading/attachments/${attachmentId}/file`);
-    list.push(`${API_BASE}/trading/attachments/${attachmentId}`);
-  }
   if (src) {
     if (src.startsWith("blob:") || src.startsWith("data:")) return [src];
     if (src.startsWith("http://") || src.startsWith("https://")) list.push(src);
@@ -37,9 +33,11 @@ function candidates({ src, imageId, attachmentId }) {
 
 async function loadBlob(urls) {
   let lastErr = "Could not load image";
-  for (const url of urls) {
+  for (const candidate of urls) {
+    let url = candidate;
     if (url.startsWith("blob:") || url.startsWith("data:")) return url;
     try {
+      url = await resolveMediaUrl(url);
       const res = await fetch(url, {
         headers: isApiUrl(url, API_BASE, window.location.href) ? authHeaders() : {},
         credentials: "omit",
@@ -85,10 +83,11 @@ export default function AuthImage({ src, alt = "", className, style, onClick, im
     }
     loadBlob(urls)
       .then((u) => {
+        if (cancelled) { if (u.startsWith("blob:")) URL.revokeObjectURL(u); return; }
         created = u;
         if (!cancelled) setBlobUrl(u);
       })
-      .catch((err) => {
+      .catch(() => {
         if (!cancelled) setFailed(true);
       });
     return () => {

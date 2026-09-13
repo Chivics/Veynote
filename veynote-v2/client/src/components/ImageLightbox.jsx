@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import AuthImage from "./AuthImage";
+import FileDownload from "./FileDownload";
 
 // Full-screen viewer for trade/note images. Previously every image thumb
 // just linked to the raw file in a new browser tab — this keeps the user
@@ -35,15 +36,7 @@ export default function ImageLightbox({ images, startIndex = 0, onClose }) {
           {count > 1 ? `${index + 1} / ${count}` : current.originalName || "Image"}
         </span>
         <div className="flex items-center gap-2">
-          <a
-            href={current.url}
-            download={current.originalName || true}
-            className="lightbox-icon-btn"
-            title="Download"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            ⬇
-          </a>
+          <FileDownload url={current.url} name={current.originalName || current.name} className="lightbox-icon-btn">↓</FileDownload>
           <button
             type="button"
             className="lightbox-icon-btn"
@@ -67,7 +60,7 @@ export default function ImageLightbox({ images, startIndex = 0, onClose }) {
             ‹
           </button>
         )}
-        <img src={current.url} alt={current.caption || current.originalName || ""} className="lightbox-img" />
+        <AuthImage src={current.url} alt={current.caption || current.originalName || ""} className="lightbox-img" />
         {count > 1 && (
           <button
             type="button"

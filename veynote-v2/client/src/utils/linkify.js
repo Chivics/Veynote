@@ -1,3 +1,4 @@
+import { safeHtml } from "./safeHtml";
 // Shared by every rich-text editor in the app (Notes, Trading) so a
 // bare pasted URL always becomes a real clickable link instead of
 // inert text — used to require a manual "insert link" step before.
@@ -23,14 +24,20 @@ function escapeHtml(text) {
 // (caller should preventDefault), false if the default paste should proceed.
 export function handleLinkPaste(e) {
   const text = e.clipboardData?.getData("text/plain");
-  if (!isBareUrl(text)) return false;
+  if (!isBareUrl(text)) {
+    const html = e.clipboardData?.getData("text/html");
+    if (!html) return false;
+    e.preventDefault();
+    document.execCommand("insertHTML", false, safeHtml(html));
+    return true;
+  }
   e.preventDefault();
   const trimmed = text.trim();
   const href = toHref(trimmed);
   document.execCommand(
     "insertHTML",
     false,
-    `<a href="${href}" target="_blank" rel="noopener noreferrer">${escapeHtml(trimmed)}</a>`
+    `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(trimmed)}</a>`
   );
   return true;
 }

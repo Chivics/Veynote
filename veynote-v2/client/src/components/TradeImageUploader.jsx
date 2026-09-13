@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import AuthImage from "./AuthImage";
+import FileDownload from "./FileDownload";
 
 export default function TradeImageUploader({ images, uploading, onUpload, onRemove, onCaptionChange, onReplace, compact, onOpenLightbox }) {
   const inputRef = useRef(null);
@@ -34,9 +35,9 @@ export default function TradeImageUploader({ images, uploading, onUpload, onRemo
                <AuthImage src={img.url} imageId={img.id} alt={img.caption || img.originalName} />
               </button>
             ) : (
-              <a href={img.url} target="_blank" rel="noreferrer">
+              <FileDownload url={img.url} name={img.originalName}>
                <AuthImage src={img.url} imageId={img.id} alt={img.caption || img.originalName} />
-              </a>
+              </FileDownload>
             )}
             <div className="image-card-actions">
               {onReplace && (
