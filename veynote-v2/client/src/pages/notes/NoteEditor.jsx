@@ -44,6 +44,7 @@ export default function NoteEditor() {
   const createdNoteId = useRef(null);
   const navigatedNoteId = useRef(routeId || null);
   const loadSequence = useRef(0);
+  const alive = useRef(true);
 
   const [noteId, setNoteId] = useState(routeId || null);
   const [title, setTitle] = useState("");
@@ -55,6 +56,7 @@ export default function NoteEditor() {
   const [loaded, setLoaded] = useState(!routeId);
   const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved | error
   const [saveError, setSaveError] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [insertMenu, setInsertMenu] = useState(null); // { x, y, fromSlash, blockEl } | null
   const [noteLinkMenu, setNoteLinkMenu] = useState(null); // { x, y, blockEl } | null
   const [attachments, setAttachments] = useState([]);
@@ -67,6 +69,7 @@ export default function NoteEditor() {
   const [isWill, setIsWill] = useState(false);
   const [backlinks, setBacklinks] = useState([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyBase, setHistoryBase] = useState(null);
   const [noteMeta, setNoteMeta] = useState({ createdAt: null, updatedAt: null });
   const [shareState, setShareState] = useState({ shareEnabled: false, shareToken: null });
   const [focusMode, setFocusMode] = useState(false);
@@ -74,37 +77,37 @@ export default function NoteEditor() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    api.get("/folders").then((d) => setFolders(d.folders));
+    api.get("/folders").then((d) => setFolders(d.folders)).catch(() => {});
   }, []);
 
   // "+ From template" pre-fills a brand-new, unsaved note — only applies
   // when there's no routeId yet (never overwrites a real, already-saved note).
-  useEffect(() => {
-    if (routeId) return;
-    const templateId = searchParams.get("template");
-    const template = templateId ? getTemplate(templateId) : null;
-    if (!template) return;
-    setTitle(template.title);
-    setInitialHTML(template.html);
-    latestHTML.current = template.html;
-    setStats(computeStats(template.html));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   function loadNote() {
-    if (!routeId) return;
     if (createdNoteId.current === routeId) { createdNoteId.current = null; return; }
     const requestSequence = ++loadSequence.current;
     navigatedNoteId.current = routeId;
     writer.current = createNoteWriter(api, { id: routeId });
     clearTimeout(saveTimer.current);
+    dirtyRef.current = false;
+    saveSeq.current++;
+    setSaveStatus("idle"); setSaveError(""); setLoadError("");
+    setBacklinks([]); setHistoryOpen(false);
     setLoaded(false);
     setVaultRequired(null);
+    if (!routeId) {
+      const template = getTemplate(searchParams.get("template"));
+      setNoteId(null); setTitle(template?.title || ""); setFolderId(""); setMood(""); setTags([]);
+      setInitialHTML(template?.html || ""); latestHTML.current = template?.html || "";
+      setStats(computeStats(latestHTML.current)); setAttachments([]);
+      setIsLocked(false); setIsWill(false); setNoteMeta({ createdAt: null, updatedAt: null });
+      setShareState({ shareEnabled: false, shareToken: null }); setLoaded(true);
+      return;
+    }
     api
       .get(`/notes/${routeId}`)
       .then((d) => {
         if (requestSequence !== loadSequence.current) return;
-        writer.current = createNoteWriter(api, { id: d.note.id, updatedAt: d.note.updatedAt });
+        writer.current = createNoteWriter(api, d.note);
         setNoteId(d.note.id);
         setTitle(d.note.title || "");
         setFolderId(d.note.folderId || "");
@@ -119,7 +122,8 @@ export default function NoteEditor() {
         setNoteMeta({ createdAt: d.note.createdAt, updatedAt: d.note.updatedAt });
         setShareState({ shareEnabled: Boolean(d.note.shareEnabled), shareToken: d.note.shareToken || null });
         setLoaded(true);
-        api.get(`/notes/${routeId}/backlinks`).then((b) => setBacklinks(b.backlinks)).catch(() => {});
+        setSaveStatus("saved");
+        api.get(`/notes/${routeId}/backlinks`).then((b) => { if (requestSequence === loadSequence.current) setBacklinks(b.backlinks); }).catch(() => {});
       })
       .catch((err) => {
         if (requestSequence !== loadSequence.current) return;
@@ -127,12 +131,13 @@ export default function NoteEditor() {
           if (err.requiresVault === "locked-notes") setIsLocked(true);
           setVaultRequired(err.requiresVault);
         } else {
-          alert(err.message);
+          setLoadError(err.message);
         }
       });
   }
 
-  useEffect(loadNote, [routeId]);
+  useEffect(() => { loadNote(); return () => { ++loadSequence.current; clearTimeout(saveTimer.current); }; }, [routeId]);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => () => { clearNoteGrant(); }, [routeId]);
 
   async function toggleLock() {
@@ -164,7 +169,15 @@ export default function NoteEditor() {
 
   async function duplicateNote() {
     try {
+      clearTimeout(saveTimer.current);
+      const currentWriter = writer.current;
+      const sequence = saveSeq.current;
+      await currentWriter.save({ title, content: latestHTML.current, folderId: folderId || null, mood, tags });
+      if (!alive.current || currentWriter !== writer.current) return;
+      if (sequence !== saveSeq.current) throw new Error("Your note changed while saving. Wait for Saved, then duplicate it.");
+      dirtyRef.current = false; setSaveStatus("saved");
       const { note } = await api.post(`/notes/${routeId}/duplicate`, {});
+      if (!alive.current || currentWriter !== writer.current) return;
       navigate(`/notes/${note.id}`);
     } catch (err) {
       alert(err.message);
@@ -193,8 +206,9 @@ export default function NoteEditor() {
       const currentWriter = writer.current;
       try {
         const note = await currentWriter.save(payload);
-        if (currentWriter !== writer.current) return;
+        if (!alive.current || currentWriter !== writer.current) return;
         setNoteId(note.id);
+        setNoteMeta({ createdAt: note.createdAt, updatedAt: note.updatedAt });
         if (!fields.noteId && navigatedNoteId.current !== note.id) {
           navigatedNoteId.current = note.id;
           createdNoteId.current = note.id;
@@ -206,7 +220,7 @@ export default function NoteEditor() {
           setSaveError("");
         }
       } catch (err) {
-        if (currentWriter !== writer.current) return;
+        if (!alive.current || currentWriter !== writer.current) return;
         if (mySeq === saveSeq.current) {
           setSaveStatus(err.status === 409 || err.status === 428 ? "conflict" : navigator.onLine ? "error" : "offline");
           setSaveError(err.message);
@@ -217,6 +231,11 @@ export default function NoteEditor() {
   );
 
   function scheduleAutosave() {
+    if (!writer.current.hasChanges({ title, content: latestHTML.current, folderId, mood, tags })) {
+      dirtyRef.current = false;
+      setSaveStatus("saved");
+      return;
+    }
     dirtyRef.current = true;
     const sequence = ++saveSeq.current;
     setSaveStatus(navigator.onLine ? "pending" : "offline");
@@ -224,6 +243,24 @@ export default function NoteEditor() {
     saveTimer.current = setTimeout(() => {
       doSave({ noteId, title, html: latestHTML.current, folderId, mood, tags, sequence });
     }, 900);
+  }
+
+  async function openHistory() {
+    clearTimeout(saveTimer.current);
+    const currentWriter = writer.current;
+    const sequence = saveSeq.current;
+    try {
+      setSaveError("");
+      const note = await currentWriter.save({ title, content: latestHTML.current, folderId: folderId || null, mood, tags });
+      if (!alive.current || currentWriter !== writer.current) return;
+      if (sequence !== saveSeq.current) throw new Error("Your note changed while saving. Wait for Saved, then reopen history.");
+      dirtyRef.current = false; setSaveStatus("saved");
+      setNoteMeta({ createdAt: note.createdAt, updatedAt: note.updatedAt });
+      setHistoryBase(currentWriter.updatedAt); setHistoryOpen(true);
+    } catch (err) {
+      if (!alive.current || currentWriter !== writer.current) return;
+      setSaveError(err.message); setSaveStatus(err.status === 409 ? "conflict" : "error");
+    }
   }
 
   // Belt-and-braces: the 900ms autosave debounce is short, but if someone
@@ -283,7 +320,7 @@ export default function NoteEditor() {
       tags,
       draftForAttachment: true,
     });
-    if (currentWriter !== writer.current) throw new Error("The open note changed. Return to the original note to attach this file.");
+    if (!alive.current || currentWriter !== writer.current) throw new Error("The open note changed. Return to the original note to attach this file.");
     setNoteId(note.id);
     if (navigatedNoteId.current !== note.id) {
       navigatedNoteId.current = note.id;
@@ -373,7 +410,7 @@ export default function NoteEditor() {
 
   if (vaultRequired) return <VaultGate vault={vaultRequired} noteId={vaultRequired === "locked-notes" && isLocked ? routeId : undefined} onUnlock={loadNote} />;
 
-  if (!loaded) return <PageSkeleton title="Note" />;
+  if (!loaded) return loadError ? <section><h1 className="page-title">Note unavailable</h1><p role="alert" className="my-4 text-danger">{loadError}</p><button className="btn-primary" onClick={loadNote}>Retry</button> <Link className="btn-outline" to="/notes/all">Back to notes</Link></section> : <PageSkeleton title="Note" />;
 
   // Note-links are plain <a href> tags inside the editor's raw HTML (not
   // React <Link>s, since they're user content) — intercept clicks so
@@ -415,7 +452,7 @@ export default function NoteEditor() {
               isWill={isWill}
               isLocked={isLocked}
               onToggleFind={() => setFindOpen((o) => !o)}
-              onOpenHistory={() => setHistoryOpen(true)}
+              onOpenHistory={openHistory}
               onDuplicate={duplicateNote}
               onToggleLock={toggleLock}
               focusMode={focusMode}
@@ -514,7 +551,7 @@ export default function NoteEditor() {
         )}
 
         {historyOpen && (
-          <VersionHistory noteId={routeId} onClose={() => setHistoryOpen(false)} onRestored={loadNote} />
+          <VersionHistory noteId={routeId} expectedUpdatedAt={historyBase} onClose={() => setHistoryOpen(false)} onRestored={loadNote} />
         )}
       </div>
     </div>

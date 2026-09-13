@@ -178,3 +178,10 @@ prefetching, structural loading, query race prevention and session revocation
 implementation. The session backend requires a new MySQL migration before
 deployment. The wider collaboration, AI, Business and offline-draft roadmap
 remains open; this checkpoint does not mark those workflows complete.
+
+### Subsequent checkpoint — note writes, history and privacy
+
+The [note concurrency checkpoint](NOTE-SAVE-CONCURRENCY.md) now covers skipped
+unchanged writes, transactional version restoration, responsive history review,
+private backlink filtering and preserved locks on duplication. Durable drafts,
+idempotent creation and in-app unsaved-navigation protection remain priorities.

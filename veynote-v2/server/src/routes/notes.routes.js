@@ -315,14 +315,17 @@ router.post("/:id/versions/:versionId/restore", asyncHandler(async (req, res) =>
   const version = await prisma.noteVersion.findFirst({ where: { id: req.params.versionId, noteId: note.id } });
   if (!version) return res.status(404).json({ error: "Version not found." });
 
-  await prisma.noteVersion.create({ data: { noteId: note.id, title: note.title, content: note.content } });
-
-  const updated = await prisma.note.update({
-    where: { id: note.id },
-    data: { title: version.title, content: version.content },
-    include: { tags: { include: { tag: true } }, folder: true, attachments: true },
+  if (!req.body.expectedUpdatedAt) return res.status(428).json({ error: "Open the current note before restoring a version." });
+  if (new Date(req.body.expectedUpdatedAt).getTime() !== new Date(note.updatedAt).getTime()) {
+    return res.status(409).json({ code: "NOTE_CONFLICT", error: "This note changed since you opened history. Review the latest note before restoring." });
+  }
+  const content = sanitizeDocument(version.content);
+  const updated = await prisma.$transaction(async db => {
+    await compareAndUpdateNote(db, note, { title: version.title, content });
+    await db.noteVersion.create({ data: { noteId: note.id, title: note.title, content: note.content } });
+    await syncNoteLinks(note.id, content, db);
+    return db.note.findUnique({ where: { id: note.id }, include: { tags: { include: { tag: true } }, folder: true, attachments: true } });
   });
-  await syncNoteLinks(updated.id, version.content);
 
   res.json({ note: serializeNote(updated) });
 }));
@@ -335,10 +338,10 @@ router.get("/:id/backlinks", asyncHandler(async (req, res) => {
   if (!guard.ok) return res.status(401).json({ error: "This note is protected.", requiresVault: guard.requiresVault });
 
   const links = await prisma.noteLink.findMany({
-    where: { targetNoteId: note.id },
-    include: { sourceNote: { select: { id: true, title: true, isTrashed: true } } },
+    where: { targetNoteId: note.id, sourceNote: { userId: req.userId, isLocked: false, isWill: false, isTrashed: false } },
+    include: { sourceNote: { select: { id: true, title: true } } },
   });
-  const backlinks = links.map((l) => l.sourceNote).filter((n) => !n.isTrashed);
+  const backlinks = links.map((l) => l.sourceNote);
   res.json({ backlinks });
 }));
 
@@ -352,11 +355,13 @@ router.post("/:id/duplicate", asyncHandler(async (req, res) => {
   const guard = vaultGuardFor(req, existing);
   if (!guard.ok) return res.status(401).json({ error: "This note is protected.", requiresVault: guard.requiresVault });
 
+  if (existing.isWill) return res.status(400).json({ error: "Inheritance documents cannot be duplicated into ordinary notes." });
   const copy = await prisma.note.create({
     data: {
       userId: req.userId,
       title: existing.title ? `${existing.title} (copy)` : "",
       content: existing.content,
+      isLocked: existing.isLocked,
       folderId: existing.folderId,
       mood: existing.mood,
       tags: { create: existing.tags.map((t) => ({ tagId: t.tagId })) },
