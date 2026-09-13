@@ -1,5 +1,7 @@
 function errorHandler(error, _req, res, next) {
   if (res.headersSent) return next(error);
+  if (error?.type === "entity.parse.failed") return res.status(400).json({ code: "INVALID_JSON", error: "The request contains invalid JSON." });
+  if (error?.type === "entity.too.large") return res.status(413).json({ code: "REQUEST_TOO_LARGE", error: "This request is too large. Use an attachment for large files." });
   if (error?.code === "NOTE_CONFLICT") return res.status(409).json({ code: "NOTE_CONFLICT", error: "This note changed elsewhere. Your changes have not overwritten it." });
   const databaseUnavailable = ["PrismaClientRustPanicError", "PrismaClientInitializationError"].includes(error?.name)
     || ["P1001", "P1002", "P1008", "P1017", "P2024"].includes(error?.code);

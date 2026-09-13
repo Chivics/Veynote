@@ -7,6 +7,7 @@ const { ownedReference } = require("../middleware/ownedReference");
 const { sanitizeDocument, sanitizeContent } = require("../utils/documentHtml");
 const { asyncHandler } = require("../middleware/asyncHandler");
 const { compareAndUpdateNote } = require("../utils/noteConcurrency");
+const { hasNoteAccess } = require("../utils/noteAccess");
 
 const router = express.Router();
 router.use(requireAuth);
@@ -27,7 +28,7 @@ function vaultGuardFor(req, note) {
     return hasValidVaultAccess(req, "will") ? { ok: true } : { ok: false, requiresVault: "will" };
   }
   if (note.isLocked) {
-    return hasValidVaultAccess(req, "vault") ? { ok: true } : { ok: false, requiresVault: "locked-notes" };
+    return hasNoteAccess(req, note.id) ? { ok: true } : { ok: false, requiresVault: "locked-notes" };
   }
   return { ok: true };
 }
@@ -53,7 +54,7 @@ function hasMeaningfulContent({ title, content, mood, tags }) {
 }
 
 // GET /api/notes?scope=all|favorites|archive|trash|locked&folderId=&tag=&q=
-router.get("/", async (req, res) => {
+router.get("/", asyncHandler(async (req, res) => {
   const { scope = "all", folderId, tag, q } = req.query;
 
   if (scope === "locked") {
@@ -61,11 +62,11 @@ router.get("/", async (req, res) => {
       return res.status(401).json({ error: "Unlock Locked Notes first.", requiresVault: "locked-notes" });
     }
     const notes = await prisma.note.findMany({
-      where: { userId: req.userId, isLocked: true, isTrashed: false },
-      include: { tags: { include: { tag: true } }, folder: true },
+      where: { userId: req.userId, isLocked: true, isWill: false, isTrashed: false },
+      select: { id: true },
       orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }],
     });
-    return res.json({ notes: notes.map(serializeNote) });
+    return res.json({ notes: notes.map((note) => ({ id: note.id, title: "Locked note", isLocked: true })) });
   }
 
   // Locked and will notes never appear in ordinary browsing/search — they
@@ -94,14 +95,14 @@ router.get("/", async (req, res) => {
   });
 
   res.json({ notes: notes.map(serializeNote) });
-});
+}));
 
 // GET /api/notes/will/document — fetch (creating lazily on first visit)
 // THE Will & Inheritance document. Registered before /:id so "will"
 // is never mistaken for a note id (Express matches by full path shape,
 // and this is two segments vs /:id's one, but keeping it explicit here
 // since it's a easy trap to fall into when adding routes later).
-router.get("/will/document", async (req, res) => {
+router.get("/will/document", asyncHandler(async (req, res) => {
   if (!hasValidVaultAccess(req, "will")) {
     return res.status(401).json({ error: "Unlock Will & Inheritance first.", requiresVault: "will" });
   }
@@ -117,9 +118,9 @@ router.get("/will/document", async (req, res) => {
     include: { tags: { include: { tag: true } }, folder: true, attachments: true },
   });
   res.json({ note: serializeNote(full) });
-});
+}));
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", asyncHandler(async (req, res) => {
   const note = await prisma.note.findFirst({
     where: { id: req.params.id, userId: req.userId },
     include: { tags: { include: { tag: true } }, folder: true, attachments: true },
@@ -130,7 +131,7 @@ router.get("/:id", async (req, res) => {
   if (!guard.ok) return res.status(401).json({ error: "This note is protected.", requiresVault: guard.requiresVault });
 
   res.json({ note: serializeNote(note) });
-});
+}));
 
 async function resolveTags(userId, tagNames = [], db = prisma) {
   const tags = [];
@@ -201,7 +202,7 @@ async function maybeSnapshotVersion(note, db = prisma) {
   });
 }
 
-router.post("/", ownedReference(prisma.folder, "folderId"), async (req, res) => {
+router.post("/", ownedReference(prisma.folder, "folderId"), asyncHandler(async (req, res) => {
   const { title, content, folderId, mood, tags, entryDate, draftForAttachment } = req.body;
 
   // `draftForAttachment` is set only by the "Add File"/"Add Image" flow,
@@ -231,7 +232,7 @@ router.post("/", ownedReference(prisma.folder, "folderId"), async (req, res) => 
   if (content) await syncNoteLinks(note.id, content);
 
   res.status(201).json({ note: serializeNote(note) });
-});
+}));
 
 router.patch("/:id", ownedReference(prisma.folder, "folderId"), asyncHandler(async (req, res) => {
   const existing = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
@@ -277,7 +278,7 @@ router.patch("/:id", ownedReference(prisma.folder, "folderId"), asyncHandler(asy
 
 // GET /api/notes/:id/versions — history list (title + timestamp only,
 // not full content, to keep the list cheap)
-router.get("/:id/versions", async (req, res) => {
+router.get("/:id/versions", asyncHandler(async (req, res) => {
   const note = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!note) return res.status(404).json({ error: "Note not found." });
   const guard = vaultGuardFor(req, note);
@@ -289,9 +290,9 @@ router.get("/:id/versions", async (req, res) => {
     orderBy: { createdAt: "desc" },
   });
   res.json({ versions });
-});
+}));
 
-router.get("/:id/versions/:versionId", async (req, res) => {
+router.get("/:id/versions/:versionId", asyncHandler(async (req, res) => {
   const note = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!note) return res.status(404).json({ error: "Note not found." });
   const guard = vaultGuardFor(req, note);
@@ -300,12 +301,12 @@ router.get("/:id/versions/:versionId", async (req, res) => {
   const version = await prisma.noteVersion.findFirst({ where: { id: req.params.versionId, noteId: note.id } });
   if (!version) return res.status(404).json({ error: "Version not found." });
   res.json({ version: { ...version, content: sanitizeDocument(version.content) } });
-});
+}));
 
 // POST /api/notes/:id/versions/:versionId/restore — snapshots the
 // CURRENT state first (so restoring is itself undoable), then overwrites
 // title/content with the chosen version's.
-router.post("/:id/versions/:versionId/restore", async (req, res) => {
+router.post("/:id/versions/:versionId/restore", asyncHandler(async (req, res) => {
   const note = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!note) return res.status(404).json({ error: "Note not found." });
   const guard = vaultGuardFor(req, note);
@@ -324,10 +325,10 @@ router.post("/:id/versions/:versionId/restore", async (req, res) => {
   await syncNoteLinks(updated.id, version.content);
 
   res.json({ note: serializeNote(updated) });
-});
+}));
 
 // GET /api/notes/:id/backlinks — other notes that [[link]] to this one
-router.get("/:id/backlinks", async (req, res) => {
+router.get("/:id/backlinks", asyncHandler(async (req, res) => {
   const note = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!note) return res.status(404).json({ error: "Note not found." });
   const guard = vaultGuardFor(req, note);
@@ -339,10 +340,10 @@ router.get("/:id/backlinks", async (req, res) => {
   });
   const backlinks = links.map((l) => l.sourceNote).filter((n) => !n.isTrashed);
   res.json({ backlinks });
-});
+}));
 
 // POST /api/notes/:id/duplicate
-router.post("/:id/duplicate", async (req, res) => {
+router.post("/:id/duplicate", asyncHandler(async (req, res) => {
   const existing = await prisma.note.findFirst({
     where: { id: req.params.id, userId: req.userId },
     include: { tags: true },
@@ -363,12 +364,12 @@ router.post("/:id/duplicate", async (req, res) => {
     include: { tags: { include: { tag: true } }, folder: true, attachments: true },
   });
   res.status(201).json({ note: serializeNote(copy) });
-});
+}));
 
 // POST /api/notes/:id/share — enable a public, read-only link. Always
 // issues a brand-new token (never reuses/reactivates an old one, even if
 // this note was shared and unshared before).
-router.post("/:id/share", async (req, res) => {
+router.post("/:id/share", asyncHandler(async (req, res) => {
   const existing = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!existing) return res.status(404).json({ error: "Note not found." });
   if (existing.isLocked || existing.isWill) {
@@ -379,29 +380,29 @@ router.post("/:id/share", async (req, res) => {
   const shareToken = crypto.randomBytes(24).toString("hex");
   await prisma.note.update({ where: { id: existing.id }, data: { shareEnabled: true, shareToken } });
   res.json({ shareToken });
-});
+}));
 
 // DELETE /api/notes/:id/share — revoke. Clears the token entirely so the
 // old link is dead even if sharing is turned back on later.
-router.delete("/:id/share", async (req, res) => {
+router.delete("/:id/share", asyncHandler(async (req, res) => {
   const existing = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!existing) return res.status(404).json({ error: "Note not found." });
   await prisma.note.update({ where: { id: existing.id }, data: { shareEnabled: false, shareToken: null } });
   res.json({ ok: true });
-});
+}));
 
 // PATCH /api/notes/:id/lock  { locked: boolean } — move a note in/out of
 // the Locked Notes vault. Requires an active vault token either way:
 // locking without it would let anyone with API access hide notes without
 // ever proving they know the vault password, and unlocking obviously
 // needs it too.
-router.patch("/:id/lock", async (req, res) => {
+router.patch("/:id/lock", asyncHandler(async (req, res) => {
   const existing = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!existing) return res.status(404).json({ error: "Note not found." });
   if (existing.isWill) {
     return res.status(400).json({ error: "The Will & Inheritance document has its own protection and can't also be moved to Locked Notes." });
   }
-  if (!hasValidVaultAccess(req, "vault")) {
+  if (!(existing.isLocked ? hasNoteAccess(req, existing.id) : hasValidVaultAccess(req, "vault"))) {
     return res.status(401).json({ error: "Unlock Locked Notes first.", requiresVault: "locked-notes" });
   }
 
@@ -411,10 +412,10 @@ router.patch("/:id/lock", async (req, res) => {
     include: { tags: { include: { tag: true } }, folder: true, attachments: true },
   });
   res.json({ note: serializeNote(note) });
-});
+}));
 
 // Soft delete -> Trash
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", asyncHandler(async (req, res) => {
   const existing = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!existing) return res.status(404).json({ error: "Note not found." });
 
@@ -432,9 +433,9 @@ router.delete("/:id", async (req, res) => {
     data: { isTrashed: true, trashedAt: new Date() },
   });
   res.json({ ok: true, permanentlyDeleted: false });
-});
+}));
 
-router.post("/:id/restore", async (req, res) => {
+router.post("/:id/restore", asyncHandler(async (req, res) => {
   const existing = await prisma.note.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!existing) return res.status(404).json({ error: "Note not found." });
 
@@ -447,21 +448,21 @@ router.post("/:id/restore", async (req, res) => {
     include: { tags: { include: { tag: true } }, folder: true, attachments: true },
   });
   res.json({ note: serializeNote(note) });
-});
+}));
 
-router.get("/meta/tags", async (req, res) => {
+router.get("/meta/tags", asyncHandler(async (req, res) => {
   const tags = await prisma.tag.findMany({
     where: { userId: req.userId },
     include: { _count: { select: { notes: true } } },
   });
   res.json({ tags: tags.map((t) => ({ id: t.id, name: t.name, count: t._count.notes })) });
-});
+}));
 
 // GET /api/notes/meta/search?q= — powers the [[ note-link picker.
 // Deliberately excludes locked/will notes (linking to one from an
 // ordinary note would leak its existence into normal browsing) and
 // trashed ones.
-router.get("/meta/search", async (req, res) => {
+router.get("/meta/search", asyncHandler(async (req, res) => {
   const q = (req.query.q || "").trim();
   const notes = await prisma.note.findMany({
     where: {
@@ -476,6 +477,6 @@ router.get("/meta/search", async (req, res) => {
     take: 8,
   });
   res.json({ notes });
-});
+}));
 
 module.exports = router;

@@ -49,7 +49,7 @@ export default function TradingCalendar() {
   return (
     <div>
       <span className="eyebrow">TIMELINE</span>
-      <h1 className="text-[30px] tracking-tight mt-1.5 mb-6">Trading calendar</h1>
+      <h1 className="page-title text-[30px] tracking-tight mt-1.5 mb-6">Trading calendar</h1>
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         <div className="card p-5 flex-1 max-w-[800px]">

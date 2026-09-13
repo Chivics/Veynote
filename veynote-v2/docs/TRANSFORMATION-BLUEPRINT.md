@@ -156,3 +156,17 @@ note drafts and navigation protection. Session revocation and independent
 per-note grants remain foundation priorities; the current vault-wide token
 does not satisfy the requested per-note security model. Collaboration, business,
 AI and the other later phases remain pending their dependency gates.
+
+### Subsequent checkpoint — note isolation and app experience
+
+See [Security and app checkpoint](SECURITY-AND-APP-CHECKPOINT.md). Per-note
+password/passkey grants now replace vault-wide content access. This supersedes
+the earlier checkpoint's statement about vault tokens unlocking all notes;
+instant revocation and session binding are still pending. Added authentication
+throttling, GET filters, responsive bold titles, working themes/settings,
+install guidance, manifest and a conservative public offline fallback.
+
+43 automated checks pass. The local login page and expanded install guidance
+were visually inspected at desktop and 320px widths; login fields have accessible
+names. Private-page mobile QA, actual passkey hardware, installation and MySQL
+integration are not yet verified. No production deployment was performed.

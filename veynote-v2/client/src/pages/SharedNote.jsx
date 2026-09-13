@@ -39,7 +39,7 @@ export default function SharedNote() {
 
         {note && (
           <>
-            <h1 className="text-[28px] font-bold tracking-tight mb-1.5">{note.title || "Untitled"}</h1>
+            <h1 className="page-title text-[28px] font-bold tracking-tight mb-1.5">{note.title || "Untitled"}</h1>
             <p className="text-ink-muted text-[11.5px] mb-6">
               Last updated {new Date(note.updatedAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })} · Read-only
             </p>

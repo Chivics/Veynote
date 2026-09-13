@@ -41,7 +41,7 @@ export default function DatabasePage({ configKey }) {
       <LibrarySidebar />
       <div className="flex-1 min-w-0">
         <span className="eyebrow">{config.eyebrow}</span>
-        <h1 className="text-[26px] tracking-tight mt-1 mb-5">{config.title}</h1>
+        <h1 className="page-title text-[26px] tracking-tight mt-1 mb-5">{config.title}</h1>
 
         <div className="flex items-center gap-2 mb-4">
           <button className="btn-outline">Filter</button>

@@ -83,7 +83,7 @@ export default function Folders() {
       <div className="flex items-end justify-between gap-6 mb-6 flex-wrap">
         <div>
           <span className="eyebrow">ORGANIZE</span>
-          <h1 className="text-[30px] tracking-tight my-1.5">Folders</h1>
+          <h1 className="page-title text-[30px] tracking-tight my-1.5">Folders</h1>
           <p className="text-ink-muted text-[13px] m-0">{folders ? `${folders.length} folders` : ""}</p>
         </div>
         <div className="flex gap-2">

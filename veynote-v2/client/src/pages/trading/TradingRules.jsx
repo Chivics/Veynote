@@ -40,7 +40,7 @@ export default function TradingRules() {
   return (
     <div>
       <span className="eyebrow">TRADING JOURNAL</span>
-      <h1 className="text-[30px] tracking-tight mt-1.5 mb-2">My Trading Rules</h1>
+      <h1 className="page-title text-[30px] tracking-tight mt-1.5 mb-2">My Trading Rules</h1>
       <p className="text-[13px] text-ink-muted mb-6">These are the non-negotiable rules I follow on every trade.</p>
 
       <div className="flex items-center gap-2 mb-4">

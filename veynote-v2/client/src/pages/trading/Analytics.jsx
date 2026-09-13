@@ -15,7 +15,7 @@ export default function Analytics() {
   return (
     <div>
       <span className="eyebrow">INSIGHTS</span>
-      <h1 className="text-[30px] tracking-tight mt-1.5 mb-6">Analytics</h1>
+      <h1 className="page-title text-[30px] tracking-tight mt-1.5 mb-6">Analytics</h1>
 
       {!data.hasData ? (
         <EmptyState

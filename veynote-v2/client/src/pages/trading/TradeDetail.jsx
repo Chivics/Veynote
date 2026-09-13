@@ -40,7 +40,7 @@ export default function TradeDetail() {
         <Link to={`/trading/entries/${id}/edit`} className="btn-outline">✎ Edit</Link>
       </div>
 
-      <h1 className="text-[26px] tracking-tight mb-6">{entry.title}</h1>
+      <h1 className="page-title text-[26px] tracking-tight mb-6">{entry.title}</h1>
 
       {entry.isTrade && (
         <div className="rounded-2xl border border-app-border p-5 mb-6 bg-gradient-to-br from-app-panel to-accent-trade-soft">

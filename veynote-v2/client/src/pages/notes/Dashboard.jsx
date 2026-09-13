@@ -30,7 +30,7 @@ export default function NotesDashboard() {
           <span className="eyebrow">
             {new Date().toDateString().toUpperCase()}
           </span>
-          <h1 className="font-bold text-[22px] leading-tight sm:text-[26px] md:text-[30px] tracking-tight my-1.5 break-words">
+          <h1 className="page-title font-bold text-[22px] leading-tight sm:text-[26px] md:text-[30px] tracking-tight my-1.5 break-words">
             {greeting}, {user?.name}
           </h1>
           <p className="text-ink-muted text-[13px] m-0 max-w-[520px]">

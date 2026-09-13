@@ -1,4 +1,6 @@
 import { uploadForm } from "../utils/uploadForm";
+import { queryPath } from "../utils/queryPath";
+import { getNoteGrant } from "../utils/noteGrant";
 
 const BASE = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "/api" : "https://api.veynote.app/api")).replace(/\/$/, "");
 
@@ -97,6 +99,7 @@ async function request(path, options = {}) {
   if (authToken) headers.Authorization = `Bearer ${authToken}`;
   if (vaultToken) headers["X-Vault-Token"] = vaultToken;
   if (willToken) headers["X-Will-Token"] = willToken;
+  if (getNoteGrant()) headers["X-Note-Token"] = getNoteGrant();
 
   const response = await fetch(`${BASE}${path}`, {
     ...options,
@@ -107,8 +110,8 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  get(path) {
-    return request(path);
+  get(path, params) {
+    return request(queryPath(path, params));
   },
 
   post(path, body) {
@@ -154,6 +157,7 @@ export const api = {
       if (authToken) xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
       if (vaultToken) xhr.setRequestHeader("X-Vault-Token", vaultToken);
       if (willToken) xhr.setRequestHeader("X-Will-Token", willToken);
+      if (getNoteGrant()) xhr.setRequestHeader("X-Note-Token", getNoteGrant());
 
       xhr.upload.onprogress = (event) => {
         if (!event.lengthComputable) return;

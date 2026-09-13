@@ -194,7 +194,7 @@ export default function TradeEditor() {
       </div>
 
       <input
-        className="w-full bg-transparent outline-none text-[26px] font-bold tracking-tight text-ink mb-4 placeholder:text-ink-muted"
+        aria-label="Record title" className="page-title w-full bg-transparent outline-none text-[26px] font-bold tracking-tight text-ink mb-4 placeholder:text-ink-muted"
         placeholder="Trade title (e.g. BTCUSDT — BOS + OB Long)"
         value={form.title}
         onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}

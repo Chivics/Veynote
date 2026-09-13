@@ -48,7 +48,7 @@ export default function ReadingPage() {
         </div>
 
         <span className="eyebrow">{config.eyebrow}</span>
-        <h1 className="text-[26px] tracking-tight mt-1 mb-2.5">{config.title}</h1>
+        <h1 className="page-title text-[26px] tracking-tight mt-1 mb-2.5">{config.title}</h1>
         <p className="text-[12px] italic text-ink-soft border-l-2 border-accent-notes pl-3 max-w-[480px] mb-5">{config.quote}</p>
 
         <div className="flex gap-1 border-b border-app-border mb-4 flex-wrap">

@@ -177,14 +177,14 @@ export default function WillInheritance() {
     { key: "documents", label: "Supporting documents", complete: documents.length > 0, help: "Attach important supporting documents." },
   ], [will, assets.length, beneficiaries.length, contacts.length, executors.length, details, documents.length]);
 
-  if (!unlocked) return <div className="max-w-[620px] mx-auto"><div className="mb-7"><span className="eyebrow">PRIVATE & SENSITIVE</span><h1 className="text-[30px] font-bold mt-1.5">Will & Inheritance</h1><p className="text-[13px] text-ink-muted mt-1.5">A protected workspace for your wishes, assets, beneficiaries and estate instructions.</p></div><VaultGate vault="will" onUnlock={() => setUnlocked(true)} /></div>;
+  if (!unlocked) return <div className="max-w-[620px] mx-auto"><div className="mb-7"><span className="eyebrow">PRIVATE & SENSITIVE</span><h1 className="page-title text-[30px] font-bold mt-1.5">Will & Inheritance</h1><p className="text-[13px] text-ink-muted mt-1.5">A protected workspace for your wishes, assets, beneficiaries and estate instructions.</p></div><VaultGate vault="will" onUnlock={() => setUnlocked(true)} /></div>;
   if (loading && !will) return <div className="max-w-[980px] mx-auto py-8"><p className="text-ink-muted text-[12px]">Loading your Will…</p></div>;
 
   return (
     <div className="max-w-[1120px] mx-auto pb-10">
       <header className="mb-5">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-          <div className="min-w-0"><span className="eyebrow">PRIVATE & SENSITIVE</span><div className="flex items-center gap-2 mt-1.5"><h1 className="text-[28px] sm:text-[30px] font-bold tracking-tight truncate">{will?.title || "My Will & Inheritance"}</h1><span className="chip shrink-0">🔐 Protected</span></div><p className="text-[11.5px] text-ink-muted mt-1">Last updated {date(will?.updatedAt)}</p></div>
+          <div className="min-w-0"><span className="eyebrow">PRIVATE & SENSITIVE</span><div className="flex items-center gap-2 mt-1.5"><h1 className="page-title text-[28px] sm:text-[30px] font-bold tracking-tight truncate">{will?.title || "My Will & Inheritance"}</h1><span className="chip shrink-0">🔐 Protected</span></div><p className="text-[11.5px] text-ink-muted mt-1">Last updated {date(will?.updatedAt)}</p></div>
           <div className="flex flex-wrap gap-2 shrink-0"><button type="button" className="btn-outline" onClick={() => setModal({ type: "profile", initial: { title: will?.title || "My Will & Inheritance" } })}>Edit title</button><button type="button" className="btn-outline" onClick={lock}>🔒 Lock</button></div>
         </div>
       </header>

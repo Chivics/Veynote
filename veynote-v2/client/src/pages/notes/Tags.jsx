@@ -13,7 +13,7 @@ export default function Tags() {
   return (
     <div>
       <span className="eyebrow">ORGANIZE</span>
-      <h1 className="text-[30px] tracking-tight my-1.5 mb-6">Tags</h1>
+      <h1 className="page-title text-[30px] tracking-tight my-1.5 mb-6">Tags</h1>
 
       {tags === null ? (
         <p className="text-ink-muted text-[12px]">Loading…</p>

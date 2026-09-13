@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../api/client";
+import InstallApp from "../components/InstallApp";
 
-const TABS = ["Profile", "Preferences", "Notifications", "Security"];
+const TABS = ["Profile", "Preferences", "Security"];
 
 export default function Settings() {
   const { user, updateUser } = useAuth();
@@ -11,20 +12,24 @@ export default function Settings() {
   const [theme, setTheme] = useState(user?.theme || "dark");
   const [fontSize, setFontSize] = useState(user?.editorFontSize || "medium");
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  async function persist(patch) {
+    setSaving(true); setSaved(false); setSaveError("");
+    try { await updateUser(patch); flash(); return true; }
+    catch (err) { setSaveError(err.message); return false; }
+    finally { setSaving(false); }
+  }
 
   async function saveProfile() {
-    await updateUser({ name });
-    flash();
+    await persist({ name });
   }
   async function saveTheme(next) {
-    setTheme(next);
-    await updateUser({ theme: next });
-    flash();
+    if (await persist({ theme: next })) setTheme(next);
   }
   async function saveFontSize(next) {
-    setFontSize(next);
-    await updateUser({ editorFontSize: next });
-    flash();
+    if (await persist({ editorFontSize: next })) setFontSize(next);
   }
   function flash() {
     setSaved(true);
@@ -34,7 +39,10 @@ export default function Settings() {
   return (
     <div>
       <span className="eyebrow">ACCOUNT</span>
-      <h1 className="text-[30px] tracking-tight my-1.5 mb-6">Settings</h1>
+      <h1 className="page-title text-[30px] tracking-tight my-1.5 mb-6">Settings</h1>
+      <div className="mb-6"><InstallApp /></div>
+      <div role="status" className="text-sm mb-3">{saving ? "Saving preferences…" : saved ? "Saved" : ""}</div>
+      {saveError && <p role="alert" className="text-danger mb-3">{saveError} Your preference was not saved. Try the control again.</p>}
 
       <div className="flex gap-[22px] border-b border-app-border mb-6 overflow-x-auto">
         {TABS.map((t) => (
@@ -55,7 +63,7 @@ export default function Settings() {
           <div className="p-5 flex flex-col gap-4">
             <div>
               <label className="text-[11px] text-ink-muted block mb-1.5">Full name</label>
-              <input className="input" value={name} onChange={(e) => setName(e.target.value)} onBlur={saveProfile} />
+              <input aria-label="Full name" className="input" disabled={saving} value={name} onChange={(e) => setName(e.target.value)} onBlur={saveProfile} />
             </div>
             <div>
               <label className="text-[11px] text-ink-muted block mb-1.5">Email</label>
@@ -72,6 +80,7 @@ export default function Settings() {
                 {["dark", "light", "system"].map((t) => (
                   <button
                     key={t}
+                    disabled={saving}
                     onClick={() => saveTheme(t)}
                     className={`text-[11px] rounded-lg px-2.5 py-1.5 border border-app-border capitalize ${
                       theme === t ? "bg-ink text-app-bg" : "bg-app-panel2 text-ink"
@@ -87,6 +96,7 @@ export default function Settings() {
                 {["small", "medium", "comfort", "large", "display", "xlarge"].map((s) => (
                   <button
                     key={s}
+                    disabled={saving}
                     onClick={() => saveFontSize(s)}
                     className={`text-[11px] rounded-lg px-2.5 py-1.5 border border-app-border capitalize ${
                       fontSize === s ? "bg-ink text-app-bg" : "bg-app-panel2 text-ink"
@@ -98,12 +108,6 @@ export default function Settings() {
               </div>
             </SettingRow>
           </>
-        )}
-
-        {tab === "Notifications" && (
-          <SettingRow title="Email notifications" desc="Notification preferences aren't wired up yet — flagging rather than faking a toggle that does nothing.">
-            <span className="text-ink-muted text-[11px]">Coming soon</span>
-          </SettingRow>
         )}
 
         {tab === "Security" && <ChangePasswordSection hasPassword={user?.hasPassword} />}

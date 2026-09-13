@@ -92,7 +92,7 @@ export default function TaskBoard() {
       <div className="flex items-start gap-3.5 mb-6">
         <div className="w-9 h-9 rounded-xl bg-app-panel2 border border-app-border flex items-center justify-center text-base shrink-0">✂</div>
         <div>
-          <h1 className="text-[22px] tracking-tight m-0 mb-1.5">Task List</h1>
+          <h1 className="page-title text-[22px] tracking-tight m-0 mb-1.5">Task List</h1>
           <p className="text-[12.5px] text-ink-muted max-w-[560px] m-0">
             Use this template to track your personal tasks. Click + New to create a new task directly on
             this board. Drag a task between columns, or click it to add context or subtasks.

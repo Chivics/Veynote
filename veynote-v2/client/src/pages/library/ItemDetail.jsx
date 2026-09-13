@@ -72,7 +72,7 @@ export default function ItemDetail({ configKey }) {
       </div>
 
       <input
-        className="w-full bg-transparent outline-none text-[26px] font-bold tracking-tight text-ink mb-4"
+        aria-label="Record title" className="page-title w-full bg-transparent outline-none text-[26px] font-bold tracking-tight text-ink mb-4"
         value={item.title}
         onChange={(e) => { markDirty(); setItem({ ...item, title: e.target.value }); }}
         onBlur={(e) => patch({ title: e.target.value })}

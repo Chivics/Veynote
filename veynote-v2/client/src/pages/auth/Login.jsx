@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import InstallApp from "../../components/InstallApp";
+import { API_BASE } from "../../api/client";
 
 export default function Login() {
   const { login } = useAuth();
@@ -25,7 +27,7 @@ export default function Login() {
   }
 
   function handleGoogle() {
-  window.location.href = `${import.meta.env.VITE_API_URL}/auth/google`;
+  window.location.href = `${API_BASE}/auth/google`;
 }
 
   return (
@@ -34,7 +36,7 @@ export default function Login() {
         <div className="w-[42px] h-[42px] mb-1 flex items-center justify-center"><img src="/logo.png" alt="Veynote" className="w-full h-full object-contain" /></div>
 
         <div className="text-center">
-          <h1 className="text-[19px] font-bold mb-1.5">Welcome to Veynote</h1>
+          <h1 className="page-title text-[19px] font-bold mb-1.5">Welcome to Veynote</h1>
           <p className="text-[12px] text-ink-muted max-w-[280px] leading-relaxed mx-auto">
             Your notes and your trading journal, in one calm place — write freely, track every
             setup, never lose the thread.
@@ -59,6 +61,8 @@ export default function Login() {
           <input
             className="input"
             type="email"
+            aria-label="Email address"
+            autoComplete="username"
             placeholder="you@email.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -67,12 +71,14 @@ export default function Login() {
           <input
             className="input"
             type="password"
+            aria-label="Password"
+            autoComplete="current-password"
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
           />
-          {error && <p className="text-danger text-[11.5px] m-0">{error}</p>}
+          {error && <p role="alert" className="text-danger text-[11.5px] m-0">{error}</p>}
           <button type="submit" disabled={loading} className="btn-primary justify-center disabled:opacity-60">
             {loading ? "Logging in…" : "Log in"}
           </button>
@@ -84,6 +90,7 @@ export default function Login() {
             Sign up
           </Link>
         </p>
+        <InstallApp />
       </div>
     </div>
   );

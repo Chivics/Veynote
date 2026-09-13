@@ -23,7 +23,7 @@ export default function TradingDashboard() {
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 md:gap-6 mb-8 md:mb-6">
         <div className="min-w-0">
           <span className="eyebrow">{new Date().toDateString().toUpperCase()}</span>
-          <h1 className="font-bold text-[22px] leading-tight sm:text-[26px] md:text-[30px] tracking-tight mt-1.5 mb-2 break-words">
+          <h1 className="page-title font-bold text-[22px] leading-tight sm:text-[26px] md:text-[30px] tracking-tight mt-1.5 mb-2 break-words">
             Trading Journal
           </h1>
           <p className="text-ink-muted m-0 max-w-[600px] text-[13px] md:text-base">

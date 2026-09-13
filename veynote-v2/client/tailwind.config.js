@@ -10,25 +10,25 @@ export default {
       colors: {
         // Tokens copied 1:1 from the approved Veynote V2 board (§5 design system)
         app: {
-          bg: "#080a0d",
-          panel: "#101318",
-          panel2: "#151920",
-          border: "#252a33",
+          bg: "rgb(var(--app-bg) / <alpha-value>)",
+          panel: "rgb(var(--app-panel) / <alpha-value>)",
+          panel2: "rgb(var(--app-panel2) / <alpha-value>)",
+          border: "rgb(var(--app-border) / <alpha-value>)",
         },
         ink: {
-          DEFAULT: "#f4f6f8",
-          muted: "#8d96a5",
-          soft: "#b6beca",
+          DEFAULT: "rgb(var(--ink) / <alpha-value>)",
+          muted: "rgb(var(--ink-muted) / <alpha-value>)",
+          soft: "rgb(var(--ink-soft) / <alpha-value>)",
         },
         accent: {
-          notes: "#7c6cff",
+          notes: "rgb(var(--accent-notes) / <alpha-value>)",
           "notes-soft": "rgba(124,108,255,.14)",
-          trade: "#5fa8ff",
+          trade: "rgb(var(--accent-trade) / <alpha-value>)",
           "trade-soft": "rgba(95,168,255,.14)",
         },
-        success: "#38d39f",
-        danger: "#ff6878",
-        warning: "#f5b942",
+        success: "rgb(var(--success) / <alpha-value>)",
+        danger: "rgb(var(--danger) / <alpha-value>)",
+        warning: "rgb(var(--warning) / <alpha-value>)",
       },
       borderRadius: {
         card: "13px",

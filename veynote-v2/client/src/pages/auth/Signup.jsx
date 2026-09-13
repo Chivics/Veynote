@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { API_BASE } from "../../api/client";
 
 export default function Signup() {
   const { register } = useAuth();
@@ -34,11 +35,11 @@ export default function Signup() {
     <div className="min-h-screen flex items-center justify-center bg-app-bg px-4">
       <div className="w-full max-w-[340px] flex flex-col items-center gap-4">
         <div className="w-[42px] h-[42px] mb-1 flex items-center justify-center"><img src="/logo.png" alt="Veynote" className="w-full h-full object-contain" /></div>
-        <h1 className="text-[19px] font-bold m-0">Create your account</h1>
+        <h1 className="page-title text-[19px] font-bold m-0">Create your account</h1>
 
         <button
           onClick={() =>
-          (window.location.href = `${import.meta.env.VITE_API_URL}/auth/google`)
+          (window.location.href = `${API_BASE}/auth/google`)
           }
           className="btn-outline w-full flex items-center justify-center gap-2"
         >
@@ -52,10 +53,12 @@ export default function Signup() {
         </div>
 
         <form onSubmit={handleSubmit} className="w-full flex flex-col gap-3">
-          <input className="input" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} required />
+          <input aria-label="Full name" autoComplete="name" className="input" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} required />
           <input
             className="input"
             type="email"
+            aria-label="Email address"
+            autoComplete="username"
             placeholder="you@email.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -65,6 +68,8 @@ export default function Signup() {
             className="input"
             type="password"
             placeholder="Password"
+            aria-label="Password"
+            autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -74,11 +79,13 @@ export default function Signup() {
             className="input"
             type="password"
             placeholder="Confirm password"
+            aria-label="Confirm password"
+            autoComplete="new-password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             required
           />
-          {error && <p className="text-danger text-[11.5px] m-0">{error}</p>}
+          {error && <p role="alert" className="text-danger text-[11.5px] m-0">{error}</p>}
           <button type="submit" disabled={loading} className="btn-primary justify-center disabled:opacity-60">
             {loading ? "Creating account…" : "Create account"}
           </button>

@@ -7,8 +7,10 @@ const { signToken } = require("../utils/jwt");
 const { requireAuth } = require("../middleware/auth");
 const { userPublic } = require("../utils/userPublic");
 const { asyncHandler } = require("../middleware/asyncHandler");
+const { createAuthLimiter } = require("../middleware/authRateLimit");
 
 const router = express.Router();
+router.use(["/login", "/register"], createAuthLimiter());
 
 const GOOGLE_ENABLED = Boolean(
   process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
@@ -59,11 +61,11 @@ if (GOOGLE_ENABLED) {
 router.post("/register", asyncHandler(async (req, res) => {
   const { name, email, password } = req.body;
 
-  if (!name || !email || !password) {
+  if (typeof name !== "string" || !name.trim() || name.length > 120 || typeof email !== "string" || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || typeof password !== "string") {
     return res.status(400).json({ error: "Name, email, and password are required." });
   }
-  if (password.length < 8) {
-    return res.status(400).json({ error: "Password must be at least 8 characters." });
+  if (password.length < 8 || Buffer.byteLength(password, "utf8") > 72) {
+    return res.status(400).json({ error: "Password must be at least 8 characters and no more than 72 UTF-8 bytes." });
   }
 
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -83,6 +85,9 @@ router.post("/register", asyncHandler(async (req, res) => {
 // -- Login (email/password) ------------------------------------------------
 router.post("/login", asyncHandler(async (req, res) => {
   const { email, password } = req.body;
+  if (typeof email !== "string" || !email || email.length > 254 || typeof password !== "string" || !password || password.length > 4096) {
+    return res.status(400).json({ error: "Enter your email address and password." });
+  }
   const user = await prisma.user.findUnique({ where: { email } });
 
   if (!user || !user.passwordHash) {
@@ -133,6 +138,14 @@ router.get("/me", requireAuth, asyncHandler(async (req, res) => {
 // -- Set default/last-active mode + remembered path (§2 of the board) ------
 router.patch("/me", requireAuth, asyncHandler(async (req, res) => {
   const { defaultMode, lastActiveNotesPath, lastActiveTradingPath, theme, editorFontSize, name } = req.body;
+  if ((theme !== undefined && !["dark", "light", "system"].includes(theme)) ||
+      (editorFontSize !== undefined && !["small", "medium", "comfort", "large", "display", "xlarge"].includes(editorFontSize)) ||
+      (defaultMode !== undefined && !["NOTES", "TRADING"].includes(defaultMode)) ||
+      (name !== undefined && (typeof name !== "string" || !name.trim() || name.length > 120)) ||
+      (lastActiveNotesPath !== undefined && (typeof lastActiveNotesPath !== "string" || !/^\/notes(?:\/|$)/.test(lastActiveNotesPath) || lastActiveNotesPath.length > 500)) ||
+      (lastActiveTradingPath !== undefined && (typeof lastActiveTradingPath !== "string" || !/^\/trading(?:\/|$)/.test(lastActiveTradingPath) || lastActiveTradingPath.length > 500))) {
+    return res.status(400).json({ error: "Choose a valid profile or preference value." });
+  }
   const user = await prisma.user.update({
     where: { id: req.userId },
     data: {
@@ -148,17 +161,17 @@ router.patch("/me", requireAuth, asyncHandler(async (req, res) => {
 }));
 
 // -- Change password ---------------------------------------------------
-router.post("/change-password", requireAuth, asyncHandler(async (req, res) => {
+router.post("/change-password", requireAuth, createAuthLimiter({ authenticated: true }), asyncHandler(async (req, res) => {
   const { currentPassword, newPassword, confirmPassword } = req.body;
 
-  if (!newPassword || !confirmPassword) {
+  if (typeof newPassword !== "string" || typeof confirmPassword !== "string" || !newPassword || !confirmPassword) {
     return res.status(400).json({ error: "Enter your new password twice." });
   }
   if (newPassword !== confirmPassword) {
     return res.status(400).json({ error: "New password and confirmation don't match." });
   }
-  if (newPassword.length < 8) {
-    return res.status(400).json({ error: "New password must be at least 8 characters." });
+  if (newPassword.length < 8 || Buffer.byteLength(newPassword, "utf8") > 72) {
+    return res.status(400).json({ error: "New password must be at least 8 characters and no more than 72 UTF-8 bytes." });
   }
 
   const user = await prisma.user.findUnique({ where: { id: req.userId } });
@@ -167,7 +180,7 @@ router.post("/change-password", requireAuth, asyncHandler(async (req, res) => {
   if (user.passwordHash) {
     // Normal case: they already have a password, so the current one must
     // be verified before it can be changed.
-    if (!currentPassword) {
+    if (typeof currentPassword !== "string" || !currentPassword || currentPassword.length > 4096) {
       return res.status(400).json({ error: "Enter your current password." });
     }
     const valid = await bcrypt.compare(currentPassword, user.passwordHash);

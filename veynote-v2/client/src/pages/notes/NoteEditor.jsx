@@ -19,6 +19,7 @@ import { computeStats, formatStats } from "../../utils/textStats";
 import { getTemplate } from "../../data/noteTemplates";
 import { escapeHtml } from "../../utils/safeHtml";
 import { createNoteWriter } from "../../utils/noteWriter";
+import { clearNoteGrant } from "../../utils/noteGrant";
 
 const FONT_SIZE_PX = { small: "13px", medium: "15px", large: "18px", comfort: "16px", display: "22px", xlarge: "28px" };
 
@@ -122,6 +123,7 @@ export default function NoteEditor() {
       .catch((err) => {
         if (requestSequence !== loadSequence.current) return;
         if (err.requiresVault) {
+          if (err.requiresVault === "locked-notes") setIsLocked(true);
           setVaultRequired(err.requiresVault);
         } else {
           alert(err.message);
@@ -130,12 +132,26 @@ export default function NoteEditor() {
   }
 
   useEffect(loadNote, [routeId]);
+  useEffect(() => () => { clearNoteGrant(); }, [routeId]);
 
   async function toggleLock() {
     try {
+      clearTimeout(saveTimer.current);
+      if (dirtyRef.current) {
+        const lockingSequence = saveSeq.current;
+        await writer.current.save({ title, content: latestHTML.current, folderId: folderId || null, mood, tags });
+        if (lockingSequence !== saveSeq.current) throw new Error("Your note changed while saving. Wait for Saved, then change its lock.");
+        dirtyRef.current = false;
+        setSaveStatus("saved");
+      }
       const { note } = await api.patch(`/notes/${routeId}/lock`, { locked: !isLocked });
       writer.current = createNoteWriter(api, { id: note.id, updatedAt: note.updatedAt });
       setIsLocked(Boolean(note.isLocked));
+      if (note.isLocked) {
+        clearNoteGrant();
+        setLoaded(false);
+        setVaultRequired("locked-notes");
+      }
     } catch (err) {
       if (err.requiresVault) {
         setVaultRequired(err.requiresVault);
@@ -354,7 +370,7 @@ export default function NoteEditor() {
     block.action(editorRef.current);
   }
 
-  if (vaultRequired) return <VaultGate vault={vaultRequired} onUnlock={loadNote} />;
+  if (vaultRequired) return <VaultGate vault={vaultRequired} noteId={vaultRequired === "locked-notes" && isLocked ? routeId : undefined} onUnlock={loadNote} />;
 
   if (!loaded) return <p className="text-ink-muted text-[12px]">Loading…</p>;
 
@@ -436,7 +452,7 @@ export default function NoteEditor() {
         </div>
 
         <input
-          className="w-full bg-transparent outline-none text-[26px] font-bold tracking-tight text-ink mb-3.5 placeholder:text-ink-muted"
+          aria-label="Record title" className="page-title w-full bg-transparent outline-none text-[26px] font-bold tracking-tight text-ink mb-3.5 placeholder:text-ink-muted"
           placeholder="Untitled (title is optional — just start writing)"
           value={title}
           onChange={(e) => setTitle(e.target.value)}

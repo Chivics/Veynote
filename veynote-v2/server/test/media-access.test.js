@@ -6,7 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const jwt = require("jsonwebtoken");
 process.env.JWT_SECRET = "file-tests-only-secret-not-for-production-0123456789";
-const { signToken, signVaultToken } = require("../src/utils/jwt");
+const { signToken, signVaultToken, signNoteToken } = require("../src/utils/jwt");
 const { createMediaRoutes } = require("../src/routes/media.routes");
 const name = "a".repeat(32) + ".png";
 let locked = false;
@@ -32,8 +32,8 @@ test.after(async () => {
   await new Promise((resolve) => server.close(resolve));
   await fs.unlink(path.join(root, name)); await fs.rmdir(root);
 });
-const requestGrant = (user, vault) => fetch(`${base}/api/media/access`, { method: "POST", headers: {
-  Authorization: `Bearer ${signToken(user)}`, "Content-Type": "application/json", ...(vault && { "X-Vault-Token": vault }),
+const requestGrant = (user, vault, note) => fetch(`${base}/api/media/access`, { method: "POST", headers: {
+  Authorization: `Bearer ${signToken(user)}`, "Content-Type": "application/json", ...(vault && { "X-Vault-Token": vault }), ...(note && { "X-Note-Token": note }),
 }, body: JSON.stringify({ storedName: name }) });
 
 test("raw upload URLs no longer expose bytes", async () => {
@@ -50,14 +50,16 @@ test("only the owner can mint a grant and read the file", async () => {
   assert.equal(await response.text(), "test-image-bytes");
   assert.match(response.headers.get("content-security-policy"), /sandbox/);
 });
-test("locking a note invalidates previous grants and requires fresh vault authentication", async (t) => {
+test("locking a note invalidates previous grants and requires authentication for that note", async (t) => {
   t.after(() => { locked = false; });
   const { url } = await (await requestGrant("alice")).json();
   locked = true;
   assert.equal((await fetch(base + url)).status, 404);
   assert.equal((await requestGrant("alice")).status, 401);
   assert.equal((await requestGrant("alice", signVaultToken("bob", "vault"))).status, 401);
-  const grant = await requestGrant("alice", signVaultToken("alice", "vault"));
+  assert.equal((await requestGrant("alice", signVaultToken("alice", "vault"))).status, 401);
+  assert.equal((await requestGrant("alice", null, signNoteToken("alice", "other-note"))).status, 401);
+  const grant = await requestGrant("alice", null, signNoteToken("alice", "note"));
   assert.equal(grant.status, 200);
   assert.equal((await fetch(base + (await grant.json()).url)).status, 200);
 });

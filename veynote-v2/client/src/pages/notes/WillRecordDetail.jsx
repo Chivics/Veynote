@@ -346,7 +346,7 @@ export default function WillRecordDetail({ kind }) {
             PRIVATE & SENSITIVE
           </span>
 
-          <h1 className="text-[30px] font-bold mt-1.5">
+          <h1 className="page-title text-[30px] font-bold mt-1.5">
             Will & Inheritance
           </h1>
 
@@ -394,7 +394,7 @@ export default function WillRecordDetail({ kind }) {
             WILL & INHERITANCE
           </span>
 
-          <h1 className="text-xl font-bold mt-2">
+          <h1 className="page-title text-xl font-bold mt-2">
             Unable to load this record
           </h1>
 
@@ -542,7 +542,7 @@ export default function WillRecordDetail({ kind }) {
           {displayType}
         </span>
 
-        <h1 className="text-[26px] sm:text-[30px] font-bold tracking-tight mt-1.5 break-words">
+        <h1 className="page-title text-[26px] sm:text-[30px] font-bold tracking-tight mt-1.5 break-words">
           {title}
         </h1>
 

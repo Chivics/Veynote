@@ -36,7 +36,7 @@ export default function TradingRuleDetail() {
       </div>
 
       <input
-        className="w-full bg-transparent outline-none text-[26px] font-bold tracking-tight text-ink mb-4"
+        aria-label="Record title" className="page-title w-full bg-transparent outline-none text-[26px] font-bold tracking-tight text-ink mb-4"
         value={rule.rule}
         onChange={(e) => setRule({ ...rule, rule: e.target.value })}
         onBlur={(e) => patch({ rule: e.target.value })}

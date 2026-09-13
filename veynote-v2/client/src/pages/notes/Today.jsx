@@ -72,7 +72,7 @@ export default function Today() {
   return (
     <div>
       <span className="eyebrow">{dateHeader.toUpperCase()}</span>
-      <h1 className="text-[30px] tracking-tight my-1.5 mb-7">
+      <h1 className="page-title text-[30px] tracking-tight my-1.5 mb-7">
         {greeting}, {user?.name?.split(" ")[0] || "there"}
       </h1>
 

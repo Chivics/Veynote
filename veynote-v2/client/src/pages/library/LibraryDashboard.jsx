@@ -22,7 +22,7 @@ export default function LibraryDashboard() {
   return (
     <div className="pt-2">
       <span className="eyebrow">LIBRARY</span>
-      <h1 className="text-[28px] tracking-tight mt-1 mb-2">Library</h1>
+      <h1 className="page-title text-[28px] tracking-tight mt-1 mb-2">Library</h1>
       <p className="text-ink-muted text-[13px] max-w-[480px] mb-7">
         A place for everything you want to read, experience, achieve, and remember.
       </p>

@@ -22,7 +22,7 @@ export default function PickMode() {
       <div className="w-full max-w-[340px] flex flex-col items-center gap-5">
         <div className="w-[42px] h-[42px] flex items-center justify-center"><img src="/logo.png" alt="Veynote" className="w-full h-full object-contain" /></div>
         <div className="text-center">
-          <h1 className="text-[19px] font-bold mb-1">What brings you to Veynote?</h1>
+          <h1 className="page-title text-[19px] font-bold mb-1">What brings you to Veynote?</h1>
           <p className="text-[11.5px] text-ink-muted m-0">Just picks where you land first — you'll always have both.</p>
         </div>
 

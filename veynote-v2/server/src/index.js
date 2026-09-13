@@ -28,6 +28,8 @@ const publicRoutes = require("./routes/public.routes");
 const willRoutes = require("./routes/will.routes");
 
 const app = express();
+// Configure only known proxy networks; never trust arbitrary forwarded headers.
+if (process.env.TRUST_PROXY_CIDRS) app.set("trust proxy", process.env.TRUST_PROXY_CIDRS.split(",").map(value => value.trim()).filter(Boolean));
 
 /*
  * CORS

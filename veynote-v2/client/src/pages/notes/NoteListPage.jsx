@@ -66,7 +66,7 @@ export default function NoteListPage({ scope }) {
       <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
         <div className="min-w-0">
           <span className="eyebrow">{copy.eyebrow}</span>
-          <h1 className="text-[22px] sm:text-[30px] tracking-tight my-1.5 break-words">{title}</h1>
+          <h1 className="page-title text-[22px] sm:text-[30px] tracking-tight my-1.5 break-words">{title}</h1>
           <p className="text-ink-muted text-[13px] m-0">{notes ? `${notes.length} total` : ""}</p>
         </div>
         <Link to="/notes/new" className="btn-primary shrink-0">+ New note</Link>

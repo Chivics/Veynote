@@ -136,7 +136,7 @@ export default function Files() {
       <div className="flex items-end justify-between gap-6 mb-4 flex-wrap">
         <div>
           <span className="eyebrow">ORGANIZE</span>
-          <h1 className="text-[30px] tracking-tight my-1.5">Files</h1>
+          <h1 className="page-title text-[30px] tracking-tight my-1.5">Files</h1>
           <p className="text-ink-muted text-[13px] m-0">
             Upload a whole folder from your device and it keeps its structure — open it here just like on your computer.
           </p>

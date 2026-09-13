@@ -142,7 +142,7 @@ export default function LockedNotes() {
       <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
         <div className="min-w-0">
           <span className="eyebrow">PROTECTED</span>
-          <h1 className="text-[22px] sm:text-[30px] tracking-tight my-1.5">Locked Notes</h1>
+          <h1 className="page-title text-[22px] sm:text-[30px] tracking-tight my-1.5">Locked Notes</h1>
           <p className="text-ink-muted text-[13px] m-0">{notes ? `${notes.length} total` : ""}</p>
         </div>
       </div>
@@ -161,13 +161,10 @@ export default function LockedNotes() {
             <Link key={note.id} to={`/notes/${note.id}`} className="card p-4 block">
               <div className="flex justify-between items-center mb-3">
                 <span className="type-pill">🔒 Locked</span>
-                <span className="text-[10px] text-ink-muted">
-                  {new Date(note.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                </span>
               </div>
               <h3 className="text-[14px] m-0 mb-1.5 tracking-tight">{note.title || "Untitled"}</h3>
               <p className="text-[11.5px] leading-relaxed text-ink-muted m-0 line-clamp-2">
-                {(note.content || "").replace(/<[^>]*>/g, " ").slice(0, 140) || "No content yet."}
+                Authenticate to view this note. Other notes stay locked.
               </p>
             </Link>
           ))}

@@ -18,7 +18,7 @@ const db = {
 };
 const prismaPath = require.resolve("../src/lib/prisma");
 require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: db };
-const { signToken, signVaultToken } = require("../src/utils/jwt");
+const { signToken, signNoteToken } = require("../src/utils/jwt");
 let server, base;
 test.before(async () => {
   const app = express();
@@ -31,10 +31,10 @@ test.after(async () => {
   await new Promise((resolve) => server.close(resolve));
   for (const name of storedFiles) await fs.unlink(path.join(__dirname, "..", "uploads", name)).catch((err) => { if (err.code !== "ENOENT") throw err; });
 });
-const headers = (unlocked) => ({ Authorization: `Bearer ${signToken("alice")}`, ...(unlocked && { "X-Vault-Token": signVaultToken("alice", "vault") }) });
+const headers = (unlocked) => ({ Authorization: `Bearer ${signToken("alice")}`, ...(unlocked && { "X-Note-Token": signNoteToken("alice", "note") }) });
 const form = () => { const data = new FormData(); data.append("file", new Blob(["test attachment"], { type: "text/plain" }), "notes.txt"); return data; };
 
-test("locked-note multipart upload, list and deletion all enforce the vault", async () => {
+test("locked-note multipart upload, list and deletion all enforce the note grant", async () => {
   const denied = await fetch(`${base}/note/attachments`, { method: "POST", headers: headers(false), body: form() });
   assert.equal(denied.status, 401); assert.equal(storedFiles.length, 0);
   const response = await fetch(`${base}/note/attachments`, { method: "POST", headers: headers(true), body: form() });

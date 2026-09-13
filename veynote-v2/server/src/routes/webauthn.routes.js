@@ -1,3 +1,5 @@
+const { asyncHandler } = require("../middleware/asyncHandler");
+const { createAuthLimiter } = require("../middleware/authRateLimit");
 const express = require("express");
 const {
   generateRegistrationOptions,
@@ -7,11 +9,12 @@ const {
 } = require("@simplewebauthn/server");
 const prisma = require("../lib/prisma");
 const { requireAuth } = require("../middleware/auth");
-const { signVaultToken } = require("../utils/jwt");
+const { signVaultToken, signNoteToken } = require("../utils/jwt");
 const { hasValidVaultAccess } = require("../utils/vaultAccess");
 
 const router = express.Router();
 router.use(requireAuth);
+router.use(createAuthLimiter({ authenticated: true, limit: 40 }));
 
 // WebAuthn is scoped to Locked Notes only, as a faster unlock method
 // layered on top of the password — never a replacement for it. The
@@ -30,34 +33,27 @@ function webauthnConfig() {
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
-async function stashChallenge(userId, challenge) {
+async function stashChallenge(userId, challenge, purpose, noteId = null) {
   await prisma.user.update({
     where: { id: userId },
-    data: { webauthnChallenge: challenge, webauthnChallengeExpiresAt: new Date(Date.now() + CHALLENGE_TTL_MS) },
+    data: { webauthnChallenge: JSON.stringify({ challenge, purpose, noteId }), webauthnChallengeExpiresAt: new Date(Date.now() + CHALLENGE_TTL_MS) },
   });
 }
 
-async function consumeChallenge(userId) {
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  // Always clear it, even on failure — a challenge is one-shot regardless.
-  await prisma.user.update({ where: { id: userId }, data: { webauthnChallenge: null, webauthnChallengeExpiresAt: null } });
-  if (!user.webauthnChallenge || !user.webauthnChallengeExpiresAt || user.webauthnChallengeExpiresAt < new Date()) {
-    return null;
-  }
-  return user.webauthnChallenge;
-}
+const { consumeChallenge: consumeStoredChallenge } = require("../utils/webauthnChallenge");
+const consumeChallenge = (userId, purpose, noteId) => consumeStoredChallenge(prisma, userId, purpose, noteId);
 
 // GET /api/webauthn/credentials — list registered passkeys (no key material)
-router.get("/credentials", async (req, res) => {
+router.get("/credentials", asyncHandler(async (req, res) => {
   const credentials = await prisma.webAuthnCredential.findMany({
     where: { userId: req.userId },
     select: { id: true, deviceLabel: true, createdAt: true },
     orderBy: { createdAt: "desc" },
   });
   res.json({ credentials });
-});
+}));
 
-router.delete("/credentials/:id", async (req, res) => {
+router.delete("/credentials/:id", asyncHandler(async (req, res) => {
   if (!hasValidVaultAccess(req, "vault")) {
     return res.status(401).json({ error: "Unlock Locked Notes first.", requiresVault: "locked-notes" });
   }
@@ -65,10 +61,10 @@ router.delete("/credentials/:id", async (req, res) => {
   if (!credential) return res.status(404).json({ error: "Not found." });
   await prisma.webAuthnCredential.delete({ where: { id: credential.id } });
   res.json({ ok: true });
-});
+}));
 
 // POST /api/webauthn/register/options
-router.post("/register/options", async (req, res) => {
+router.post("/register/options", asyncHandler(async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.userId } });
   if (!user.lockedNotesPasswordHash) {
     return res.status(400).json({ error: "Set up a Locked Notes password first — a passkey is an additional unlock method, not a replacement." });
@@ -91,19 +87,19 @@ router.post("/register/options", async (req, res) => {
     userDisplayName: user.name,
     attestationType: "none",
     excludeCredentials: existing.map((c) => ({ id: c.credentialId, transports: c.transports ? JSON.parse(c.transports) : undefined })),
-    authenticatorSelection: { residentKey: "preferred", userVerification: "preferred" },
+    authenticatorSelection: { residentKey: "preferred", userVerification: "required" },
   });
 
-  await stashChallenge(req.userId, options.challenge);
+  await stashChallenge(req.userId, options.challenge, "register");
   res.json(options);
-});
+}));
 
 // POST /api/webauthn/register/verify  { response, deviceLabel? }
-router.post("/register/verify", async (req, res) => {
+router.post("/register/verify", asyncHandler(async (req, res) => {
   if (!hasValidVaultAccess(req, "vault")) {
     return res.status(401).json({ error: "Unlock Locked Notes first to add a passkey.", requiresVault: "locked-notes" });
   }
-  const expectedChallenge = await consumeChallenge(req.userId);
+  const expectedChallenge = await consumeChallenge(req.userId, "register");
   if (!expectedChallenge) return res.status(400).json({ error: "That registration attempt expired — try again." });
 
   const { rpID, origin } = webauthnConfig();
@@ -115,6 +111,7 @@ router.post("/register/verify", async (req, res) => {
       expectedChallenge,
       expectedOrigin: origin,
       expectedRPID: rpID,
+      requireUserVerification: true,
     });
   } catch (err) {
     return res.status(400).json({ error: "Couldn't verify that passkey — please try again." });
@@ -137,10 +134,16 @@ router.post("/register/verify", async (req, res) => {
   });
 
   res.status(201).json({ credential: { id: saved.id, deviceLabel: saved.deviceLabel, createdAt: saved.createdAt } });
-});
+}));
 
 // POST /api/webauthn/authenticate/options
-router.post("/authenticate/options", async (req, res) => {
+router.post("/authenticate/options", asyncHandler(async (req, res) => {
+  const noteId = req.body.noteId ?? null;
+  if (noteId !== null) {
+    if (typeof noteId !== "string") return res.status(400).json({ error: "Invalid note." });
+    const note = await prisma.note.findFirst({ where: { id: noteId, userId: req.userId, isLocked: true, isWill: false } });
+    if (!note) return res.status(404).json({ error: "Locked note not found." });
+  }
   const credentials = await prisma.webAuthnCredential.findMany({ where: { userId: req.userId } });
   if (credentials.length === 0) {
     return res.status(400).json({ error: "No passkey is set up yet — use your password instead." });
@@ -150,16 +153,17 @@ router.post("/authenticate/options", async (req, res) => {
   const options = await generateAuthenticationOptions({
     rpID,
     allowCredentials: credentials.map((c) => ({ id: c.credentialId, transports: c.transports ? JSON.parse(c.transports) : undefined })),
-    userVerification: "preferred",
+    userVerification: "required",
   });
 
-  await stashChallenge(req.userId, options.challenge);
+  await stashChallenge(req.userId, options.challenge, "authenticate", noteId);
   res.json(options);
-});
+}));
 
 // POST /api/webauthn/authenticate/verify  { response }  -> { token }
-router.post("/authenticate/verify", async (req, res) => {
-  const expectedChallenge = await consumeChallenge(req.userId);
+router.post("/authenticate/verify", asyncHandler(async (req, res) => {
+  const noteId = req.body.noteId ?? null;
+  const expectedChallenge = await consumeChallenge(req.userId, "authenticate", noteId);
   if (!expectedChallenge) return res.status(400).json({ error: "That unlock attempt expired — try again." });
 
   const stored = await prisma.webAuthnCredential.findFirst({
@@ -182,6 +186,7 @@ router.post("/authenticate/verify", async (req, res) => {
         counter: stored.counter,
         transports: stored.transports ? JSON.parse(stored.transports) : undefined,
       },
+      requireUserVerification: true,
     });
   } catch (err) {
     return res.status(400).json({ error: "Couldn't verify that passkey — please try again or use your password." });
@@ -199,8 +204,8 @@ router.post("/authenticate/verify", async (req, res) => {
     data: { counter: verification.authenticationInfo.newCounter },
   });
 
-  const token = signVaultToken(req.userId, "vault");
+  const token = noteId ? signNoteToken(req.userId, noteId) : signVaultToken(req.userId, "vault");
   res.json({ token });
-});
+}));
 
 module.exports = router;

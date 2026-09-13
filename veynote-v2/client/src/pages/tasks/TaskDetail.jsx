@@ -92,7 +92,7 @@ export default function TaskDetail() {
       </div>
 
       <input
-        className="w-full bg-transparent outline-none text-[26px] font-bold tracking-tight text-ink mb-4"
+        aria-label="Record title" className="page-title w-full bg-transparent outline-none text-[26px] font-bold tracking-tight text-ink mb-4"
         value={task.title}
         onChange={(e) => { markDirty(); setTask({ ...task, title: e.target.value }); }}
         onBlur={(e) => patch({ title: e.target.value })}

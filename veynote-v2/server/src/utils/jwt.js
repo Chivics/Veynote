@@ -51,4 +51,16 @@ function verifyVaultToken(token, expectedUserId, expectedPurpose) {
   return payload;
 }
 
-module.exports = { signToken, verifyToken, signVaultToken, verifyVaultToken };
+function signNoteToken(userId, noteId) {
+  return jwt.sign({ sub: userId, purpose: "note", noteId }, SECRET, {
+    algorithm: "HS256", issuer: ISSUER, audience: "veynote:note", expiresIn: "15m",
+  });
+}
+
+function verifyNoteToken(token, userId, noteId) {
+  const payload = verifyPurpose(token, "veynote:note", "note");
+  if (payload.sub !== userId || payload.noteId !== noteId) throw new Error("Wrong note grant.");
+  return payload;
+}
+
+module.exports = { signToken, verifyToken, signVaultToken, verifyVaultToken, signNoteToken, verifyNoteToken };
