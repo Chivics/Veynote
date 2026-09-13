@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
+import { API_BASE } from "../api/client";
+import { isApiUrl } from "../utils/apiOrigin";
 
-const API_HOST = "https://api.veynote.app";
-const API_BASE = `${API_HOST}/api`;
+const API_HOST = new URL(API_BASE, window.location.href).origin;
 
 function authHeaders() {
   const token = localStorage.getItem("veynote_token");
@@ -24,7 +25,7 @@ function candidates({ src, imageId, attachmentId }) {
   if (src) {
     if (src.startsWith("blob:") || src.startsWith("data:")) return [src];
     if (src.startsWith("http://") || src.startsWith("https://")) list.push(src);
-    else if (src.startsWith("/api/")) list.push(`https://api.veynote.app${src}`);
+    else if (src.startsWith("/api/") || src.startsWith("/uploads/")) list.push(`${API_HOST}${src}`);
     else if (src.startsWith("/")) list.push(`${API_BASE}${src}`);
     else list.push(`${API_BASE}/${src}`);
     if (typeof src === "string" && !src.endsWith("/file") && src.includes("/images/")) {
@@ -39,7 +40,12 @@ async function loadBlob(urls) {
   for (const url of urls) {
     if (url.startsWith("blob:") || url.startsWith("data:")) return url;
     try {
-      const res = await fetch(url, { headers: authHeaders() });
+      const res = await fetch(url, {
+        headers: isApiUrl(url, API_BASE, window.location.href) ? authHeaders() : {},
+        credentials: "omit",
+        redirect: "error",
+        referrerPolicy: "no-referrer",
+      });
       if (!res.ok) {
         lastErr = `${res.status} ${url}`;
         continue;
@@ -83,7 +89,6 @@ export default function AuthImage({ src, alt = "", className, style, onClick, im
         if (!cancelled) setBlobUrl(u);
       })
       .catch((err) => {
-        console.error("AuthImage failed", err.message, { src, imageId, urls });
         if (!cancelled) setFailed(true);
       });
     return () => {

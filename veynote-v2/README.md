@@ -1,5 +1,10 @@
 # Veynote V2
 
+Transformation work is tracked in [the technical blueprint](docs/TRANSFORMATION-BLUEPRINT.md)
+and [the foundation changelog](docs/FOUNDATION-CHANGELOG.md). The full product
+directive is not yet implemented. Existing users must sign in again after the
+token-boundary update is deployed.
+
 Full-stack implementation of the approved Veynote V2 design board: Notes ↔
 Trading Journal (with Library, Task List, and Trading Rules), one account,
 one login, switchable modes.

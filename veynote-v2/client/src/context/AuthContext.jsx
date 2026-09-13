@@ -46,6 +46,9 @@ export function AuthProvider({ children }) {
 
   function logout() {
     localStorage.removeItem("veynote_token");
+    localStorage.removeItem("token");
+    sessionStorage.removeItem("veynote_vault_token");
+    sessionStorage.removeItem("veynote_will_token");
     setUser(null);
   }
 

@@ -2,6 +2,8 @@ const express = require("express");
 const prisma = require("../lib/prisma");
 const { requireAuth } = require("../middleware/auth");
 const { getSystemEventsForMonth } = require("../data/holidays");
+const { ownedReference } = require("../middleware/ownedReference");
+const { calendarEventPublic } = require("../utils/calendarPrivacy");
 
 const router = express.Router();
 router.use(requireAuth);
@@ -42,7 +44,7 @@ router.get("/", async (req, res) => {
   }
 
   res.json({
-    userEvents,
+    userEvents: userEvents.map((event) => calendarEventPublic(event, req.userId)),
     systemEvents,
     tradingDaySummaries,
   });
@@ -72,10 +74,13 @@ router.get("/day", async (req, res) => {
     (e) => new Date(e.date).getUTCDate() === date.getUTCDate()
   );
 
-  res.json({ userEvents, systemEvents, trades });
+  res.json({ userEvents: userEvents.map((event) => calendarEventPublic(event, req.userId)), systemEvents, trades });
 });
 
-router.post("/", async (req, res) => {
+router.post("/",
+  ownedReference(prisma.note, "linkedNoteId", { isLocked: false, isWill: false, isTrashed: false }),
+  ownedReference(prisma.tradingEntry, "linkedTradeId"),
+  async (req, res) => {
   const { mode, date, title, time, linkedNoteId, linkedTradeId } = req.body;
   if (!title?.trim() || !date) {
     return res.status(400).json({ error: "Title and date are required." });

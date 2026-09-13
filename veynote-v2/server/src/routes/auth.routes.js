@@ -5,6 +5,7 @@ const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const prisma = require("../lib/prisma");
 const { signToken } = require("../utils/jwt");
 const { requireAuth } = require("../middleware/auth");
+const { userPublic } = require("../utils/userPublic");
 
 const router = express.Router();
 
@@ -51,11 +52,6 @@ if (GOOGLE_ENABLED) {
       }
     )
   );
-}
-
-function userPublic(user) {
-  const { passwordHash, ...rest } = user;
-  return { ...rest, hasPassword: Boolean(passwordHash) };
 }
 
 // -- Register (email/password) --------------------------------------------
