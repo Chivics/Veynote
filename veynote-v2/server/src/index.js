@@ -35,12 +35,8 @@ const app = express();
 const cors = require("cors");
 
 app.use(cors({
-  origin: [
-    "https://veynote.app",
-    "https://www.veynote.app",
-    process.env.CLIENT_URL,
-  ].filter(Boolean),
-  credentials: true,
+  origin: process.env.CLIENT_URL,
+  credentials: true
 }));
 
 app.use(express.json());
