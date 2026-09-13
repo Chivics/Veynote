@@ -1,3 +1,4 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
@@ -19,7 +20,7 @@ function statusClass(s) {
 
 export default function TradingRules() {
   const navigate = useNavigate();
-  const [rules, setRules] = useState(null);
+  const [rules, setRules] = useState(() => api.peek("/trading-rules")?.rules ?? null);
   const [creating, setCreating] = useState(false);
   const [text, setText] = useState("");
 
@@ -57,7 +58,7 @@ export default function TradingRules() {
       )}
 
       {rules === null ? (
-        <p className="text-ink-muted text-[12px]">Loading…</p>
+        <PageSkeleton compact />
       ) : rules.length === 0 ? (
         <EmptyState
           icon="☑"

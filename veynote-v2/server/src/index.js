@@ -43,7 +43,7 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json());
+  app.use(express.json());
 
 app.use(passport.initialize());
 
@@ -64,6 +64,7 @@ app.get("/api/ready", asyncHandler(async (_req, res) => {
 }));
 
 app.use("/api/auth", authRoutes);
+app.use("/api/sessions", require("./routes/sessions.routes"));
 
 app.use("/api/folders", folderRoutes);
 

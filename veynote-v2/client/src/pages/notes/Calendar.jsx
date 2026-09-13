@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../api/client";
+import { useApiQuery } from "../../hooks/useApiQuery";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -10,16 +11,15 @@ export default function NotesCalendar() {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1); // 1-12
-  const [data, setData] = useState(null);
+  const result = useApiQuery("/calendar", { mode: "NOTES", year, month });
+  const data = result.data;
   const [selectedDay, setSelectedDay] = useState(today.getDate());
   const [composing, setComposing] = useState(false);
   const [newTitle, setNewTitle] = useState("");
 
   function load() {
-    api.get("/calendar", { mode: "NOTES", year, month }).then(setData);
+    return result.refresh().catch(() => {});
   }
-
-  useEffect(load, [year, month]);
 
   function changeMonth(delta) {
     let m = month + delta;
@@ -28,6 +28,7 @@ export default function NotesCalendar() {
     if (m > 12) { m = 1; y += 1; }
     setMonth(m);
     setYear(y);
+    setSelectedDay(day => Math.min(day, new Date(y, m, 0).getDate()));
   }
 
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -70,6 +71,7 @@ export default function NotesCalendar() {
     <div>
       <span className="eyebrow">PLANNER</span>
       <h1 className="page-title text-[30px] tracking-tight my-1.5 mb-6">Calendar</h1>
+      {result.error && <p role="alert" className="text-danger">{result.error.message} <button className="btn-outline" onClick={load}>Retry</button></p>}
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         <div className="card p-5 flex-1 max-w-[820px]">

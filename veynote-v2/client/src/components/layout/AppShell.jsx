@@ -1,5 +1,24 @@
 import { useState, useEffect } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { api } from "../../api/client";
+
+function prefetchPage(path) {
+  const queries = {
+    "/notes": ["/notes"], "/notes/all": ["/notes"], "/notes/folders": ["/folders"],
+    "/notes/files": ["/files/root"], "/notes/tasks": ["/tasks"],
+    "/notes/today": ["/notes"], "/notes/tags": ["/notes/meta/tags"], "/notes/library": ["/library/summary"],
+    "/trading": ["/trading/entries", "/accounts", "/analytics/trading"],
+    "/trading/entries": ["/trading/entries"], "/trading/accounts": ["/accounts"],
+    "/trading/analytics": ["/analytics/trading"], "/trading/rules": ["/trading-rules"],
+  };
+  for (const query of queries[path] || []) api.prefetch(query, query === "/notes" ? { scope: "all" } : undefined);
+  if (path.endsWith("/calendar")) {
+    const now = new Date();
+    api.prefetch("/calendar", { mode: path.startsWith("/notes") ? "NOTES" : "TRADING", year: now.getFullYear(), month: now.getMonth() + 1 });
+  }
+  const scope = { "/notes/favorites": "favorites", "/notes/archive": "archive", "/notes/trash": "trash" }[path];
+  if (scope) api.prefetch("/notes", { scope });
+}
 import ModeSwitcher from "../ModeSwitcher";
 import { useMode } from "../../context/ModeContext";
 import { useAuth } from "../../context/AuthContext";
@@ -56,6 +75,8 @@ function SidebarContent({ nav, newHref, newLabel, mode, onNavigate }) {
             to={item.to}
             end={item.end}
             onClick={onNavigate}
+            onMouseEnter={() => prefetchPage(item.to)}
+            onFocus={() => prefetchPage(item.to)}
             className={({ isActive }) =>
               `flex items-center gap-2 px-2.5 py-2 max-sm:py-3 rounded-lg text-[12.5px] max-sm:text-[13.5px] transition ${
                 isActive ? "bg-app-panel2 text-ink" : "text-ink-muted hover:text-ink"
@@ -92,6 +113,7 @@ function SidebarContent({ nav, newHref, newLabel, mode, onNavigate }) {
 }
 
 export default function AppShell() {
+  const navigate = useNavigate();
   const { mode } = useMode();
   const { user } = useAuth();
   const location = useLocation();
@@ -111,16 +133,16 @@ export default function AppShell() {
     function onKeyDown(e) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        window.location.href = mode === "NOTES" ? "/notes/search" : "/trading/search";
+        navigate(mode === "NOTES" ? "/notes/search" : "/trading/search");
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
         e.preventDefault();
-        window.location.href = mode === "NOTES" ? "/notes/new" : "/trading/entries/new";
+        navigate(mode === "NOTES" ? "/notes/new" : "/trading/entries/new");
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [mode]);
+  }, [mode, navigate]);
 
   return (
     <div className="min-h-screen flex bg-app-bg text-ink selection:bg-accent-notes/30">

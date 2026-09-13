@@ -13,7 +13,7 @@ const CARDS = [
 ];
 
 export default function LibraryDashboard() {
-  const [summary, setSummary] = useState(null);
+  const [summary, setSummary] = useState(() => api.peek("/library/summary")?.summary ?? null);
 
   useEffect(() => {
     api.get("/library/summary").then((d) => setSummary(d.summary));

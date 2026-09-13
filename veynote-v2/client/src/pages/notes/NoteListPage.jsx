@@ -1,7 +1,9 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
+import { useApiQuery } from "../../hooks/useApiQuery";
 
 const SCOPE_COPY = {
   all: { title: "All notes", eyebrow: "JOURNAL", empty: "No notes yet", emptyDesc: "Your written moments will show up here." },
@@ -17,52 +19,53 @@ const SCOPE_COPY = {
 export default function NoteListPage({ scope }) {
   const params = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [notes, setNotes] = useState(null);
   const [folder, setFolder] = useState(null);
   const [q, setQ] = useState(searchParams.get("q") || "");
 
   const copy = SCOPE_COPY[scope];
   const folderId = params.folderId;
   const tag = params.tag;
+  const [searchQuery, setSearchQuery] = useState(q);
+  useEffect(() => { const timer = setTimeout(() => setSearchQuery(q), 200); return () => clearTimeout(timer); }, [q]);
+  const query = {};
+  if (["favorites", "archive", "trash"].includes(scope)) query.scope = scope;
+  else query.scope = "all";
+  if (scope === "folder") query.folderId = folderId;
+  if (scope === "tag") query.tag = tag;
+  if (scope === "search") query.q = searchQuery;
+  const result = useApiQuery("/notes", query);
+  const notes = result.data?.notes ?? null;
 
   useEffect(() => {
-    const query = {};
-    if (scope === "favorites") query.scope = "favorites";
-    else if (scope === "archive") query.scope = "archive";
-    else if (scope === "trash") query.scope = "trash";
-    else query.scope = "all";
-
-    if (scope === "folder") query.folderId = folderId;
-    if (scope === "tag") query.tag = tag;
-    if (scope === "search") query.q = q;
-
-    api.get("/notes", query).then((d) => setNotes(d.notes));
-
+    let active = true;
+    setFolder(api.peek("/folders")?.folders.find(f => f.id === folderId) || null);
     if (scope === "folder") {
-      api.get("/folders").then((d) => setFolder(d.folders.find((f) => f.id === folderId)));
+      api.get("/folders").then((d) => { if (active) setFolder(d.folders.find((f) => f.id === folderId)); }).catch(() => {});
     }
-  }, [scope, folderId, tag, q]);
+    return () => { active = false; };
+  }, [scope, folderId]);
 
   async function toggleFavorite(note) {
-    const { note: updated } = await api.patch(`/notes/${note.id}`, { isFavorite: !note.isFavorite });
-    setNotes((prev) => prev.map((n) => (n.id === note.id ? updated : n)));
+    await api.patch(`/notes/${note.id}`, { isFavorite: !note.isFavorite });
+    await result.refresh();
   }
 
   async function restoreNote(note) {
     await api.post(`/notes/${note.id}/restore`);
-    setNotes((prev) => prev.filter((n) => n.id !== note.id));
+    await result.refresh();
   }
 
   async function deleteForever(note) {
     if (!confirm("Delete this note permanently? This can't be undone.")) return;
     await api.delete(`/notes/${note.id}`);
-    setNotes((prev) => prev.filter((n) => n.id !== note.id));
+    await result.refresh();
   }
 
   const title = scope === "folder" ? folder?.name || "Folder" : scope === "tag" ? `#${tag}` : copy.title;
 
   return (
     <div>
+      {result.error && <p role="alert" className="text-danger text-sm mb-3">{result.error.message} <button className="underline" onClick={() => result.refresh().catch(() => {})}>Retry</button></p>}
       <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
         <div className="min-w-0">
           <span className="eyebrow">{copy.eyebrow}</span>
@@ -89,7 +92,7 @@ export default function NoteListPage({ scope }) {
       )}
 
       {notes === null ? (
-        <p className="text-ink-muted text-[12px]">Loading…</p>
+        <PageSkeleton compact />
       ) : notes.length === 0 ? (
         <div className="grid grid-cols-1">
           <EmptyState icon="📓" title={copy.empty} description={copy.emptyDesc} />

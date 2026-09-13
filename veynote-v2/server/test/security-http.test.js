@@ -19,7 +19,7 @@ const prisma = {
   tradingEntry: { async create() { writes++; throw new Error("unexpected write"); } },
 };
 const prismaPath = require.resolve("../src/lib/prisma");
-require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: prisma };
+require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: require("../test-support/sessionDb").withSessions(prisma) };
 const { signToken, signVaultToken } = require("../src/utils/jwt");
 const app = express();
 app.use(require("cors")({ origin: "https://veynote.app", credentials: true }));

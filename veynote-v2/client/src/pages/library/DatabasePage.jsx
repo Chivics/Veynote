@@ -1,6 +1,8 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
+import { useApiQuery } from "../../hooks/useApiQuery";
 import { LIBRARY_CONFIG, statusColorClass } from "../../data/libraryConfig";
 import LibrarySidebar from "../../components/layout/LibrarySidebar";
 import EmptyState from "../../components/EmptyState";
@@ -10,14 +12,12 @@ export default function DatabasePage({ configKey }) {
   const apiSlug = config.key.toLowerCase();
   const navigate = useNavigate();
 
-  const [items, setItems] = useState(null);
+  const result = useApiQuery(`/library/${apiSlug}`);
+  const [filter, setFilter] = useState("");
+  const items = result.data?.items?.filter(item => item.title.toLowerCase().includes(filter.toLowerCase())) ?? null;
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
 
-  function load() {
-    api.get(`/library/${apiSlug}`).then((d) => setItems(d.items));
-  }
-  useEffect(load, [apiSlug]);
 
   async function createItem(e) {
     e?.preventDefault();
@@ -44,7 +44,7 @@ export default function DatabasePage({ configKey }) {
         <h1 className="page-title text-[26px] tracking-tight mt-1 mb-5">{config.title}</h1>
 
         <div className="flex items-center gap-2 mb-4">
-          <button className="btn-outline">Filter</button>
+          <input aria-label="Filter records by title" className="input min-w-0" placeholder="Filter by title…" value={filter} onChange={e => setFilter(e.target.value)} />
           <button onClick={() => setCreating((c) => !c)} className="btn-primary ml-auto">
             + New {config.titleLabel?.toLowerCase() || "item"}
           </button>
@@ -63,8 +63,9 @@ export default function DatabasePage({ configKey }) {
           </form>
         )}
 
+        {result.error && <p role="alert" className="text-danger">{result.error.message} <button className="btn-outline" onClick={() => result.refresh().catch(() => {})}>Retry</button></p>}
         {items === null ? (
-          <p className="text-ink-muted text-[12px]">Loading…</p>
+          <PageSkeleton compact />
         ) : items.length === 0 ? (
           <div className="grid grid-cols-1">
             <EmptyState icon={config.icon} title={emptyCopy[0]} description={emptyCopy[1]} />

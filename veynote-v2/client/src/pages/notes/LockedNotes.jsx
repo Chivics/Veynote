@@ -1,3 +1,4 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/browser";
@@ -72,7 +73,7 @@ function SecurityPanel() {
             {supported && (
               <>
                 {credentials === null ? (
-                  <p className="text-[11px] text-ink-muted">Loading…</p>
+                  <PageSkeleton compact />
                 ) : credentials.length === 0 ? (
                   <p className="text-[11px] text-ink-muted mb-2">No passkey set up yet — add one for a faster unlock with your fingerprint, face, or device PIN.</p>
                 ) : (
@@ -150,7 +151,7 @@ export default function LockedNotes() {
       <SecurityPanel />
 
       {notes === null ? (
-        <p className="text-ink-muted text-[12px]">Loading…</p>
+        <PageSkeleton compact />
       ) : loadError ? (
         <p className="text-danger text-[12px]">Couldn't load Locked Notes.</p>
       ) : notes.length === 0 ? (

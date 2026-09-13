@@ -1,3 +1,4 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
@@ -374,9 +375,7 @@ export default function WillRecordDetail({ kind }) {
     return (
       <div className="max-w-[900px] mx-auto py-8">
         <div className="card p-5">
-          <p className="text-[12px] text-ink-muted">
-            Loading {config?.singular || "record"}…
-          </p>
+          <PageSkeleton title="Inheritance record" />
         </div>
       </div>
     );

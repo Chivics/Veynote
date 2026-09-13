@@ -1,22 +1,22 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
+import { useApiQuery } from "../../hooks/useApiQuery";
 import EmptyState from "../../components/EmptyState";
 
 export default function Tags() {
-  const [tags, setTags] = useState(null);
-
-  useEffect(() => {
-    api.get("/notes/meta/tags").then((d) => setTags(d.tags));
-  }, []);
+  const result = useApiQuery("/notes/meta/tags");
+  const tags = result.data?.tags ?? null;
 
   return (
     <div>
       <span className="eyebrow">ORGANIZE</span>
       <h1 className="page-title text-[30px] tracking-tight my-1.5 mb-6">Tags</h1>
 
+      {result.error && <p role="alert" className="text-danger">{result.error.message} <button className="btn-outline" onClick={() => result.refresh().catch(() => {})}>Retry</button></p>}
       {tags === null ? (
-        <p className="text-ink-muted text-[12px]">Loading…</p>
+        <PageSkeleton compact />
       ) : tags.length === 0 ? (
         <EmptyState icon="◈" title="No tags yet" description="Add a tag to any note and it'll show up here." />
       ) : (

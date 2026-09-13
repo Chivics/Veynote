@@ -1,32 +1,32 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
 import { EntryCard } from "./Dashboard";
+import { useApiQuery } from "../../hooks/useApiQuery";
 
 // mode: "all" | "search"
 export default function EntryListPage({ mode }) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [entries, setEntries] = useState(null);
-  const [accounts, setAccounts] = useState([]);
+  const [accounts, setAccounts] = useState(() => api.peek("/accounts")?.accounts ?? []);
   const accountId = searchParams.get("accountId") || "";
   const [q, setQ] = useState(searchParams.get("q") || "");
+  const [searchQuery, setSearchQuery] = useState(q);
+  useEffect(() => { const timer = setTimeout(() => setSearchQuery(q), 200); return () => clearTimeout(timer); }, [q]);
+  const result = useApiQuery("/trading/entries", { accountId, q: mode === "search" ? searchQuery : undefined });
+  const entries = result.data?.entries ?? null;
 
   useEffect(() => {
     api.get("/accounts").then((d) => setAccounts(d.accounts));
   }, []);
 
-  useEffect(() => {
-    const query = {};
-    if (accountId) query.accountId = accountId;
-    if (mode === "search") query.q = q;
-    api.get("/trading/entries", query).then((d) => setEntries(d.entries));
-  }, [accountId, q, mode]);
 
   const activeAccount = accounts.find((a) => a.id === accountId);
 
   return (
     <div>
+      {result.error && <p role="alert" className="text-danger mb-3">{result.error.message} <button onClick={() => result.refresh().catch(() => {})}>Retry</button></p>}
       <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
         <div className="min-w-0">
           <span className="eyebrow">JOURNAL</span>
@@ -66,7 +66,7 @@ export default function EntryListPage({ mode }) {
       </div>
 
       {entries === null ? (
-        <p className="text-ink-muted text-[12px]">Loading…</p>
+        <PageSkeleton compact />
       ) : entries.length === 0 ? (
         <EmptyState
           icon="📈"

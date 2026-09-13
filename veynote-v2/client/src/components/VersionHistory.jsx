@@ -1,3 +1,4 @@
+import PageSkeleton from "./PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import DocumentContent from "./DocumentContent";
@@ -51,7 +52,7 @@ export default function VersionHistory({ noteId, onClose, onRestored }) {
         <div className="w-[190px] border-r border-app-border overflow-y-auto p-3 shrink-0">
           <p className="text-[10.5px] font-bold text-ink-muted mb-2 px-1 tracking-wide">VERSION HISTORY</p>
           {versions === null ? (
-            <p className="text-[11px] text-ink-muted px-1">Loading…</p>
+            <PageSkeleton compact />
           ) : versions.length === 0 ? (
             <p className="text-[11px] text-ink-muted px-1">No earlier versions yet — one is saved automatically every so often as you edit.</p>
           ) : (

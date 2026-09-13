@@ -1,3 +1,4 @@
+import PageSkeleton from "./PageSkeleton.jsx";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
 import TradeImageUploader from "./TradeImageUploader";
@@ -139,7 +140,7 @@ export default function TradeDocumentation({ entryId, ensureEntryId }) {
     setOpen(false);
   }
 
-  if (!loaded) return <p className="text-ink-muted text-[12px]">Loading documentation…</p>;
+  if (!loaded) return <PageSkeleton compact />;
 
   const renderStage = (stage, title, desc) => {
     const stageImages = images.filter((i) => i.stage === stage);

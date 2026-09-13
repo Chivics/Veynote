@@ -1,3 +1,4 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
@@ -5,9 +6,9 @@ import StatCard from "../../components/StatCard";
 import EmptyState from "../../components/EmptyState";
 
 export default function TradingDashboard() {
-  const [entries, setEntries] = useState(null);
-  const [accounts, setAccounts] = useState(null);
-  const [analytics, setAnalytics] = useState(null);
+  const [entries, setEntries] = useState(() => api.peek("/trading/entries")?.entries ?? null);
+  const [accounts, setAccounts] = useState(() => api.peek("/accounts")?.accounts ?? null);
+  const [analytics, setAnalytics] = useState(() => api.peek("/analytics/trading") ?? null);
 
   useEffect(() => {
     api.get("/trading/entries").then((d) => setEntries(d.entries));
@@ -100,7 +101,7 @@ export default function TradingDashboard() {
       </div>
 
       {entries === null ? (
-        <p className="text-ink-muted text-[12px]">Loading…</p>
+        <PageSkeleton compact />
       ) : recent.length === 0 ? (
         <EmptyState
           icon="📈"
@@ -130,7 +131,7 @@ export default function TradingDashboard() {
         </div>
       </div>
       {accounts === null ? (
-        <p className="text-ink-muted text-[12px]">Loading…</p>
+        <PageSkeleton compact />
       ) : accounts.length === 0 ? (
         <EmptyState
           icon="◆"

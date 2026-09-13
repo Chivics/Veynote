@@ -1,3 +1,4 @@
+const prismaTestPath = require.resolve("../src/lib/prisma"); require.cache[prismaTestPath] = { exports: require("../test-support/sessionDb").withSessions({}) };
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const express = require("express");

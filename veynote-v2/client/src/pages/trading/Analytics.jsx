@@ -1,16 +1,17 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import StatCard from "../../components/StatCard";
 import EmptyState from "../../components/EmptyState";
 
 export default function Analytics() {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() => api.peek("/analytics/trading") ?? null);
 
   useEffect(() => {
     api.get("/analytics/trading").then(setData);
   }, []);
 
-  if (data === null) return <p className="text-ink-muted text-[12px]">Loading…</p>;
+  if (data === null) return <PageSkeleton title="Trading analytics" />;
 
   return (
     <div>

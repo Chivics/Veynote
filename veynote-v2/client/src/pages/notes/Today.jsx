@@ -1,3 +1,4 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
@@ -52,7 +53,7 @@ function computeStreaks(notes) {
 export default function Today() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [notes, setNotes] = useState(null);
+  const [notes, setNotes] = useState(() => api.peek("/notes", { scope: "all" })?.notes ?? null);
   const [prompt] = useState(() => WRITING_PROMPTS[Math.floor(Math.random() * WRITING_PROMPTS.length)]);
 
   useEffect(() => {
@@ -89,7 +90,7 @@ export default function Today() {
       )}
 
       {notes === null ? (
-        <p className="text-ink-muted text-[12px]">Loading…</p>
+        <PageSkeleton compact />
       ) : todayEntry ? (
         <div className="card p-5 mb-5">
           <p className="eyebrow mb-2">TODAY'S ENTRY</p>

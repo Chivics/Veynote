@@ -1,3 +1,4 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
@@ -59,7 +60,7 @@ export default function ItemDetail({ configKey }) {
     navigate(`/notes/library/${configKey}`);
   }
 
-  if (!item) return <p className="text-ink-muted text-[12px]">Loading…</p>;
+  if (!item) return <PageSkeleton title="Library record" />;
 
   return (
     <div className="max-w-[640px]">

@@ -1,6 +1,8 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
+import { useApiQuery } from "../../hooks/useApiQuery";
 import EmptyState from "../../components/EmptyState";
 import ImageLightbox from "../../components/ImageLightbox";
 import AuthImage from "../../components/AuthImage";
@@ -35,10 +37,11 @@ function iconFor(node) {
 export default function Files() {
   const { id } = useParams(); // undefined = top level
   const navigate = useNavigate();
-  const [folder, setFolder] = useState(null);
-  const [breadcrumb, setBreadcrumb] = useState([]);
-  const [children, setChildren] = useState([]);
-  const [loaded, setLoaded] = useState(false);
+  const result = useApiQuery(id ? `/files/${id}` : "/files/root");
+  const folder = result.data?.folder;
+  const breadcrumb = result.data?.breadcrumb || [];
+  const children = result.data?.children || [];
+  const loaded = result.data !== undefined;
   const [uploadBatches, setUploadBatches] = useState([]);
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
@@ -50,16 +53,8 @@ export default function Files() {
   const fileInputRef = useRef(null);
 
   function load() {
-    setLoaded(false);
-    const url = id ? `/files/${id}` : "/files/root";
-    api.get(url).then((d) => {
-      setFolder(d.folder);
-      setBreadcrumb(d.breadcrumb);
-      setChildren(d.children);
-      setLoaded(true);
-    });
+    return result.refresh().catch(() => {});
   }
-  useEffect(load, [id]);
 
   const images = children.filter((c) => !c.isDirectory && c.mimeType?.startsWith("image/"));
   function openLightbox(node) {
@@ -212,8 +207,9 @@ export default function Files() {
         </div>
       )}
 
+      {result.error && <p role="alert" className="text-danger">{result.error.message} <button className="btn-outline" onClick={load}>Retry</button></p>}
       {!loaded ? (
-        <p className="text-ink-muted text-[12.5px]">Loading…</p>
+        <PageSkeleton compact />
       ) : children.length === 0 && uploadBatches.length === 0 ? (
         <EmptyState
           icon="🗂️"

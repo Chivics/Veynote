@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const { randomUUID } = require("crypto");
 
 const SECRET = process.env.JWT_SECRET;
 const ISSUER = "https://api.veynote.app";
@@ -15,8 +16,8 @@ function verifyPurpose(token, audience, purpose) {
   return payload;
 }
 
-function signToken(userId) {
-  return jwt.sign({ sub: userId, purpose: "session" }, SECRET, {
+function signToken(userId, generation = 0) {
+  return jwt.sign({ sub: userId, purpose: "session", generation, jti: randomUUID() }, SECRET, {
     algorithm: "HS256", issuer: ISSUER, audience: ACCESS_AUDIENCE, expiresIn: "30d",
   });
 }

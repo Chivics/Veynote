@@ -1,3 +1,4 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
@@ -6,7 +7,7 @@ import EmptyState from "../../components/EmptyState";
 const STATUSES = ["EVALUATION", "FUNDED", "PERSONAL", "BREACHED"];
 
 export default function Accounts() {
-  const [accounts, setAccounts] = useState(null);
+  const [accounts, setAccounts] = useState(() => api.peek("/accounts")?.accounts ?? null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [broker, setBroker] = useState("");
@@ -52,7 +53,7 @@ export default function Accounts() {
       )}
 
       {accounts === null ? (
-        <p className="text-ink-muted text-[12px]">Loading…</p>
+        <PageSkeleton compact />
       ) : accounts.length === 0 && !creating ? (
         <EmptyState
           icon="◆"

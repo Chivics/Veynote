@@ -1,6 +1,8 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
+import { useApiQuery } from "../../hooks/useApiQuery";
 import { LIBRARY_CONFIG, statusColorClass } from "../../data/libraryConfig";
 import LibrarySidebar from "../../components/layout/LibrarySidebar";
 import EmptyState from "../../components/EmptyState";
@@ -9,14 +11,11 @@ const config = LIBRARY_CONFIG.reading;
 
 export default function ReadingPage() {
   const navigate = useNavigate();
-  const [items, setItems] = useState(null);
+  const result = useApiQuery("/library/reading");
+  const items = result.data?.items ?? null;
   const [view, setView] = useState("All");
   const [templateOpen, setTemplateOpen] = useState(false);
 
-  function load() {
-    api.get("/library/reading").then((d) => setItems(d.items));
-  }
-  useEffect(load, []);
 
   async function createFromTemplate(template) {
     const { item } = await api.post("/library/reading", {
@@ -90,8 +89,9 @@ export default function ReadingPage() {
           )}
         </div>
 
+        {result.error && <p role="alert" className="text-danger">{result.error.message} <button className="btn-outline" onClick={() => result.refresh().catch(() => {})}>Retry</button></p>}
         {filtered === null ? (
-          <p className="text-ink-muted text-[12px]">Loading…</p>
+          <PageSkeleton compact />
         ) : filtered.length === 0 ? (
           <EmptyState icon="📖" title="No items yet" description="Add the first book, article, or film you want to track." />
         ) : view === "Grouped by Status" ? (

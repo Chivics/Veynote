@@ -1,3 +1,4 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
 import { api } from "../../api/client";
@@ -372,7 +373,7 @@ export default function NoteEditor() {
 
   if (vaultRequired) return <VaultGate vault={vaultRequired} noteId={vaultRequired === "locked-notes" && isLocked ? routeId : undefined} onUnlock={loadNote} />;
 
-  if (!loaded) return <p className="text-ink-muted text-[12px]">Loading…</p>;
+  if (!loaded) return <PageSkeleton title="Note" />;
 
   // Note-links are plain <a href> tags inside the editor's raw HTML (not
   // React <Link>s, since they're user content) — intercept clicks so

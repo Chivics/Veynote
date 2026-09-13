@@ -29,9 +29,12 @@ export function AuthProvider({ children }) {
     }
     try {
       const { user } = await api.get("/auth/me");
+      if (localStorage.getItem("veynote_token") !== token) return;
       setUser(user);
     } catch (err) {
+      if (localStorage.getItem("veynote_token") !== token) return;
       if (err.status === 401) {
+        clearNoteGrant(); api.clearCache();
         localStorage.removeItem("veynote_token");
         setUser(null);
       } else {
@@ -44,14 +47,22 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     loadMe();
+    const syncSession = event => {
+      if (event.key !== "veynote_token" && event.key !== null) return;
+      clearNoteGrant(); api.clearCache(); setUser(null); loadMe();
+    };
+    window.addEventListener("storage", syncSession);
+    return () => window.removeEventListener("storage", syncSession);
   }, []);
 
   function applySession(token, user) {
+    api.clearCache();
     clearNoteGrant();
     setSessionError("");
     localStorage.setItem("veynote_token", token);
     setUser(user);
   }
+  function replaceSessionToken(token) { clearNoteGrant(); api.clearCache(); localStorage.setItem("veynote_token", token); }
 
   async function login(email, password) {
     const { token, user } = await api.post("/auth/login", { email, password });
@@ -66,7 +77,9 @@ export function AuthProvider({ children }) {
   }
 
   function logout() {
+    api.post("/sessions/logout", {}).catch(() => {});
     clearNoteGrant();
+    api.clearCache();
     setSessionError("");
     localStorage.removeItem("veynote_token");
     localStorage.removeItem("token");
@@ -83,7 +96,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, sessionError, login, register, logout, applySession, updateUser, refresh: loadMe }}
+      value={{ user, loading, sessionError, login, register, logout, applySession, replaceSessionToken, updateUser, refresh: loadMe }}
     >
       {children}
     </AuthContext.Provider>

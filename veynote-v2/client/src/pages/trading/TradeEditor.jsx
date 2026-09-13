@@ -1,3 +1,4 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
@@ -159,7 +160,7 @@ export default function TradeEditor() {
     bodyRef.current?.focus();
   }
 
-  if (!loaded) return <p className="text-ink-muted text-[12px]">Loading…</p>;
+  if (!loaded) return <PageSkeleton title="Trade" />;
 
   return (
     <div>

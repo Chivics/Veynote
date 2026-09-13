@@ -1,6 +1,18 @@
 import { uploadForm } from "../utils/uploadForm";
 import { queryPath } from "../utils/queryPath";
 import { getNoteGrant } from "../utils/noteGrant";
+import { createQueryCache, cacheablePath } from "../utils/queryCache";
+
+const cache = createQueryCache();
+let cacheOwner = null;
+function scopedCache() {
+  const owner = getAuthToken();
+  if (cacheOwner !== owner) { cacheOwner = owner; cache.clear(); }
+  return cache;
+}
+const cacheChannel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("veynote-cache-invalidation") : null;
+cacheChannel?.addEventListener("message", () => cache.clear());
+function clearCache() { cache.clear(); cacheChannel?.postMessage("invalidate"); }
 
 const BASE = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "/api" : "https://api.veynote.app/api")).replace(/\/$/, "");
 
@@ -87,6 +99,7 @@ async function parseResponse(response) {
 }
 
 async function request(path, options = {}) {
+  if (options.method && options.method !== "GET" && path !== "/auth/me") clearCache();
   const headers = {
     ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers || {}),
@@ -106,13 +119,21 @@ async function request(path, options = {}) {
     headers,
   });
 
-  return parseResponse(response);
+  const data = await parseResponse(response);
+  // Invalidate again after persistence: a read during a write must not remain fresh.
+  if (options.method && options.method !== "GET" && path !== "/auth/me") clearCache();
+  return data;
 }
 
 export const api = {
-  get(path, params) {
-    return request(queryPath(path, params));
+  clearCache,
+  subscribe: listener => cache.subscribe(listener),
+  peek(path, params) { const key = queryPath(path, params); return cacheablePath(key) ? scopedCache().peek(key) : undefined; },
+  get(path, params, options = {}) {
+    const key = queryPath(path, params);
+    return cacheablePath(key) ? scopedCache().get(key, () => request(key), options.force) : request(key);
   },
+  prefetch(path, params) { if (cacheablePath(queryPath(path, params))) return api.get(path, params).catch(() => {}); },
 
   post(path, body) {
     return request(path, {
@@ -144,6 +165,7 @@ export const api = {
   },
 
   upload(path, input, onProgress, fields, method = "POST") {
+    clearCache();
     return new Promise((resolve, reject) => {
       const formData = uploadForm(input, fields);
       const xhr = new XMLHttpRequest();
@@ -173,6 +195,7 @@ export const api = {
           data = {};
         }
         if (xhr.status >= 200 && xhr.status < 300) {
+          clearCache();
           resolve(data);
           return;
         }

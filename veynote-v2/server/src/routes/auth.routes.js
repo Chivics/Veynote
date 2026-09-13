@@ -3,7 +3,8 @@ const bcrypt = require("bcryptjs");
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const prisma = require("../lib/prisma");
-const { signToken } = require("../utils/jwt");
+const { signToken, verifyToken } = require("../utils/jwt");
+const { authorizeSession } = require("../utils/sessions");
 const { requireAuth } = require("../middleware/auth");
 const { userPublic } = require("../utils/userPublic");
 const { asyncHandler } = require("../middleware/asyncHandler");
@@ -78,7 +79,8 @@ router.post("/register", asyncHandler(async (req, res) => {
     data: { name, email, passwordHash },
   });
 
-  const token = signToken(user.id);
+  const token = signToken(user.id, user.sessionGeneration);
+  await authorizeSession(prisma, token, verifyToken(token), req.headers["user-agent"]);
   res.status(201).json({ token, user: userPublic(user) });
 }));
 
@@ -99,7 +101,8 @@ router.post("/login", asyncHandler(async (req, res) => {
     return res.status(401).json({ error: "Invalid email or password." });
   }
 
-  const token = signToken(user.id);
+  const token = signToken(user.id, user.sessionGeneration);
+  await authorizeSession(prisma, token, verifyToken(token), req.headers["user-agent"]);
   res.json({ token, user: userPublic(user) });
 }));
 
@@ -120,12 +123,13 @@ router.get(
     if (!GOOGLE_ENABLED) return res.redirect(`${process.env.CLIENT_URL}/login?error=google_disabled`);
     passport.authenticate("google", { session: false, failureRedirect: "/login" })(req, res, next);
   },
-  (req, res) => {
-    const token = signToken(req.user.id);
+  asyncHandler(async (req, res) => {
+    const token = signToken(req.user.id, req.user.sessionGeneration);
+    await authorizeSession(prisma, token, verifyToken(token), req.headers["user-agent"]);
     // Hand off to the SPA with the token in the URL — the frontend reads it
     // once and stores it, then strips it from the address bar.
     res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${token}`);
-  }
+  })
 );
 
 // -- Current user -------------------------------------------------------------
@@ -193,9 +197,14 @@ router.post("/change-password", requireAuth, createAuthLimiter({ authenticated: 
   // the first time (lets a Google-only account add email/password login).
 
   const newHash = await bcrypt.hash(newPassword, 10);
-  await prisma.user.update({ where: { id: user.id }, data: { passwordHash: newHash } });
-
-  res.json({ ok: true, message: "Password updated." });
+  const updated = await prisma.$transaction(async db => {
+    const value = await db.user.update({ where: { id: user.id }, data: { passwordHash: newHash, sessionGeneration: { increment: 1 } } });
+    await db.authSession.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
+    return value;
+  });
+  const token = signToken(user.id, updated.sessionGeneration);
+  await authorizeSession(prisma, token, verifyToken(token), req.headers["user-agent"]);
+  res.json({ ok: true, token, message: "Password updated. Other sessions have been signed out." });
 }));
 
 module.exports = { router, GOOGLE_ENABLED };

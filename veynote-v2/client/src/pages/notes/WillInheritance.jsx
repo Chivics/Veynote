@@ -1,3 +1,4 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -178,7 +179,7 @@ export default function WillInheritance() {
   ], [will, assets.length, beneficiaries.length, contacts.length, executors.length, details, documents.length]);
 
   if (!unlocked) return <div className="max-w-[620px] mx-auto"><div className="mb-7"><span className="eyebrow">PRIVATE & SENSITIVE</span><h1 className="page-title text-[30px] font-bold mt-1.5">Will & Inheritance</h1><p className="text-[13px] text-ink-muted mt-1.5">A protected workspace for your wishes, assets, beneficiaries and estate instructions.</p></div><VaultGate vault="will" onUnlock={() => setUnlocked(true)} /></div>;
-  if (loading && !will) return <div className="max-w-[980px] mx-auto py-8"><p className="text-ink-muted text-[12px]">Loading your Will…</p></div>;
+  if (loading && !will) return <div className="max-w-[980px] mx-auto py-8"><PageSkeleton compact /></div>;
 
   return (
     <div className="max-w-[1120px] mx-auto pb-10">

@@ -9,7 +9,7 @@ const db = { note: {
   async findMany() { return notes; },
 } };
 const prismaPath = require.resolve("../src/lib/prisma");
-require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: db };
+require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: require("../test-support/sessionDb").withSessions(db) };
 let server, base;
 test.before(async () => {
   const app = express(); app.use(express.json()); app.use("/notes", require("../src/routes/notes.routes"));

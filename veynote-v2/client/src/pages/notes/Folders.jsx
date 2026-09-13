@@ -1,3 +1,4 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
@@ -6,7 +7,7 @@ import EmptyState from "../../components/EmptyState";
 const COLORS = ["#7c6cff", "#5fa8ff", "#38d39f", "#f5b942", "#ff6878", "#8d96a5"];
 
 export default function Folders() {
-  const [folders, setFolders] = useState(null);
+  const [folders, setFolders] = useState(() => api.peek("/folders")?.folders ?? null);
   const [showArchived, setShowArchived] = useState(false);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
@@ -143,7 +144,7 @@ export default function Folders() {
       )}
 
       {folders === null ? (
-        <p className="text-ink-muted text-[12px]">Loading…</p>
+        <PageSkeleton compact />
       ) : folders.length === 0 && !creating ? (
         showArchived ? (
           <EmptyState icon="🗄️" title="No archived folders" description="Folders you archive will show up here." />

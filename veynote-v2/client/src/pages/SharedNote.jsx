@@ -1,3 +1,4 @@
+import PageSkeleton from "../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { API_BASE } from "../api/client";
@@ -35,7 +36,7 @@ export default function SharedNote() {
 
         {error && <p className="text-danger text-[13px]">{error}</p>}
 
-        {!error && !note && <p className="text-ink-muted text-[13px]">Loading…</p>}
+        {!error && !note && <PageSkeleton compact />}
 
         {note && (
           <>

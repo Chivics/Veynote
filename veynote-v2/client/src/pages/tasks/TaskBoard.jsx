@@ -1,3 +1,4 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
@@ -10,7 +11,7 @@ const COLUMNS = [
 
 export default function TaskBoard() {
   const navigate = useNavigate();
-  const [tasks, setTasks] = useState(null);
+  const [tasks, setTasks] = useState(() => api.peek("/tasks")?.tasks ?? null);
   const [composingStatus, setComposingStatus] = useState(null);
   const [title, setTitle] = useState("");
   const [dragOverCol, setDragOverCol] = useState(null);
@@ -101,7 +102,7 @@ export default function TaskBoard() {
       </div>
 
       {tasks === null ? (
-        <p className="text-ink-muted text-[12px]">Loading…</p>
+        <PageSkeleton compact />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 items-start">
           {COLUMNS.map((col) => {

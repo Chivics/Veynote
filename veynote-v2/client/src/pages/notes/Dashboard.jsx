@@ -1,3 +1,4 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
@@ -8,8 +9,8 @@ import EmptyState from "../../components/EmptyState";
 
 export default function NotesDashboard() {
   const { user } = useAuth();
-  const [notes, setNotes] = useState(null);
-  const [stats, setStats] = useState(null);
+  const [notes, setNotes] = useState(() => api.peek("/notes", { scope: "all" })?.notes ?? null);
+  const [stats, setStats] = useState(() => api.peek("/analytics/notes") ?? null);
 
   useEffect(() => {
     api.get("/notes", { scope: "all" }).then((d) => setNotes(d.notes));
@@ -130,7 +131,7 @@ export default function NotesDashboard() {
       </div>
 
       {notes === null ? (
-        <p className="text-ink-muted text-[12px]">Loading…</p>
+        <PageSkeleton compact />
       ) : recent.length === 0 ? (
         <div className="grid grid-cols-1">
           <EmptyState

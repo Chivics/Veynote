@@ -1,3 +1,4 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
@@ -26,7 +27,7 @@ export default function TradingRuleDetail() {
     navigate("/trading/rules");
   }
 
-  if (!rule) return <p className="text-ink-muted text-[12px]">Loading…</p>;
+  if (!rule) return <PageSkeleton title="Trading rule" />;
 
   return (
     <div className="max-w-[640px]">

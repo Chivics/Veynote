@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
+import { useApiQuery } from "../../hooks/useApiQuery";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -11,19 +12,11 @@ export default function TradingCalendar() {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
-  const [data, setData] = useState(null);
-  const [dayDetail, setDayDetail] = useState(null);
   const [selectedDay, setSelectedDay] = useState(today.getDate());
-
-  function load() {
-    api.get("/calendar", { mode: "TRADING", year, month }).then(setData);
-  }
-  useEffect(load, [year, month]);
-
-  useEffect(() => {
-    const dateStr = new Date(Date.UTC(year, month - 1, selectedDay)).toISOString();
-    api.get("/calendar/day", { mode: "TRADING", date: dateStr }).then(setDayDetail);
-  }, [year, month, selectedDay]);
+  const result = useApiQuery("/calendar", { mode: "TRADING", year, month });
+  const data = result.data;
+  const dayResult = useApiQuery("/calendar/day", { mode: "TRADING", date: new Date(Date.UTC(year, month - 1, selectedDay)).toISOString() });
+  const dayDetail = dayResult.data;
 
   function changeMonth(delta) {
     let m = month + delta;
@@ -32,6 +25,7 @@ export default function TradingCalendar() {
     if (m > 12) { m = 1; y += 1; }
     setMonth(m);
     setYear(y);
+    setSelectedDay(day => Math.min(day, new Date(y, m, 0).getDate()));
   }
 
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -50,6 +44,7 @@ export default function TradingCalendar() {
     <div>
       <span className="eyebrow">TIMELINE</span>
       <h1 className="page-title text-[30px] tracking-tight mt-1.5 mb-6">Trading calendar</h1>
+      {(result.error || dayResult.error) && <p role="alert" className="text-danger">{(result.error || dayResult.error).message} <button className="btn-outline" onClick={() => Promise.allSettled([result.refresh(), dayResult.refresh()])}>Retry</button></p>}
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         <div className="card p-5 flex-1 max-w-[800px]">

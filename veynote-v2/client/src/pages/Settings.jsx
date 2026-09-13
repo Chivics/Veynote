@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../api/client";
 import InstallApp from "../components/InstallApp";
+import SessionPanel from "../components/SessionPanel";
 
 const TABS = ["Profile", "Preferences", "Security"];
 
@@ -110,13 +111,14 @@ export default function Settings() {
           </>
         )}
 
-        {tab === "Security" && <ChangePasswordSection hasPassword={user?.hasPassword} />}
+        {tab === "Security" && <><ChangePasswordSection hasPassword={user?.hasPassword} /><SessionPanel /></>}
       </div>
     </div>
   );
 }
 
 function ChangePasswordSection({ hasPassword }) {
+  const { replaceSessionToken } = useAuth();
   const [open, setOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -131,11 +133,12 @@ function ChangePasswordSection({ hasPassword }) {
     setSuccess("");
     setLoading(true);
     try {
-      const { message } = await api.post("/auth/change-password", {
+      const { message, token } = await api.post("/auth/change-password", {
         currentPassword,
         newPassword,
         confirmPassword,
       });
+      if (token) replaceSessionToken(token);
       setSuccess(message || "Password updated.");
       setCurrentPassword("");
       setNewPassword("");

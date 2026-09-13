@@ -1,3 +1,4 @@
+import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../../api/client";
@@ -20,7 +21,7 @@ export default function TradeDetail() {
     api.get(`/trading/entries/${id}/images`).then((d) => setImages(d.images));
   }, [id]);
 
-  if (!entry) return <p className="text-ink-muted text-[12px]">Loading…</p>;
+  if (!entry) return <PageSkeleton title="Trade" />;
 
   const resultTone = entry.result === "WIN" ? "text-success" : entry.result === "LOSS" ? "text-danger" : "text-ink";
   const setupTypes = (entry.setupTypes || "").split(",").filter(Boolean);

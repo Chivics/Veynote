@@ -65,6 +65,8 @@ model User {
   webauthnChallengeExpiresAt DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  sessionGeneration Int @default(0)
+  sessions AuthSession[]
 
   folders         Folder[]
   notes           Note[]
@@ -667,4 +669,17 @@ model WillActivity {
 
   @@index([willId, createdAt])
   @@index([userId, createdAt])
+}
+
+model AuthSession {
+  id String @id @db.VarChar(64)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceLabel String
+  createdAt DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  @@index([userId, revokedAt, expiresAt])
 }

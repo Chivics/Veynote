@@ -170,3 +170,11 @@ install guidance, manifest and a conservative public offline fallback.
 were visually inspected at desktop and 320px widths; login fields have accessible
 names. Private-page mobile QA, actual passkey hardware, installation and MySQL
 integration are not yet verified. No production deployment was performed.
+
+### Subsequent checkpoint — navigation and persisted sessions
+
+See [Navigation and sessions](NAVIGATION-AND-SESSIONS.md) for the current cache,
+prefetching, structural loading, query race prevention and session revocation
+implementation. The session backend requires a new MySQL migration before
+deployment. The wider collaboration, AI, Business and offline-draft roadmap
+remains open; this checkpoint does not mark those workflows complete.

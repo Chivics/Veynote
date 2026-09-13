@@ -1,3 +1,4 @@
+const prismaTestPath = require.resolve("../src/lib/prisma"); require.cache[prismaTestPath] = { exports: require("../test-support/sessionDb").withSessions({}) };
 const test = require("node:test");
 const assert = require("node:assert/strict");
 process.env.JWT_SECRET = "test-only-secret-never-use-in-production-0123456789";
@@ -52,15 +53,15 @@ test("legacy, expired, malformed and incorrectly scoped tokens fail closed", () 
   ]) assert.throws(() => verifyToken(token));
 });
 
-test("authentication middleware rejects a vault bearer without invoking a protected handler", () => {
+test("authentication middleware rejects a vault bearer without invoking a protected handler", async () => {
   let status;
   let called = false;
   const res = { status(value) { status = value; return this; }, json() {} };
-  requireAuth({ headers: { authorization: `Bearer ${signVaultToken("alice", "vault")}` } }, res, () => { called = true; });
+  await requireAuth({ headers: { authorization: `Bearer ${signVaultToken("alice", "vault")}` } }, res, () => { called = true; });
   assert.equal(status, 401);
   assert.equal(called, false);
   const req = { headers: { authorization: `Bearer ${signToken("alice")}` } };
-  requireAuth(req, res, () => { called = true; });
+  await requireAuth(req, res, () => { called = true; });
   assert.equal(called, true);
   assert.equal(req.userId, "alice");
 });

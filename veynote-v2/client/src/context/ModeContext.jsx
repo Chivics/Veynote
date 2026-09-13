@@ -16,6 +16,7 @@ export function ModeProvider({ children }) {
   function rememberPath(currentMode, path) {
     if (!user) return;
     const key = currentMode === "NOTES" ? "lastActiveNotesPath" : "lastActiveTradingPath";
+    if (user[key] === path) return;
     // fire and forget — never blocks navigation on a slow network
     updateUser({ [key]: path }).catch(() => {});
   }

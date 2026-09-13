@@ -17,7 +17,7 @@ const db = {
   },
 };
 const prismaPath = require.resolve("../src/lib/prisma");
-require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: db };
+require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: require("../test-support/sessionDb").withSessions(db) };
 const { signToken, signNoteToken } = require("../src/utils/jwt");
 let server, base;
 test.before(async () => {
