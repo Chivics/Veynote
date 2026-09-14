@@ -34,7 +34,7 @@ retry. Navigation flushes unblurred text. Save requests are serialized and stale
 responses cannot overwrite newer typing or another record. Successful deletion
 clears the guard; deletion failures remain visible.
 
-This guard currently covers Note and Library editors, not every form in the
+This guard currently covers Note, Library and Task editors, not every form in the
 app. Durable offline drafts, guards for other editors, cross-tab Library write
 conflict handling and full reload scroll recovery remain open. Browser/tab
 closure uses the existing unsaved-work warning; it cannot guarantee a save.
@@ -43,3 +43,11 @@ Navigation tests cover filtered origins, direct links, creation replacements,
 unknown history, generic private-record labels, failed-save retries and cancelled
 navigation races. Authenticated browser/device
 QA remains necessary alongside the production build and automated tests.
+
+Task fields now use serialized partial writes with per-field acknowledgement.
+Unblurred typing and failed dropdown changes stay dirty until confirmed. The
+navigation guard waits for task writes and pending actions; unfinished comments
+and subtasks require the user to post or clear them (or explicitly leave).
+These drafts are not submitted automatically by navigation. Unchanged blur
+events do not create a task write. Failed actions expose errors and preserve
+their draft text. This does not provide durable drafts or cross-tab conflicts.

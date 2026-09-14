@@ -1,5 +1,5 @@
 import PageSkeleton from "../../components/PageSkeleton.jsx";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import TradeDocumentation from "../../components/TradeDocumentation";
@@ -16,6 +16,11 @@ const SETUP_TYPES = [
 ];
 
 export default function TradeEditor() {
+  const { id } = useParams();
+  return <TradeEditorForm key={id || 'new'} />;
+}
+
+function TradeEditorForm() {
   const { id: routeId } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -27,8 +32,20 @@ export default function TradeEditor() {
   const [loaded, setLoaded] = useState(isNew);
   useEffect(() => bodyRef.current ? observeMedia(bodyRef.current) : undefined, [loaded]);
   const [saving, setSaving] = useState(false);
+  const [initialContent, setInitialContent] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [accountError, setAccountError] = useState('');
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const editRevision = useRef(0), alive = useRef(true), saveInFlight = useRef(false);
+  useEffect(() => { alive.current=true; return () => { alive.current=false; }; }, []);
+  useLayoutEffect(() => {
+    // The editable element does not exist while the loading shell is shown.
+    // Hydrate after it mounts, before media observation and before first paint.
+    if (loaded && bodyRef.current) bodyRef.current.innerHTML = safeHtml(initialContent);
+  }, [loaded, initialContent]);
 
-  const [form, setForm] = useState({
+  const [form, setFormState] = useState({
     accountId: searchParams.get("accountId") || "",
     title: "",
     asset: "",
@@ -52,15 +69,23 @@ export default function TradeEditor() {
     postTradeLesson: "",
   });
 
+  function setForm(update) { editRevision.current++; setFormState(update); }
+
   useEffect(() => {
-    api.get("/accounts").then((d) => setAccounts(d.accounts));
+    let active=true;
+    api.get("/accounts").then((d) => { if(active) setAccounts(d.accounts); })
+      .catch(error => { if(active) setAccountError(error.message); });
+    return () => { active=false; };
   }, []);
 
   useEffect(() => {
+    let active=true;
     if (!isNew) {
+      setLoadError(''); setLoaded(false);
       api.get(`/trading/entries/${routeId}`).then((d) => {
+        if (!active) return;
         const e = d.entry;
-        setForm({
+        setFormState({
           accountId: e.accountId || "",
           title: e.title,
           asset: e.asset || "",
@@ -83,11 +108,12 @@ export default function TradeEditor() {
           postTradeWentWrong: e.postTradeWentWrong || "",
           postTradeLesson: e.postTradeLesson || "",
         });
-        if (bodyRef.current) bodyRef.current.innerHTML = safeHtml(e.content);
+        setInitialContent(e.content || '');
         setLoaded(true);
-      });
+      }).catch(error => { if(active) setLoadError(error.message); });
     }
-  }, [routeId]);
+    return () => { active=false; };
+  }, [routeId, loadAttempt]);
 
   const rr =
     form.entryPrice && form.stopLoss && form.takeProfit
@@ -117,19 +143,29 @@ export default function TradeEditor() {
   }
 
   async function save() {
-    if (!form.title.trim()) return;
+    if (saveInFlight.current) return;
+    if (!form.title.trim()) { setSaveError('Give this trade a title before saving.'); return; }
+    saveInFlight.current=true;
+    const revision=editRevision.current;
+    setSaveError('');
     setSaving(true);
     try {
       if (!entryId) {
         const { entry } = await api.post("/trading/entries", buildPayload());
+        if (!alive.current) return;
         setEntryId(entry.id);
         window.history.replaceState(null, "", `/trading/entries/${entry.id}/edit`);
       } else {
         await api.patch(`/trading/entries/${entryId}`, buildPayload());
-        navigate(`/trading/entries/${entryId}`);
+        if (!alive.current) return;
+        if (revision === editRevision.current) navigate(`/trading/entries/${entryId}`);
       }
+      if (revision !== editRevision.current) setSaveError('The earlier changes were saved. You edited this trade while saving; save again to include the latest changes.');
+    } catch (error) {
+      if (alive.current) setSaveError(error.message);
     } finally {
-      setSaving(false);
+      saveInFlight.current=false;
+      if (alive.current) setSaving(false);
     }
   }
 
@@ -160,7 +196,7 @@ export default function TradeEditor() {
     bodyRef.current?.focus();
   }
 
-  if (!loaded) return <PageSkeleton title="Trade" />;
+  if (!loaded) return loadError ? <section><h1 className="page-title">Trade unavailable</h1><p role="alert" className="text-danger my-4">{loadError}</p><button className="btn-primary" onClick={() => setLoadAttempt(value => value + 1)}>Retry</button></section> : <PageSkeleton title="Trade" />;
 
   return (
     <div>
@@ -170,6 +206,9 @@ export default function TradeEditor() {
           {saving ? "Saving…" : "💾 Save"}
         </button>
       </div>
+
+      {saveError && <p role="alert" className="text-danger text-sm mb-4">{saveError}</p>}
+      {accountError && <p role="alert" className="text-danger text-sm mb-4">Accounts could not be loaded: {accountError} Reload this page before choosing an account.</p>}
 
       <div className="flex gap-2.5 mb-4 flex-wrap">
         <select
@@ -294,6 +333,8 @@ export default function TradeEditor() {
       <div
         ref={bodyRef}
         contentEditable
+        role="textbox" aria-label="Trade notes" aria-multiline="true"
+        onInput={() => { editRevision.current++; }}
         suppressContentEditableWarning
         onPaste={handleLinkPaste}
         className="border border-app-border rounded-b-xl p-6 bg-app-panel min-h-[140px] text-[14px] leading-[1.8] text-ink-soft outline-none focus:border-accent-trade mb-6 trade-body"

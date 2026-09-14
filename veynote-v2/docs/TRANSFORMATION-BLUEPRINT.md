@@ -202,3 +202,26 @@ restoration. Note and Library saves now gate route changes through React Router,
 including browser Back and sidebar links. Failed saves offer retry, stay or
 explicit discard; logout waits for these saves too. Guards for remaining forms,
 durable drafts and authenticated device QA remain open.
+
+### Subsequent checkpoint — task reliability and trade content preservation
+
+The existing visual direction is retained; the rejected design study was not
+applied. Task updates now preserve newer fields while earlier requests finish,
+wait on navigation, and expose retryable errors. Task, subtask and comment
+inputs are validated before Prisma writes; ownership checks remain server-side.
+
+Trade notes now hydrate after the editable element mounts. Previously the
+loading shell meant the element was absent when the response tried to assign
+its content. Route changes reset the editor instance, failed reads have a retry,
+and failed saves stay visible. An update that finishes after more typing keeps
+the editor open instead of navigating away from those newer changes.
+
+Trade creation idempotency, replacing its legacy direct history updates,
+universal trade navigation guards, durable drafts and cross-tab write conflict
+handling remain follow-up work. No schema migration is needed for this batch.
+
+Validation: 32 client tests, 53 server tests and the production build passed.
+An isolated local Chromium check with intercepted fixture API responses verified
+task navigation flushing, failed-save retry, unfinished comment protection,
+trade content load/save preservation and the task layout at 375px. This did not
+exercise production accounts or live MySQL writes.
