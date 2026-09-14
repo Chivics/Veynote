@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { API_BASE } from "../api/client";
-import { isApiUrl } from "../utils/apiOrigin";
 import { resolveMediaUrl } from "../utils/media";
 
 const API_ORIGIN = new URL(API_BASE, window.location.href).origin;
 
 /**
- * Returns authentication headers required for protected Veynote media.
+ * Authentication headers used only for protected API endpoints.
  */
 function authHeaders() {
   const token = localStorage.getItem("veynote_token");
@@ -35,6 +34,37 @@ function authHeaders() {
 }
 
 /**
+ * Decide whether this media request should receive Authorization headers.
+ *
+ * IMPORTANT:
+ * /uploads/... URLs using ?access= already have their own access token.
+ * Sending Authorization to those URLs causes the CORS error we saw.
+ */
+function shouldSendAuthHeaders(url) {
+  try {
+    const parsed = new URL(url, window.location.href);
+
+    // Only our API origin can receive Veynote auth headers.
+    if (parsed.origin !== API_ORIGIN) {
+      return false;
+    }
+
+    // Signed upload/media URLs already contain authorization in the URL.
+    if (
+      parsed.pathname.startsWith("/uploads/") ||
+      parsed.searchParams.has("access")
+    ) {
+      return false;
+    }
+
+    // Protected /api/... endpoints can receive Authorization.
+    return parsed.pathname.startsWith("/api/");
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Determines whether something looks like an image.
  */
 export function isImageFile({
@@ -58,60 +88,65 @@ export function isImageFile({
 }
 
 /**
- * Convert a media path returned from the API into a real absolute URL.
+ * Convert a media path returned from the API into an absolute URL.
  */
 function toAbsoluteUrl(value) {
   if (!value || typeof value !== "string") {
     return null;
   }
 
-  // Browser generated image previews
+  // Browser-generated previews.
   if (value.startsWith("blob:") || value.startsWith("data:")) {
     return value;
   }
 
-  // Already absolute
+  // Already absolute.
   if (/^https?:\/\//i.test(value)) {
     return value;
   }
 
-  // Backend API route
+  // API endpoint.
   if (value.startsWith("/api/")) {
     return `${API_ORIGIN}${value}`;
   }
 
-  // Uploaded static file
+  // Uploaded file.
   if (value.startsWith("/uploads/")) {
     return `${API_ORIGIN}${value}`;
   }
 
-  // Other root-relative backend path
+  // Other root-relative backend path.
   if (value.startsWith("/")) {
     return `${API_ORIGIN}${value}`;
   }
 
-  // Relative media URL
+  // Relative media path.
   try {
-    return new URL(value, `${API_BASE.replace(/\/$/, "")}/`).href;
+    return new URL(
+      value,
+      `${API_BASE.replace(/\/$/, "")}/`
+    ).href;
   } catch {
     return null;
   }
 }
 
 /**
- * Creates every sensible image URL we can try.
+ * Creates possible media URLs to try.
  *
- * Example:
+ * Examples:
+ *
+ * /uploads/file.png
+ *
+ * OR
  *
  * /api/trading/images/123
- *
- * becomes:
- *
- * https://api.example.com/api/trading/images/123
- * https://api.example.com/api/trading/images/123/file
+ * /api/trading/images/123/file
  */
 function buildCandidates({ src }) {
-  if (!src) return [];
+  if (!src || typeof src !== "string") {
+    return [];
+  }
 
   if (src.startsWith("blob:") || src.startsWith("data:")) {
     return [src];
@@ -121,47 +156,60 @@ function buildCandidates({ src }) {
 
   const absolute = toAbsoluteUrl(src);
 
-  if (absolute) {
-    result.push(absolute);
+  if (!absolute) {
+    return [];
+  }
 
-    // Many Veynote attachment APIs return metadata from:
-    // /images/:id
-    //
-    // and the actual binary from:
-    // /images/:id/file
-    if (
-      absolute.includes("/images/") &&
-      !absolute.match(/\/file(?:\?|$)/)
-    ) {
-      const [base, query] = absolute.split("?");
+  result.push(absolute);
 
-      result.push(
-        query
-          ? `${base.replace(/\/$/, "")}/file?${query}`
-          : `${base.replace(/\/$/, "")}/file`
-      );
+  /**
+   * Only add /file alternatives for API-style image endpoints.
+   *
+   * DO NOT append /file to /uploads/image.png.
+   */
+  try {
+    const parsed = new URL(absolute);
+
+    const isUpload = parsed.pathname.startsWith("/uploads/");
+
+    if (!isUpload) {
+      if (
+        parsed.pathname.includes("/images/") &&
+        !parsed.pathname.endsWith("/file")
+      ) {
+        const fileUrl = new URL(parsed.toString());
+
+        fileUrl.pathname = `${fileUrl.pathname.replace(
+          /\/$/,
+          ""
+        )}/file`;
+
+        result.push(fileUrl.toString());
+      }
+
+      if (
+        parsed.pathname.includes("/attachments/") &&
+        !parsed.pathname.endsWith("/file")
+      ) {
+        const fileUrl = new URL(parsed.toString());
+
+        fileUrl.pathname = `${fileUrl.pathname.replace(
+          /\/$/,
+          ""
+        )}/file`;
+
+        result.push(fileUrl.toString());
+      }
     }
-
-    // Also support attachment-style endpoints.
-    if (
-      absolute.includes("/attachments/") &&
-      !absolute.match(/\/file(?:\?|$)/)
-    ) {
-      const [base, query] = absolute.split("?");
-
-      result.push(
-        query
-          ? `${base.replace(/\/$/, "")}/file?${query}`
-          : `${base.replace(/\/$/, "")}/file`
-      );
-    }
+  } catch {
+    // The original absolute URL can still be attempted.
   }
 
   return [...new Set(result.filter(Boolean))];
 }
 
 /**
- * Fetch protected image binary and create a local browser URL.
+ * Fetch an image and return a local browser blob URL.
  */
 async function fetchImageBlob(urls) {
   let lastError = "Unable to load image";
@@ -175,24 +223,38 @@ async function fetchImageBlob(urls) {
     }
 
     try {
+      /**
+       * resolveMediaUrl may transform:
+       *
+       * /uploads/file.png
+       *
+       * into something like:
+       *
+       * https://api.veynote.app/uploads/file.png?access=...
+       */
       const resolvedUrl = await resolveMediaUrl(candidate);
 
+      const useAuth = shouldSendAuthHeaders(resolvedUrl);
+
       const response = await fetch(resolvedUrl, {
-        headers: isApiUrl(
-          resolvedUrl,
-          API_BASE,
-          window.location.href
-        )
-          ? authHeaders()
-          : {},
+        headers: useAuth ? authHeaders() : {},
 
         credentials: "omit",
+
         redirect: "follow",
+
         referrerPolicy: "no-referrer",
       });
 
       if (!response.ok) {
         lastError = `Image request failed: ${response.status}`;
+
+        console.warn("AuthImage request failed:", {
+          candidate,
+          resolvedUrl,
+          status: response.status,
+        });
+
         continue;
       }
 
@@ -206,23 +268,44 @@ async function fetchImageBlob(urls) {
 
       const finalType = blobType || contentType;
 
-      // Reject API JSON / HTML error responses.
+      /**
+       * If the backend returned JSON/HTML/text,
+       * it is not actually returning the image.
+       */
       if (
         finalType.includes("application/json") ||
         finalType.includes("text/html") ||
         finalType.includes("text/plain")
       ) {
-        lastError = `Endpoint returned ${finalType} instead of image`;
+        lastError = `Endpoint returned ${finalType} instead of an image`;
+
+        console.warn("AuthImage received non-image response:", {
+          candidate,
+          resolvedUrl,
+          contentType: finalType,
+        });
+
         continue;
       }
 
-      // Prefer an actual image MIME type.
+      /**
+       * Accept proper image MIME types.
+       *
+       * application/octet-stream is also accepted because some
+       * file servers return images using this generic MIME type.
+       */
       if (
         finalType &&
         !finalType.startsWith("image/") &&
         finalType !== "application/octet-stream"
       ) {
         lastError = `Unsupported image content type: ${finalType}`;
+
+        continue;
+      }
+
+      if (!blob.size) {
+        lastError = "Image response was empty";
         continue;
       }
 
@@ -231,6 +314,11 @@ async function fetchImageBlob(urls) {
       lastError =
         error?.message ||
         "Unexpected error while loading image";
+
+      console.warn("AuthImage fetch attempt failed:", {
+        candidate,
+        error,
+      });
     }
   }
 
@@ -261,6 +349,7 @@ export default function AuthImage({
     if (!urls.length) {
       setLoading(false);
       setFailed(true);
+
       return undefined;
     }
 
@@ -305,6 +394,9 @@ export default function AuthImage({
     };
   }, [src]);
 
+  /**
+   * Loading state.
+   */
   if (loading) {
     return (
       <div
@@ -335,6 +427,12 @@ export default function AuthImage({
     );
   }
 
+  /**
+   * Error state.
+   *
+   * Do not display the filename here because that made it
+   * look like the filename was the uploaded content.
+   */
   if (failed || !blobUrl) {
     return (
       <div
@@ -355,15 +453,29 @@ export default function AuthImage({
           ...style,
         }}
       >
-        <span style={{ fontSize: 22 }}>🖼</span>
+        <span
+          aria-hidden="true"
+          style={{
+            fontSize: 22,
+          }}
+        >
+          🖼
+        </span>
 
-        <span style={{ fontSize: 11 }}>
+        <span
+          style={{
+            fontSize: 11,
+          }}
+        >
           Image couldn't be displayed
         </span>
       </div>
     );
   }
 
+  /**
+   * Successfully loaded image.
+   */
   return (
     <img
       src={blobUrl}
@@ -374,6 +486,7 @@ export default function AuthImage({
         width: "100%",
         height: "100%",
         objectFit: "cover",
+        objectPosition: "center",
         ...style,
       }}
       onClick={onClick}
