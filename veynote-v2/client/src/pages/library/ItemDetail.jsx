@@ -20,13 +20,15 @@ export default function ItemDetail({ configKey }) {
   const dirtyRef = useRef(false);
   const pending = useRef(Promise.resolve());
   const editRevision = useRef(0);
+  const draftFields = useRef({});
   const [loadError, setLoadError] = useState("");
 
   useEffect(() => registerGuard(async () => {
     await pending.current;
+    if (dirtyRef.current && Object.keys(draftFields.current).length) await patch({ ...draftFields.current });
     if (dirtyRef.current) { setSaveError("Your changes are not saved yet. Finish editing or retry the field before leaving."); setSaveStatus("error"); return false; }
     return true;
-  }), [registerGuard]);
+  }, () => dirtyRef.current), [registerGuard, id, apiSlug]);
 
   function load() {
     setLoadError("");
@@ -47,13 +49,16 @@ export default function ItemDetail({ configKey }) {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, []);
 
-  function markDirty() {
+  function markDirty(field, value) {
+    draftFields.current[field] = value;
     editRevision.current++;
     dirtyRef.current = true;
     setSaveStatus("idle");
   }
 
   async function patch(fields) {
+    draftFields.current = { ...draftFields.current, ...fields };
+    fields = { ...draftFields.current };
     const revision = ++editRevision.current;
     dirtyRef.current = true;
     setSaveStatus("saving");
@@ -61,6 +66,7 @@ export default function ItemDetail({ configKey }) {
     pending.current = operation.then(() => {}, () => {});
     try {
       const { item: updated } = await operation;
+      for (const [field, value] of Object.entries(fields)) if (draftFields.current[field] === value) delete draftFields.current[field];
       if (revision !== editRevision.current) return;
       setItem(updated);
       dirtyRef.current = false;
@@ -75,8 +81,14 @@ export default function ItemDetail({ configKey }) {
 
   async function remove() {
     if (!confirm("Delete this item?")) return;
-    await api.delete(`/library/${apiSlug}/${id}`);
-    navigate(`/notes/library/${configKey}`);
+    try {
+      await pending.current;
+      await api.delete(`/library/${apiSlug}/${id}`);
+      editRevision.current++;
+      draftFields.current = {};
+      dirtyRef.current = false;
+      navigate(`/notes/library/${configKey}`);
+    } catch (error) { setSaveError(error.message); setSaveStatus("error"); }
   }
 
   if (!item) return loadError ? <section><h1 className="page-title">Library record unavailable</h1><p role="alert" className="text-danger my-4">{loadError}</p><button className="btn-primary" onClick={load}>Retry</button></section> : <PageSkeleton title="Library record" />;
@@ -94,7 +106,7 @@ export default function ItemDetail({ configKey }) {
       <input
         aria-label="Record title" className="page-title w-full bg-transparent outline-none text-[26px] font-bold tracking-tight text-ink mb-4"
         value={item.title}
-        onChange={(e) => { markDirty(); setItem({ ...item, title: e.target.value }); }}
+        onChange={(e) => { markDirty("title", e.target.value); setItem({ ...item, title: e.target.value }); }}
         onBlur={(e) => patch({ title: e.target.value })}
       />
 
@@ -106,7 +118,7 @@ export default function ItemDetail({ configKey }) {
                 className="bg-transparent outline-none text-[12.5px] text-ink-soft"
                 value={item.category || ""}
                 placeholder="—"
-                onChange={(e) => { markDirty(); setItem({ ...item, category: e.target.value }); }}
+                onChange={(e) => { markDirty("category", e.target.value); setItem({ ...item, category: e.target.value }); }}
                 onBlur={(e) => patch({ category: e.target.value })}
               />
             ) : (
@@ -161,7 +173,7 @@ export default function ItemDetail({ configKey }) {
               className="bg-transparent outline-none text-[12.5px] text-ink-soft w-full"
               value={item.properties?.[f.key] || ""}
               placeholder="—"
-              onChange={(e) => { markDirty(); setItem({ ...item, properties: { ...item.properties, [f.key]: e.target.value } }); }}
+              onChange={(e) => { markDirty(f.key, e.target.value); setItem({ ...item, properties: { ...item.properties, [f.key]: e.target.value } }); }}
               onBlur={(e) => patch({ [f.key]: e.target.value })}
             />
           </PropRow>
@@ -173,7 +185,7 @@ export default function ItemDetail({ configKey }) {
               className="bg-transparent outline-none text-[12.5px] text-ink-soft flex-1 min-w-0"
               value={item.link || ""}
               placeholder="Paste a URL…"
-              onChange={(e) => { markDirty(); setItem({ ...item, link: e.target.value }); }}
+              onChange={(e) => { markDirty("link", e.target.value); setItem({ ...item, link: e.target.value }); }}
               onBlur={(e) => patch({ link: e.target.value })}
             />
             {isLikelyUrl(item.link) && (
@@ -199,7 +211,7 @@ export default function ItemDetail({ configKey }) {
           className="w-full bg-transparent outline-none text-[13px] text-ink-soft mt-2 min-h-[100px] resize-none placeholder:text-ink-muted"
           placeholder="Write your thoughts, quotes, or a summary here…"
           value={item.notes || ""}
-          onChange={(e) => { markDirty(); setItem({ ...item, notes: e.target.value }); }}
+          onChange={(e) => { markDirty("notes", e.target.value); setItem({ ...item, notes: e.target.value }); }}
           onBlur={(e) => patch({ notes: e.target.value })}
         />
       </div>

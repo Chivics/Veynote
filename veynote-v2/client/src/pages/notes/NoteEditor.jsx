@@ -35,7 +35,7 @@ export default function NoteEditor() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { registerGuard } = useContextualNavigation();
+  const { registerGuard, replaceSavedNote } = useContextualNavigation();
   const editorFontSize = FONT_SIZE_PX[user?.editorFontSize] || FONT_SIZE_PX.medium;
   const editorRef = useRef(null);
   const latestHTML = useRef("");
@@ -93,7 +93,7 @@ export default function NoteEditor() {
       if (alive.current) { setSaveStatus([409, 410, 428].includes(error.status) ? "conflict" : "error"); setSaveError(error.message); }
       return false;
     }
-  }), [registerGuard, title, folderId, mood, tags]);
+  }, () => dirtyRef.current), [registerGuard, title, folderId, mood, tags]);
 
   useEffect(() => {
     api.get("/folders").then((d) => setFolders(d.folders)).catch(() => {});
@@ -229,10 +229,9 @@ export default function NoteEditor() {
         if (!alive.current || currentWriter !== writer.current) return;
         setNoteId(note.id);
         setNoteMeta({ createdAt: note.createdAt, updatedAt: note.updatedAt });
-        if (!fields.noteId && navigatedNoteId.current !== note.id) {
+        if (!navigatedNoteId.current && replaceSavedNote(`/notes/${note.id}`)) {
           navigatedNoteId.current = note.id;
           createdNoteId.current = note.id;
-          navigate(`/notes/${note.id}`, { replace: true });
         }
         if (mySeq === saveSeq.current) {
           dirtyRef.current = false;
@@ -248,7 +247,7 @@ export default function NoteEditor() {
         }
       }
     },
-    [navigate]
+    [navigate, replaceSavedNote]
   );
 
   function scheduleAutosave() {
@@ -343,10 +342,9 @@ export default function NoteEditor() {
     });
     if (!alive.current || currentWriter !== writer.current) throw new Error("The open note changed. Return to the original note to attach this file.");
     setNoteId(note.id);
-    if (navigatedNoteId.current !== note.id) {
+    if (navigatedNoteId.current !== note.id && replaceSavedNote(`/notes/${note.id}`)) {
       navigatedNoteId.current = note.id;
       createdNoteId.current = note.id;
-      navigate(`/notes/${note.id}`, { replace: true });
     }
     return note.id;
   }

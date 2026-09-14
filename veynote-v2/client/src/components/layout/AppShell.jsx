@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
 import ContextualNavigation from "../ContextualNavigation";
+import { useContextualNavigation } from "../../context/NavigationContext";
 
 function prefetchPage(path) {
   const queries = {
@@ -54,6 +55,7 @@ const TRADING_NAV = [
 
 function SidebarContent({ nav, newHref, newLabel, mode, onNavigate }) {
   const { logout } = useAuth();
+  const { runProtectedAction, busy } = useContextualNavigation();
   return (
     <>
       <div className="flex items-center gap-2 font-extrabold text-[15px] px-1.5 pb-3.5">
@@ -103,7 +105,7 @@ function SidebarContent({ nav, newHref, newLabel, mode, onNavigate }) {
           ⚙ Settings
         </NavLink>
         <button
-          onClick={logout}
+          onClick={() => runProtectedAction(logout)} disabled={busy}
           className="flex items-center gap-2 px-2.5 py-2 max-sm:py-3 rounded-lg text-[12.5px] max-sm:text-[13.5px] text-ink-muted hover:text-ink transition text-left"
         >
           ⏻ Log out

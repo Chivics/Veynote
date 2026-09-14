@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { api } from "../api/client";
@@ -12,6 +12,10 @@ export function ModeProvider({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [mode, setMode] = useState(location.pathname.startsWith("/trading") ? "TRADING" : "NOTES");
+  useEffect(() => {
+    if (location.pathname.startsWith("/trading")) setMode("TRADING");
+    else if (location.pathname.startsWith("/notes") || location.pathname.startsWith("/will")) setMode("NOTES");
+  }, [location.pathname]);
 
   function rememberPath(currentMode, path) {
     if (!user) return;
@@ -23,7 +27,6 @@ export function ModeProvider({ children }) {
 
   function switchTo(targetMode) {
     if (mode) rememberPath(mode, location.pathname);
-    setMode(targetMode);
     const remembered =
       targetMode === "NOTES" ? user?.lastActiveNotesPath : user?.lastActiveTradingPath;
     navigate(remembered || (targetMode === "NOTES" ? "/notes" : "/trading"));
