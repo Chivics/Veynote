@@ -1,6 +1,6 @@
 import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { LIBRARY_CONFIG, statusColorClass } from "../../data/libraryConfig";
@@ -13,7 +13,9 @@ export default function ReadingPage() {
   const navigate = useNavigate();
   const result = useApiQuery("/library/reading");
   const items = result.data?.items ?? null;
-  const [view, setView] = useState("All");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view = searchParams.get("view") || "All";
+  const setView = value => setSearchParams(previous => { const next = new URLSearchParams(previous); next.set("view", value); return next; }, { replace: true });
   const [templateOpen, setTemplateOpen] = useState(false);
 
 

@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ModeProvider } from "./context/ModeContext";
+import { NavigationProvider } from "./context/NavigationContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppShell from "./components/layout/AppShell";
 
@@ -77,7 +78,7 @@ export default function App() {
           element={
             <ProtectedRoute>
               <ModeProvider>
-                <AppShell />
+                <NavigationProvider><AppShell /></NavigationProvider>
               </ModeProvider>
             </ProtectedRoute>
           }

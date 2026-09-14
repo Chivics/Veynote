@@ -477,17 +477,6 @@ export default function WillRecordDetail({ kind }) {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
 
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            to="/will"
-            className="text-[10.5px] font-semibold text-accent-notes"
-          >
-            ← Back to Will
-          </Link>
-
-          <span className="text-ink-muted">
-            /
-          </span>
-
           <span className="text-[10.5px] text-ink-muted">
             {config.label}
           </span>

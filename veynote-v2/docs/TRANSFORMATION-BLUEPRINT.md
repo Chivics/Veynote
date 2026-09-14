@@ -193,3 +193,10 @@ missing authentication schema and targeted production repair. Retry-safe note
 creation is implemented in the subsequent note-concurrency checkpoint, with
 an account-scoped request ledger and deletion tombstones. Durable offline
 drafts and in-app unsaved-navigation protection remain open.
+
+### Subsequent checkpoint — contextual navigation
+
+See [Contextual navigation](CONTEXTUAL-NAVIGATION.md) for the shared Back header,
+mobile navigation sheet, filtered Library return paths and in-memory scroll
+restoration. Note and Library saves gate these contextual controls; universal
+unsaved-navigation blocking and durable drafts remain open.

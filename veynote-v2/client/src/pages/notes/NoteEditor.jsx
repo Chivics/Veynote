@@ -21,6 +21,7 @@ import { getTemplate } from "../../data/noteTemplates";
 import { escapeHtml } from "../../utils/safeHtml";
 import { createNoteWriter } from "../../utils/noteWriter";
 import { clearNoteGrant } from "../../utils/noteGrant";
+import { useContextualNavigation } from "../../context/NavigationContext";
 
 const FONT_SIZE_PX = { small: "13px", medium: "15px", large: "18px", comfort: "16px", display: "22px", xlarge: "28px" };
 
@@ -34,6 +35,7 @@ export default function NoteEditor() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { registerGuard } = useContextualNavigation();
   const editorFontSize = FONT_SIZE_PX[user?.editorFontSize] || FONT_SIZE_PX.medium;
   const editorRef = useRef(null);
   const latestHTML = useRef("");
@@ -76,6 +78,22 @@ export default function NoteEditor() {
   const [focusMode, setFocusMode] = useState(false);
   const imageInputRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  useEffect(() => registerGuard(async () => {
+    if (!dirtyRef.current) return true;
+    clearTimeout(saveTimer.current);
+    if (!writer.current.id && !hasMeaningfulContent({ title, html: latestHTML.current, mood, tags })) { dirtyRef.current = false; return true; }
+    const currentWriter = writer.current, sequence = saveSeq.current;
+    try {
+      setSaveStatus("saving");
+      await currentWriter.save({ title, content: latestHTML.current, folderId: folderId || null, mood, tags });
+      if (!alive.current || currentWriter !== writer.current || sequence !== saveSeq.current) return false;
+      dirtyRef.current = false; setSaveStatus("saved"); setSaveError(""); return true;
+    } catch (error) {
+      if (alive.current) { setSaveStatus([409, 410, 428].includes(error.status) ? "conflict" : "error"); setSaveError(error.message); }
+      return false;
+    }
+  }), [registerGuard, title, folderId, mood, tags]);
 
   useEffect(() => {
     api.get("/folders").then((d) => setFolders(d.folders)).catch(() => {});

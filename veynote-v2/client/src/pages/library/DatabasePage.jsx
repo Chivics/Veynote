@@ -1,6 +1,6 @@
 import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { LIBRARY_CONFIG, statusColorClass } from "../../data/libraryConfig";
@@ -13,7 +13,9 @@ export default function DatabasePage({ configKey }) {
   const navigate = useNavigate();
 
   const result = useApiQuery(`/library/${apiSlug}`);
-  const [filter, setFilter] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filter = searchParams.get("filter") || "";
+  const setFilter = value => setSearchParams(previous => { const next = new URLSearchParams(previous); if (value) next.set("filter", value); else next.delete("filter"); return next; }, { replace: true });
   const items = result.data?.items?.filter(item => item.title.toLowerCase().includes(filter.toLowerCase())) ?? null;
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");

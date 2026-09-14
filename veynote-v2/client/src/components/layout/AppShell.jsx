@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
+import ContextualNavigation from "../ContextualNavigation";
 
 function prefetchPage(path) {
   const queries = {
@@ -188,6 +189,7 @@ export default function AppShell() {
           </div>
         </div>
         <div className="max-w-[1220px] mx-auto px-4 sm:px-6 md:px-10 pt-6 md:pt-9 pb-16">
+          <ContextualNavigation />
           <Outlet />
         </div>
       </main>

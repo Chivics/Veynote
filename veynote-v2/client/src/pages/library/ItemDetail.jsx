@@ -5,20 +5,32 @@ import { api } from "../../api/client";
 import { LIBRARY_CONFIG } from "../../data/libraryConfig";
 import SaveStatus from "../../components/SaveStatus";
 import LinkPreviewCard from "../../components/LinkPreviewCard";
+import { useContextualNavigation } from "../../context/NavigationContext";
 
 export default function ItemDetail({ configKey }) {
   const config = LIBRARY_CONFIG[configKey];
   const apiSlug = config.key.toLowerCase();
   const { id } = useParams();
   const navigate = useNavigate();
+  const { registerGuard } = useContextualNavigation();
 
   const [item, setItem] = useState(null);
   const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved | error
   const [saveError, setSaveError] = useState("");
   const dirtyRef = useRef(false);
+  const pending = useRef(Promise.resolve());
+  const editRevision = useRef(0);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => registerGuard(async () => {
+    await pending.current;
+    if (dirtyRef.current) { setSaveError("Your changes are not saved yet. Finish editing or retry the field before leaving."); setSaveStatus("error"); return false; }
+    return true;
+  }), [registerGuard]);
 
   function load() {
-    api.get(`/library/${apiSlug}/${id}`).then((d) => setItem(d.item));
+    setLoadError("");
+    api.get(`/library/${apiSlug}/${id}`).then((d) => setItem(d.item)).catch(error => setLoadError(error.message));
   }
   useEffect(load, [id]);
 
@@ -36,19 +48,26 @@ export default function ItemDetail({ configKey }) {
   }, []);
 
   function markDirty() {
+    editRevision.current++;
     dirtyRef.current = true;
     setSaveStatus("idle");
   }
 
   async function patch(fields) {
+    const revision = ++editRevision.current;
+    dirtyRef.current = true;
     setSaveStatus("saving");
+    const operation = pending.current.then(() => api.patch(`/library/${apiSlug}/${id}`, fields));
+    pending.current = operation.then(() => {}, () => {});
     try {
-      const { item: updated } = await api.patch(`/library/${apiSlug}/${id}`, fields);
+      const { item: updated } = await operation;
+      if (revision !== editRevision.current) return;
       setItem(updated);
       dirtyRef.current = false;
       setSaveStatus("saved");
       setSaveError("");
     } catch (err) {
+      if (revision !== editRevision.current) return;
       setSaveStatus("error");
       setSaveError(err.message);
     }
@@ -60,7 +79,7 @@ export default function ItemDetail({ configKey }) {
     navigate(`/notes/library/${configKey}`);
   }
 
-  if (!item) return <PageSkeleton title="Library record" />;
+  if (!item) return loadError ? <section><h1 className="page-title">Library record unavailable</h1><p role="alert" className="text-danger my-4">{loadError}</p><button className="btn-primary" onClick={load}>Retry</button></section> : <PageSkeleton title="Library record" />;
 
   return (
     <div className="max-w-[640px]">
