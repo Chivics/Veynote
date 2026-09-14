@@ -21,6 +21,7 @@ export default function ItemDetail({ configKey }) {
   const pending = useRef(Promise.resolve());
   const editRevision = useRef(0);
   const draftFields = useRef({});
+  const resourceSequence = useRef(0);
   const [loadError, setLoadError] = useState("");
 
   useEffect(() => registerGuard(async () => {
@@ -31,10 +32,16 @@ export default function ItemDetail({ configKey }) {
   }, () => dirtyRef.current), [registerGuard, id, apiSlug]);
 
   function load() {
+    const sequence = ++resourceSequence.current;
     setLoadError("");
-    api.get(`/library/${apiSlug}/${id}`).then((d) => setItem(d.item)).catch(error => setLoadError(error.message));
+    api.get(`/library/${apiSlug}/${id}`).then((d) => { if (sequence === resourceSequence.current) setItem(d.item); }).catch(error => { if (sequence === resourceSequence.current) setLoadError(error.message); });
   }
-  useEffect(load, [id]);
+  useEffect(() => {
+    setItem(null); draftFields.current = {}; dirtyRef.current = false;
+    editRevision.current++; setSaveStatus("idle"); setSaveError("");
+    load();
+    return () => { resourceSequence.current++; };
+  }, [id, apiSlug]);
 
   // Warn on close/navigate-away if a field was changed but hasn't been
   // confirmed saved yet (e.g. user is still typing, or the blur-triggered
@@ -57,6 +64,7 @@ export default function ItemDetail({ configKey }) {
   }
 
   async function patch(fields) {
+    const resource = resourceSequence.current;
     draftFields.current = { ...draftFields.current, ...fields };
     fields = { ...draftFields.current };
     const revision = ++editRevision.current;
@@ -66,6 +74,7 @@ export default function ItemDetail({ configKey }) {
     pending.current = operation.then(() => {}, () => {});
     try {
       const { item: updated } = await operation;
+      if (resource !== resourceSequence.current) return;
       for (const [field, value] of Object.entries(fields)) if (draftFields.current[field] === value) delete draftFields.current[field];
       if (revision !== editRevision.current) return;
       setItem(updated);
@@ -73,6 +82,7 @@ export default function ItemDetail({ configKey }) {
       setSaveStatus("saved");
       setSaveError("");
     } catch (err) {
+      if (resource !== resourceSequence.current) return;
       if (revision !== editRevision.current) return;
       setSaveStatus("error");
       setSaveError(err.message);

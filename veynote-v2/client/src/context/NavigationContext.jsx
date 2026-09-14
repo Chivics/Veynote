@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { useBlocker, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { advanceTrail, backDestination, describeRoute } from "../utils/navigation";
 import UnsavedNavigationDialog from "../components/UnsavedNavigationDialog";
+import { settleNavigationSave } from "../utils/navigationSave";
 
 const NavigationContext = createContext(null);
 export const useContextualNavigation = () => useContext(NavigationContext);
@@ -28,11 +29,8 @@ export function NavigationProvider({ children }) {
     if (blocker.state !== "blocked") { leaving.current = false; setBusy(false); setFailed(false); return; }
     let active = true;
     leaving.current = true; setBusy(true); setFailed(false);
-    Promise.resolve().then(() => guard.current?.callback()).then(result => {
-      if (!active) return;
-      if (result === false) { setFailed(true); setBusy(false); }
-      else blocker.proceed();
-    }).catch(() => { if (active) { setFailed(true); setBusy(false); } });
+    settleNavigationSave(() => guard.current?.callback(), () => active,
+      () => blocker.proceed(), () => { setFailed(true); setBusy(false); });
     return () => { active = false; };
   }, [blocker, attempt]);
   const replaceSavedNote = useCallback(path => {

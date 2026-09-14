@@ -198,5 +198,7 @@ drafts and in-app unsaved-navigation protection remain open.
 
 See [Contextual navigation](CONTEXTUAL-NAVIGATION.md) for the shared Back header,
 mobile navigation sheet, filtered Library return paths and in-memory scroll
-restoration. Note and Library saves gate these contextual controls; universal
-unsaved-navigation blocking and durable drafts remain open.
+restoration. Note and Library saves now gate route changes through React Router,
+including browser Back and sidebar links. Failed saves offer retry, stay or
+explicit discard; logout waits for these saves too. Guards for remaining forms,
+durable drafts and authenticated device QA remain open.
