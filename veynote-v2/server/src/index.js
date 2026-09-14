@@ -59,7 +59,7 @@ app.get("/api/health", (_req, res) => {
 // the database engine can execute a query before a deployment is healthy.
 app.get("/api/ready", asyncHandler(async (_req, res) => {
   res.set("Cache-Control", "no-store");
-  await prisma.$queryRaw`SELECT 1`;
+  await require("./utils/databaseReadiness").checkDatabaseReadiness(prisma);
   res.json({ ok: true });
 }));
 

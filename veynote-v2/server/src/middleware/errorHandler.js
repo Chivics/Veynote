@@ -3,11 +3,20 @@ function errorHandler(error, _req, res, next) {
   if (error?.type === "entity.parse.failed") return res.status(400).json({ code: "INVALID_JSON", error: "The request contains invalid JSON." });
   if (error?.type === "entity.too.large") return res.status(413).json({ code: "REQUEST_TOO_LARGE", error: "This request is too large. Use an attachment for large files." });
   if (error?.code === "NOTE_CONFLICT") return res.status(409).json({ code: "NOTE_CONFLICT", error: "This note changed elsewhere. Your changes have not overwritten it." });
+  if (["NOTE_CREATE_INVALID", "NOTE_CREATE_MISMATCH", "NOTE_CREATE_REMOVED", "NOTE_CREATE_PROTECTED", "NOTE_CREATE_CHANGED"].includes(error?.code)) {
+    return res.status(error.status).json({ code: error.code, error: error.message, ...(error.noteId && { noteId: error.noteId }) });
+  }
+  if (["P2021", "P2022"].includes(error?.code)) {
+    console.error(JSON.stringify({ event: "api_request_failed", category: "database_schema_missing", code: error.code }));
+    return res.status(503).json({ code: "DATABASE_SCHEMA_MISSING", error: "Veynote’s server needs a database update. Your sign-in has been kept. Please retry after the service is restored." });
+  }
   const databaseUnavailable = ["PrismaClientRustPanicError", "PrismaClientInitializationError"].includes(error?.name)
     || ["P1001", "P1002", "P1008", "P1017", "P2024"].includes(error?.code);
   // Prisma messages can include queries, private data and generated issue URLs.
   // Log only an allowlisted classification, never the raw exception.
-  console.error(JSON.stringify({ event: "api_request_failed", category: databaseUnavailable ? "database_unavailable" : "internal_error" }));
+  const safeCode = /^P\d{4}$/.test(error?.code || "") ? error.code : undefined;
+  const safeType = ["PrismaClientValidationError", "PrismaClientInitializationError", "PrismaClientRustPanicError", "TypeError", "ReferenceError"].includes(error?.name) ? error.name : undefined;
+  console.error(JSON.stringify({ event: "api_request_failed", category: databaseUnavailable ? "database_unavailable" : "internal_error", code: safeCode, type: safeType }));
   if (databaseUnavailable) {
     res.set("Retry-After", "30");
     return res.status(503).json({

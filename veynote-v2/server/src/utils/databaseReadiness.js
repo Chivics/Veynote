@@ -1,0 +1,8 @@
+async function checkDatabaseReadiness(db) {
+  // Connectivity alone (SELECT 1) misses deployments with outdated tables.
+  // These probes return at most one non-content field and work on empty DBs.
+  await db.user.findMany({ select: { sessionGeneration: true }, take: 1 });
+  await db.authSession.findMany({ select: { id: true }, take: 1 });
+  await db.noteCreationRequest.findMany({ select: { id: true }, take: 1 });
+}
+module.exports = { checkDatabaseReadiness };

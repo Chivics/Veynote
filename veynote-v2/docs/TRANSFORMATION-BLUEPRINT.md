@@ -185,3 +185,11 @@ The [note concurrency checkpoint](NOTE-SAVE-CONCURRENCY.md) now covers skipped
 unchanged writes, transactional version restoration, responsive history review,
 private backlink filtering and preserved locks on duplication. Durable drafts,
 idempotent creation and in-app unsaved-navigation protection remain priorities.
+
+### Subsequent checkpoint — production session repair and creation retries
+
+The [September 14 incident](SESSION-INCIDENT-2026-09-14.md) records the confirmed
+missing authentication schema and targeted production repair. Retry-safe note
+creation is implemented in the subsequent note-concurrency checkpoint, with
+an account-scoped request ledger and deletion tombstones. Durable offline
+drafts and in-app unsaved-navigation protection remain open.

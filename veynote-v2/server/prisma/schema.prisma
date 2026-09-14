@@ -67,6 +67,7 @@ model User {
   updatedAt       DateTime @updatedAt
   sessionGeneration Int @default(0)
   sessions AuthSession[]
+  noteCreationRequests NoteCreationRequest[]
 
   folders         Folder[]
   notes           Note[]
@@ -152,6 +153,7 @@ model Note {
   calendarEvents CalendarEvent[]
   attachments    Attachment[]
   versions       NoteVersion[]
+  creationRequest NoteCreationRequest?
   linksFrom      NoteLink[]      @relation("LinksFrom") // [[links]] this note contains, pointing at other notes
   linksTo        NoteLink[]      @relation("LinksTo")   // other notes that [[link]] to this one — i.e. its backlinks
 
@@ -163,6 +165,20 @@ model Note {
 // be reviewed and reverted. Not created on every autosave tick (that
 // would be a snapshot every ~900ms while typing) — see the throttling
 // comment in notes.routes.js for the actual rule.
+model NoteCreationRequest {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key String @db.VarChar(36)
+  payloadHash String @db.Char(64)
+  noteId String? @unique
+  note Note? @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  noteUpdatedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, key])
+}
+
 model NoteVersion {
   id        String   @id @default(cuid())
   noteId    String

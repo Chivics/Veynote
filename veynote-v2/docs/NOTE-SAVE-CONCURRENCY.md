@@ -51,3 +51,33 @@ Verification: 41 server and 17 client tests pass, plus the production frontend
 build. HTTP tests use database doubles, including rollback and concurrent-write
 scenarios; actual MySQL isolation and authenticated browser/mobile workflows
 remain release checks. This checkpoint adds no schema migration.
+
+## Subsequent checkpoint: retry-safe first creation
+
+The note writer now generates a UUID for each first-save attempt and preserves
+its original payload across ambiguous network failures. Newer typing is saved
+with a version-checked PATCH after the original creation is acknowledged.
+Definitive validation failures allow a corrected creation attempt.
+
+`NoteCreationRequest` claims that UUID per user inside the same transaction as
+the note, tags and links. Concurrent retries recover one note. Request hashes
+reject key reuse for different content. A retained request with a null note
+reference acts as a deletion tombstone, so retries cannot resurrect permanently
+deleted notes. Replays also reject trashed, newly protected or subsequently
+edited notes instead of exposing content or overwriting newer writing.
+
+The editor can open a recovered note in another tab and download all unsaved
+note fields as JSON on a conflict, failed save or offline state. This still does
+not provide durable local drafts across closing the browser: the retry key and
+pending writing live in the open editor. In-app navigation protection and a
+durable outbox remain necessary.
+
+The additive creation-request migration has been applied to the configured
+production database as recorded in the September 14 session incident. Code
+deployment still requires a newly generated Prisma Client. Existing clients
+without a request UUID remain supported, but do not gain retry deduplication.
+
+Verification now totals 48 server and 19 client tests, including an HTTP
+creation/replay workflow, plus Prisma schema validation and the frontend build.
+Concurrency/rollback tests use database doubles; these are not a substitute
+for concurrency tests against disposable MySQL.

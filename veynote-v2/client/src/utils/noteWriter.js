@@ -13,6 +13,7 @@ export function createNoteWriter(api, initial = {}) {
   let pending = 0;
   let acknowledged = typeof initial.content === "string" ? payloadKey(initial) : null;
   let lastNote = initial;
+  let creation = null;
   return {
     get id() { return id; },
     get updatedAt() { return updatedAt; },
@@ -23,16 +24,28 @@ export function createNoteWriter(api, initial = {}) {
         if (conflict) throw conflict;
         if (id && acknowledged === payloadKey(payload)) return lastNote;
         try {
-          const result = id
-            ? await api.patch(`/notes/${id}`, { ...payload, expectedUpdatedAt: updatedAt })
-            : await api.post("/notes", payload);
+          if (!id) {
+            // Freeze the first request across network failures. Later typing is
+            // patched only after that same creation has been acknowledged.
+            creation ||= { ...payload, tags: [...(payload.tags || [])], clientRequestId: crypto.randomUUID() };
+            const created = await api.post("/notes", creation);
+            id = created.note.id;
+            updatedAt = created.note.updatedAt;
+            acknowledged = payloadKey(creation);
+            lastNote = created.note;
+            if (acknowledged === payloadKey(payload)) return lastNote;
+          }
+          const result = await api.patch(`/notes/${id}`, { ...payload, expectedUpdatedAt: updatedAt });
           id = result.note.id;
           updatedAt = result.note.updatedAt;
           acknowledged = payloadKey(payload);
           lastNote = result.note;
           return result.note;
         } catch (error) {
-          if (error.status === 409 || error.status === 428) conflict = error;
+          // These responses reject creation before persistence. A corrected
+          // payload can start a new attempt; ambiguous failures keep the key.
+          if (!id && [400, 403, 404, 413, 422].includes(error.status)) creation = null;
+          if ([409, 410, 428].includes(error.status)) conflict = error;
           throw error;
         }
       }).finally(() => { pending--; });

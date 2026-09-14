@@ -11,7 +11,8 @@
     "prisma:studio": "prisma studio",
     "postinstall": "prisma generate",
     "test": "node --test",
-    "prisma:deploy": "prisma migrate deploy"
+    "prisma:deploy": "prisma migrate deploy",
+    "db:check": "node scripts/checkDatabase.js --require-ready"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",

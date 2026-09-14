@@ -59,3 +59,33 @@ test("returning to an old local value cannot mark a conflicted note saved", asyn
   assert.equal(writer.hasChanges({ content: "original" }), true);
   await assert.rejects(writer.save({ content: "original" }));
 });
+
+test("lost create response retries the original request before saving newer typing", async () => {
+  const posts = []; const patches = [];
+  const writer = createNoteWriter({
+    async post(_path, body) { posts.push(structuredClone(body)); if (posts.length === 1) throw Error("response lost"); return { note: { id: "recovered", updatedAt: "v1", content: "first" } }; },
+    async patch(path, body) { patches.push({ path, body }); return { note: { id: "recovered", updatedAt: "v2", content: body.content } }; },
+  });
+  await assert.rejects(writer.save({ content: "first", tags: ["draft"] }));
+  const saved = await writer.save({ content: "newer", tags: ["draft"] });
+  assert.match(posts[0].clientRequestId, /^[0-9a-f-]{36}$/);
+  assert.deepEqual(posts[0], posts[1]);
+  assert.equal(patches.length, 1); assert.equal(patches[0].path, "/notes/recovered");
+  assert.equal(patches[0].body.expectedUpdatedAt, "v1");
+  assert.equal(saved.content, "newer");
+});
+
+test("a rejected invalid first save can be corrected, while a deleted creation stays blocked", async () => {
+  const bodies = [];
+  const writer = createNoteWriter({ async post(_path, body) {
+    bodies.push(body);
+    if (bodies.length === 1) throw Object.assign(Error("invalid"), { status: 400 });
+    throw Object.assign(Error("deleted"), { status: 410 });
+  } });
+  await assert.rejects(writer.save({ title: "invalid" }));
+  await assert.rejects(writer.save({ title: "corrected" }));
+  assert.notEqual(bodies[0].clientRequestId, bodies[1].clientRequestId);
+  assert.equal(bodies[1].title, "corrected");
+  await assert.rejects(writer.save({ title: "again" }));
+  assert.equal(bodies.length, 2);
+});

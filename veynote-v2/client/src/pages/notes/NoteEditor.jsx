@@ -57,6 +57,7 @@ export default function NoteEditor() {
   const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved | error
   const [saveError, setSaveError] = useState("");
   const [loadError, setLoadError] = useState("");
+  const [recoveredNoteId, setRecoveredNoteId] = useState(null);
   const [insertMenu, setInsertMenu] = useState(null); // { x, y, fromSlash, blockEl } | null
   const [noteLinkMenu, setNoteLinkMenu] = useState(null); // { x, y, blockEl } | null
   const [attachments, setAttachments] = useState([]);
@@ -91,6 +92,7 @@ export default function NoteEditor() {
     dirtyRef.current = false;
     saveSeq.current++;
     setSaveStatus("idle"); setSaveError(""); setLoadError("");
+    setRecoveredNoteId(null);
     setBacklinks([]); setHistoryOpen(false);
     setLoaded(false);
     setVaultRequired(null);
@@ -222,8 +224,9 @@ export default function NoteEditor() {
       } catch (err) {
         if (!alive.current || currentWriter !== writer.current) return;
         if (mySeq === saveSeq.current) {
-          setSaveStatus(err.status === 409 || err.status === 428 ? "conflict" : navigator.onLine ? "error" : "offline");
+          setSaveStatus([409, 410, 428].includes(err.status) ? "conflict" : navigator.onLine ? "error" : "offline");
           setSaveError(err.message);
+          setRecoveredNoteId(err.data?.noteId || currentWriter.id || null);
         }
       }
     },
@@ -460,12 +463,13 @@ export default function NoteEditor() {
             />
             <SaveStatus status={saveStatus} error={saveError} />
             {["error", "offline"].includes(saveStatus) && <button type="button" className="btn-outline" onClick={scheduleAutosave}>Retry save</button>}
-            {saveStatus === "conflict" && <button type="button" className="btn-outline" onClick={() => {
-              const blob = new Blob([latestHTML.current], { type: "text/plain" });
+            {recoveredNoteId && ["conflict", "error", "offline"].includes(saveStatus) && <a className="btn-outline" target="_blank" rel="noopener noreferrer" href={`/notes/${encodeURIComponent(recoveredNoteId)}`}>Open saved note in another tab</a>}
+            {["conflict", "error", "offline"].includes(saveStatus) && <button type="button" className="btn-outline" onClick={() => {
+              const blob = new Blob([JSON.stringify({ title, content: latestHTML.current, folderId, mood, tags }, null, 2)], { type: "application/json" });
               const url = URL.createObjectURL(blob); const a = document.createElement("a");
-              a.href = url; a.download = "veynote-unsaved-writing.html.txt"; a.click();
+              a.href = url; a.download = "veynote-unsaved-note.json"; a.click();
               setTimeout(() => URL.revokeObjectURL(url), 1000);
-            }}>Download my unsaved writing</button>}
+            }}>Download my unsaved note</button>}
           </div>
         </div>
 

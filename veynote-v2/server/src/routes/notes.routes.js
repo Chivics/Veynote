@@ -8,6 +8,7 @@ const { sanitizeDocument, sanitizeContent } = require("../utils/documentHtml");
 const { asyncHandler } = require("../middleware/asyncHandler");
 const { compareAndUpdateNote } = require("../utils/noteConcurrency");
 const { hasNoteAccess } = require("../utils/noteAccess");
+const { noteCreationInput, createNoteOnce } = require("../utils/noteCreation");
 
 const router = express.Router();
 router.use(requireAuth);
@@ -203,7 +204,8 @@ async function maybeSnapshotVersion(note, db = prisma) {
 }
 
 router.post("/", ownedReference(prisma.folder, "folderId"), asyncHandler(async (req, res) => {
-  const { title, content, folderId, mood, tags, entryDate, draftForAttachment } = req.body;
+  const input = noteCreationInput(req.body);
+  const { title, content, folderId, mood, tags, entryDate, draftForAttachment } = input.payload;
 
   // `draftForAttachment` is set only by the "Add File"/"Add Image" flow,
   // when a user attaches something before typing a single word — an
@@ -214,9 +216,9 @@ router.post("/", ownedReference(prisma.folder, "folderId"), asyncHandler(async (
     return res.status(400).json({ error: "Write something before saving — a title, some text, or a mood." });
   }
 
-  const tagRecords = await resolveTags(req.userId, tags);
-
-  const note = await prisma.note.create({
+  const result = await createNoteOnce(prisma, { userId: req.userId, key: input.key, hash: input.hash }, async db => {
+  const tagRecords = await resolveTags(req.userId, tags, db);
+  const note = await db.note.create({
     data: {
       userId: req.userId,
       title: title?.trim() || "",
@@ -229,9 +231,11 @@ router.post("/", ownedReference(prisma.folder, "folderId"), asyncHandler(async (
     include: { tags: { include: { tag: true } }, folder: true, attachments: true },
   });
 
-  if (content) await syncNoteLinks(note.id, content);
+  if (content) await syncNoteLinks(note.id, content, db);
+  return note;
+  });
 
-  res.status(201).json({ note: serializeNote(note) });
+  res.status(result.replayed ? 200 : 201).json({ note: serializeNote(result.note), replayed: result.replayed });
 }));
 
 router.patch("/:id", ownedReference(prisma.folder, "folderId"), asyncHandler(async (req, res) => {

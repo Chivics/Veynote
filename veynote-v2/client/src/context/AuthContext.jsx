@@ -38,7 +38,9 @@ export function AuthProvider({ children }) {
         localStorage.removeItem("veynote_token");
         setUser(null);
       } else {
-        setSessionError("We couldn’t check your session. Your sign-in has been kept on this device. Reconnect and retry.");
+        setSessionError(err.status >= 500
+          ? "Veynote’s server couldn’t check your session. Your sign-in has been kept on this device. Please retry shortly."
+          : "We couldn’t reach Veynote to check your session. Your sign-in has been kept on this device. Check your connection and retry.");
       }
     } finally {
       setLoading(false);
