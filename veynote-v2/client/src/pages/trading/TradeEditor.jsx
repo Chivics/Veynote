@@ -54,6 +54,7 @@ function TradeEditorForm() {
     stopLoss: "",
     takeProfit: "",
     setupTypes: [],
+    customSetupType: "",
     biasTimeframe: "",
     setupTimeframe: "",
     entryTimeframe: "",
@@ -85,6 +86,12 @@ function TradeEditorForm() {
       api.get(`/trading/entries/${routeId}`).then((d) => {
         if (!active) return;
         const e = d.entry;
+        const storedSetupTypes = (e.setupTypes || "").split(",").filter(Boolean);
+        const storedCustomSetup = storedSetupTypes.find((type) => type.startsWith("CUSTOM:"));
+        const normalizedSetupTypes = storedSetupTypes.map((type) =>
+          type.startsWith("CUSTOM:") ? "CUSTOM" : type
+        );
+
         setFormState({
           accountId: e.accountId || "",
           title: e.title,
@@ -93,7 +100,10 @@ function TradeEditorForm() {
           entryPrice: e.entryPrice ?? "",
           stopLoss: e.stopLoss ?? "",
           takeProfit: e.takeProfit ?? "",
-          setupTypes: (e.setupTypes || "").split(",").filter(Boolean),
+          setupTypes: [...new Set(normalizedSetupTypes)],
+          customSetupType: storedCustomSetup
+            ? storedCustomSetup.slice("CUSTOM:".length)
+            : "",
           biasTimeframe: e.biasTimeframe || "",
           setupTimeframe: e.setupTimeframe || "",
           entryTimeframe: e.entryTimeframe || "",
@@ -123,16 +133,33 @@ function TradeEditorForm() {
       : null;
 
   function toggleSetupType(key) {
-    setForm((f) => ({
-      ...f,
-      setupTypes: f.setupTypes.includes(key) ? f.setupTypes.filter((k) => k !== key) : [...f.setupTypes, key],
-    }));
+    setForm((f) => {
+      const isSelected = f.setupTypes.includes(key);
+
+      return {
+        ...f,
+        setupTypes: isSelected
+          ? f.setupTypes.filter((k) => k !== key)
+          : [...f.setupTypes, key],
+        ...(key === "CUSTOM" && isSelected ? { customSetupType: "" } : {}),
+      };
+    });
   }
 
   function buildPayload() {
     const content = bodyRef.current ? persistentHTML(bodyRef.current) : "";
+    const { customSetupType, ...formWithoutCustomField } = form;
+
+    const setupTypes = form.setupTypes.map((type) => {
+      if (type !== "CUSTOM") return type;
+
+      const customValue = customSetupType.trim().replace(/,/g, " ");
+      return customValue ? `CUSTOM:${customValue}` : "CUSTOM";
+    });
+
     return {
-      ...form,
+      ...formWithoutCustomField,
+      setupTypes,
       content,
       entryPrice: form.entryPrice ? Number(form.entryPrice) : null,
       stopLoss: form.stopLoss ? Number(form.stopLoss) : null,
@@ -145,6 +172,10 @@ function TradeEditorForm() {
   async function save() {
     if (saveInFlight.current) return;
     if (!form.title.trim()) { setSaveError('Give this trade a title before saving.'); return; }
+    if (form.setupTypes.includes("CUSTOM") && !form.customSetupType.trim()) {
+      setSaveError('Enter your custom setup type or deselect Custom.');
+      return;
+    }
     saveInFlight.current=true;
     const revision=editRevision.current;
     setSaveError('');
@@ -298,6 +329,7 @@ function TradeEditorForm() {
           {SETUP_TYPES.map((t) => (
             <button
               key={t.key}
+              type="button"
               onClick={() => toggleSetupType(t.key)}
               className={`text-[10px] max-sm:text-[11.5px] px-2.5 py-1 max-sm:px-3 max-sm:py-2 rounded-full border transition ${
                 form.setupTypes.includes(t.key)
@@ -309,6 +341,28 @@ function TradeEditorForm() {
             </button>
           ))}
         </div>
+
+        {form.setupTypes.includes("CUSTOM") && (
+          <div className="mt-3">
+            <input
+              type="text"
+              value={form.customSetupType}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  customSetupType: e.target.value,
+                }))
+              }
+              placeholder="Enter your custom setup type..."
+              maxLength={80}
+              autoFocus
+              className="input w-full max-w-md"
+            />
+            <p className="text-[9.5px] text-ink-muted mt-1.5">
+              Example: Failed key level + liquidity confirmation
+            </p>
+          </div>
+        )}
 
         <p className="text-[10.5px] text-ink-muted mt-3.5 mb-1.5">TIMEFRAME HIERARCHY</p>
         <div className="flex gap-2 flex-wrap">
