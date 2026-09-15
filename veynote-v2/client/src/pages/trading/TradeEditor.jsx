@@ -293,71 +293,22 @@ function TradeEditorForm() {
           </TradeField>
         </div>
 
-        <p className="text-[10.5px] text-ink-muted mt-3.5 mb-1.5">
-         SETUP TYPE
-        </p>
-
-<div className="flex gap-1.5 flex-wrap">
-  {SETUP_TYPES.map((t) => {
-    const selected = form.setupTypes.includes(t.key);
-
-    return (
-      <button
-        key={t.key}
-        type="button"
-        onClick={() => toggleSetupType(t.key)}
-        className={`text-[10px] max-sm:text-[11.5px] px-2.5 py-1 max-sm:px-3 max-sm:py-2 rounded-full border transition ${
-          selected
-            ? "bg-accent-trade-soft text-[#9ecbff] border-accent-trade/40"
-            : "bg-app-panel2 text-ink-soft border-app-border"
-        }`}
-      >
-        {t.label}
-      </button>
-    );
-  })}
-</div>
-
-{/* Custom setup input */}
-{form.setupTypes.includes("custom") && (
-  <div className="mt-3">
-    <input
-      type="text"
-      value={form.customSetupType || ""}
-      onChange={(e) =>
-        setForm((prev) => ({
-          ...prev,
-          customSetupType: e.target.value,
-        }))
-      }
-      placeholder="Enter your setup type..."
-      maxLength={80}
-      className="
-        w-full
-        max-w-md
-        rounded-xl
-        border
-        border-app-border
-        bg-app-panel2
-        px-3.5
-        py-2.5
-        text-[12px]
-        text-ink
-        outline-none
-        transition
-        placeholder:text-ink-muted
-        focus:border-accent-trade/60
-        focus:ring-2
-        focus:ring-accent-trade/10
-      "
-      autoFocus
-    />
-
-    <p className="mt-1.5 text-[9.5px] text-ink-muted">
-      Add a setup that isn't listed above.
-    </p>
-  </div>
-)}
+        <p className="text-[10.5px] text-ink-muted mt-3.5 mb-1.5">SETUP TYPE</p>
+        <div className="flex gap-1.5 flex-wrap">
+          {SETUP_TYPES.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => toggleSetupType(t.key)}
+              className={`text-[10px] max-sm:text-[11.5px] px-2.5 py-1 max-sm:px-3 max-sm:py-2 rounded-full border transition ${
+                form.setupTypes.includes(t.key)
+                  ? "bg-accent-trade-soft text-[#9ecbff] border-accent-trade/40"
+                  : "bg-app-panel2 text-ink-soft border-app-border"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
 
         <p className="text-[10.5px] text-ink-muted mt-3.5 mb-1.5">TIMEFRAME HIERARCHY</p>
         <div className="flex gap-2 flex-wrap">
