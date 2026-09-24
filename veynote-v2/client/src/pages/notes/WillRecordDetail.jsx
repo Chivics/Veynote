@@ -117,6 +117,8 @@ export default function WillRecordDetail({ kind }) {
 
   const [record, setRecord] = useState(null);
   const [relatedAssets, setRelatedAssets] = useState([]);
+  const [relatedBeneficiaries, setRelatedBeneficiaries] = useState([]);
+  const [relatedExecutors, setRelatedExecutors] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -165,13 +167,15 @@ export default function WillRecordDetail({ kind }) {
        * Load the current Will dashboard so the
        * beneficiary edit form can show available assets.
        */
-      if (kind === "beneficiary") {
+      if (kind === "beneficiary" || kind === "asset") {
         try {
           const dashboard = await willApi.get();
 
           setRelatedAssets(
             dashboard?.will?.assets || []
           );
+          setRelatedBeneficiaries(dashboard?.will?.beneficiaries || []);
+          setRelatedExecutors(dashboard?.will?.executors || []);
         } catch (assetError) {
           /*
            * This should not prevent the beneficiary
@@ -234,17 +238,15 @@ export default function WillRecordDetail({ kind }) {
     setError("");
 
     try {
-      const response = await config.api.update(
-        id,
-        form
-      );
+      const { supportingFiles = [], ...fields } = form;
+      const response = await config.api.update(id, fields);
 
       const key =
         kind === "detail"
           ? "detail"
           : kind;
 
-      const updated =
+      let updated =
         response?.[key];
 
       if (!updated) {
@@ -253,6 +255,13 @@ export default function WillRecordDetail({ kind }) {
         );
       }
 
+      if (kind === "asset" && supportingFiles.length) {
+        for (const file of supportingFiles) {
+          const body = new FormData(); body.append("file", file); body.append("scopeType", "asset"); body.append("scopeId", id);
+          const uploaded = await willApi.documents.upload(body);
+          updated = { ...updated, documents: [uploaded.document, ...(updated.documents || [])] };
+        }
+      }
       setRecord(updated);
       setModalOpen(false);
     } catch (err) {
@@ -277,6 +286,12 @@ export default function WillRecordDetail({ kind }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function createBeneficiaryFromAsset(form) {
+    const { beneficiary } = await willApi.beneficiaries.create({ ...EMPTY_BENEFICIARY, ...form });
+    setRelatedBeneficiaries(current => [beneficiary, ...current]);
+    return beneficiary;
   }
 
 
@@ -330,6 +345,8 @@ export default function WillRecordDetail({ kind }) {
     setUnlocked(false);
     setRecord(null);
     setRelatedAssets([]);
+    setRelatedBeneficiaries([]);
+    setRelatedExecutors([]);
 
     setModalOpen(false);
     setDeleteOpen(false);
@@ -578,12 +595,17 @@ export default function WillRecordDetail({ kind }) {
 
                 <Field
                   label="Estimated value"
-                  value={record.estimatedValue}
+                  value={[record.currency, record.estimatedValue].filter(Boolean).join(" ")}
                 />
 
                 <Field
                   label="Location"
                   value={record.location}
+                />
+
+                <Field
+                  label="Institution / company"
+                  value={record.institution}
                 />
 
                 <Field
@@ -599,6 +621,16 @@ export default function WillRecordDetail({ kind }) {
                 <Field
                   label="Description"
                   value={record.description}
+                />
+
+                <Field
+                  label="Responsible person"
+                  value={record.responsibleExecutor?.name}
+                />
+
+                <Field
+                  label="Instruction type"
+                  value={record.instructionType?.replaceAll("_", " ")}
                 />
 
                 <div className="sm:col-span-2">
@@ -753,6 +785,10 @@ export default function WillRecordDetail({ kind }) {
 
         </section>
 
+        {kind === "asset" && <RelationshipPanel eyebrow="BENEFICIARIES" title="Who receives this asset" empty="No beneficiary allocation is attached to this asset yet." items={(record.allocations || []).map(allocation => ({ id: allocation.id, to: `/will/beneficiaries/${allocation.beneficiaryId}`, title: allocation.beneficiary?.name || "Beneficiary", detail: allocationLabel(allocation), note: allocation.conditions }))} />}
+
+        {kind === "beneficiary" && <RelationshipPanel eyebrow="ASSIGNED ASSETS" title="Assets assigned to this person" empty="No assets are currently allocated to this beneficiary." items={(record.allocations || []).map(allocation => ({ id: allocation.id, to: `/will/assets/${allocation.assetId}`, title: allocation.asset?.name || "Asset", detail: allocationLabel(allocation), note: [allocation.asset?.currency, allocation.asset?.estimatedValue].filter(Boolean).join(" ") }))} />}
+
 
         {/* Supporting documents */}
         {(kind === "detail" ||
@@ -819,6 +855,9 @@ export default function WillRecordDetail({ kind }) {
         {kind === "asset" && (
           <AssetForm
             initial={formInitial}
+            beneficiaries={relatedBeneficiaries}
+            executors={relatedExecutors}
+            onCreateBeneficiary={createBeneficiaryFromAsset}
             onSubmit={save}
             onCancel={() => setModalOpen(false)}
             busy={busy}
@@ -875,4 +914,14 @@ export default function WillRecordDetail({ kind }) {
 
     </div>
   );
+}
+
+function allocationLabel(allocation) {
+  if (allocation.allocationType === "PERCENTAGE") return `${allocation.percentage}% allocation`;
+  if (allocation.allocationType === "AMOUNT") return allocation.specificAmount || "Specific amount";
+  return "Receives remainder";
+}
+
+function RelationshipPanel({ eyebrow, title, empty, items }) {
+  return <section className="card p-4 sm:p-6"><span className="eyebrow">{eyebrow}</span><h2 className="text-lg font-bold mt-1">{title}</h2>{items.length === 0 ? <p className="text-[10.5px] text-ink-muted mt-3">{empty}</p> : <div className="estate-relationship-list">{items.map(item => <Link key={item.id} to={item.to}><div><strong>{item.title}</strong>{item.note && <small>{item.note}</small>}</div><span>{item.detail}</span></Link>)}</div>}</section>;
 }

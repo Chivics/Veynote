@@ -53,6 +53,10 @@ function TradeEditorForm() {
     entryPrice: "",
     stopLoss: "",
     takeProfit: "",
+    positionSize: "",
+    riskAmount: "",
+    profitLoss: "",
+    session: "",
     setupTypes: [],
     customSetupType: "",
     biasTimeframe: "",
@@ -100,6 +104,10 @@ function TradeEditorForm() {
           entryPrice: e.entryPrice ?? "",
           stopLoss: e.stopLoss ?? "",
           takeProfit: e.takeProfit ?? "",
+          positionSize: e.positionSize ?? "",
+          riskAmount: e.riskAmount ?? "",
+          profitLoss: e.profitLoss ?? "",
+          session: e.session || "",
           setupTypes: [...new Set(normalizedSetupTypes)],
           customSetupType: storedCustomSetup
             ? storedCustomSetup.slice("CUSTOM:".length)
@@ -164,6 +172,9 @@ function TradeEditorForm() {
       entryPrice: form.entryPrice ? Number(form.entryPrice) : null,
       stopLoss: form.stopLoss ? Number(form.stopLoss) : null,
       takeProfit: form.takeProfit ? Number(form.takeProfit) : null,
+      positionSize: form.positionSize ? Number(form.positionSize) : null,
+      riskAmount: form.riskAmount ? Number(form.riskAmount) : null,
+      profitLoss: form.profitLoss ? Number(form.profitLoss) : null,
       achievedR: form.achievedR ? Number(form.achievedR) : null,
       confidence: Number(form.confidence),
     };
@@ -230,13 +241,17 @@ function TradeEditorForm() {
   if (!loaded) return loadError ? <section><h1 className="page-title">Trade unavailable</h1><p role="alert" className="text-danger my-4">{loadError}</p><button className="btn-primary" onClick={() => setLoadAttempt(value => value + 1)}>Retry</button></section> : <PageSkeleton title="Trade" />;
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <span className="eyebrow">{entryId ? "EDITING" : "NEW ENTRY"}</span>
+    <div className="trade-workspace-page">
+      <div className="trade-workspace-header">
+        <div><span className="eyebrow">{entryId ? "EDITING TRADE" : "TRADE WORKSPACE"}</span><h1 className="page-title">{entryId ? "Review your trade" : "Document the complete idea"}</h1><p>Build the plan, evidence, execution and lesson in one connected record.</p></div>
         <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-60">
-          {saving ? "Saving…" : "💾 Save"}
+          {saving ? "Saving…" : "Save trade"}
         </button>
       </div>
+
+      <nav className="trade-workflow-nav" aria-label="Trade workspace sections">
+        <a href="#overview"><span>01</span> Overview</a><a href="#thesis"><span>02</span> Thesis</a><a href="#analysis"><span>03</span> Analysis</a><a href="#psychology"><span>04</span> Psychology</a><a href="#review"><span>05</span> Review</a>
+      </nav>
 
       {saveError && <p role="alert" className="text-danger text-sm mb-4">{saveError}</p>}
       {accountError && <p role="alert" className="text-danger text-sm mb-4">Accounts could not be loaded: {accountError} Reload this page before choosing an account.</p>}
@@ -262,6 +277,9 @@ function TradeEditorForm() {
           <option value="LOSS">Loss</option>
           <option value="BREAKEVEN">Breakeven</option>
         </select>
+        <select value={form.session} onChange={(e) => setForm((f) => ({ ...f, session: e.target.value }))} className="chip bg-app-panel2 outline-none">
+          <option value="">Session</option><option value="ASIA">Asia</option><option value="LONDON">London</option><option value="NEW_YORK">New York</option><option value="OVERLAP">London / New York overlap</option><option value="OTHER">Other</option>
+        </select>
       </div>
 
       <input
@@ -271,7 +289,8 @@ function TradeEditorForm() {
         onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
       />
 
-      <div className="rounded-2xl border border-app-border p-5 mb-6 bg-gradient-to-br from-app-panel to-accent-trade-soft">
+      <section id="overview" className="trade-overview-panel rounded-2xl border border-app-border p-5 mb-6 bg-gradient-to-br from-app-panel to-accent-trade-soft">
+        <div className="trade-section-heading"><div><span className="eyebrow">01 · TRADE OVERVIEW & EXECUTION</span><h2>Plan the trade</h2></div><span className="type-pill">{form.result === "OPEN" ? "Planning / live" : "Closed"}</span></div>
         <div className="flex justify-between items-start mb-4 flex-wrap gap-3">
           <div className="flex gap-2 items-center flex-wrap">
             <input
@@ -309,7 +328,7 @@ function TradeEditorForm() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 border-t border-b border-app-border">
+        <div className="trade-execution-grid">
           <TradeField label="ENTRY">
             <input className="bg-transparent outline-none w-full text-[13px] font-bold" value={form.entryPrice} onChange={(e) => setForm((f) => ({ ...f, entryPrice: e.target.value }))} placeholder="0.00" />
           </TradeField>
@@ -322,6 +341,8 @@ function TradeEditorForm() {
           <TradeField label="RISK / REWARD" accent>
             <span className="text-[13px] font-bold text-[#9ecbff]">{rr ? `${rr}R` : "—"}</span>
           </TradeField>
+          <TradeField label="POSITION SIZE"><input className="bg-transparent outline-none w-full text-[13px] font-bold" inputMode="decimal" value={form.positionSize} onChange={(e) => setForm((f) => ({ ...f, positionSize: e.target.value }))} placeholder="0.00" /></TradeField>
+          <TradeField label="RISK AMOUNT"><input className="bg-transparent outline-none w-full text-[13px] font-bold" inputMode="decimal" value={form.riskAmount} onChange={(e) => setForm((f) => ({ ...f, riskAmount: e.target.value }))} placeholder="0.00" /></TradeField>
         </div>
 
         <p className="text-[10.5px] text-ink-muted mt-3.5 mb-1.5">SETUP TYPE</p>
@@ -375,10 +396,13 @@ function TradeEditorForm() {
           <div className="mt-3.5">
             <p className="text-[10.5px] text-ink-muted mb-1.5">ACHIEVED R</p>
             <input className="input w-32" placeholder="e.g. 3.2" value={form.achievedR} onChange={(e) => setForm((f) => ({ ...f, achievedR: e.target.value }))} />
+            <input className="input w-40 ml-2" placeholder="Realized P&L" value={form.profitLoss} onChange={(e) => setForm((f) => ({ ...f, profitLoss: e.target.value }))} />
           </div>
         )}
-      </div>
+      </section>
 
+      <section id="thesis" className="trade-editor-section">
+      <div className="trade-section-heading"><div><span className="eyebrow">02 · TRADE THESIS</span><h2>State the market story</h2><p>Explain the setup, invalidation and the evidence that justified execution.</p></div></div>
       <div className="flex gap-0.5 border border-app-border border-b-0 rounded-t-xl px-2.5 py-2 bg-app-panel">
         <button onClick={() => exec("bold")} className="w-7 h-7 max-sm:w-11 max-sm:h-11 rounded-md text-ink-muted hover:bg-app-panel2 hover:text-ink font-bold text-[12px] max-sm:text-[15px]">B</button>
         <button onClick={() => exec("italic")} className="w-7 h-7 max-sm:w-11 max-sm:h-11 rounded-md text-ink-muted hover:bg-app-panel2 hover:text-ink italic text-[12px] max-sm:text-[15px]">I</button>
@@ -393,26 +417,30 @@ function TradeEditorForm() {
         onPaste={handleLinkPaste}
         className="border border-app-border rounded-b-xl p-6 bg-app-panel min-h-[140px] text-[14px] leading-[1.8] text-ink-soft outline-none focus:border-accent-trade mb-6 trade-body"
       />
+      </section>
 
-      <h2 className="text-[15.5px] mb-3">Trading psychology</h2>
+      <section id="psychology" className="trade-editor-section"><div className="trade-section-heading"><div><span className="eyebrow">04 · PSYCHOLOGY</span><h2>Track the decision state</h2><p>Record emotion, discipline and impulse without turning reflection into a questionnaire.</p></div></div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 mb-8">
         <PsychBox label="Before trade" value={form.psychologyBefore} onChange={(v) => setForm((f) => ({ ...f, psychologyBefore: v }))} />
         <PsychBox label="During trade" value={form.psychologyDuring} onChange={(v) => setForm((f) => ({ ...f, psychologyDuring: v }))} />
         <PsychBox label="After trade" value={form.psychologyAfter} onChange={(v) => setForm((f) => ({ ...f, psychologyAfter: v }))} />
       </div>
+      </section>
 
-      <h2 className="text-[15.5px] mb-3">Trade documentation</h2>
+      <section id="analysis" className="trade-editor-section"><div className="trade-section-heading"><div><span className="eyebrow">03 · TOP-DOWN ANALYSIS</span><h2>Build the evidence board</h2><p>Choose only the timeframes that belong to this trade, then document the progression to execution.</p></div></div>
       <div className="mb-8">
         <TradeDocumentation entryId={entryId} ensureEntryId={ensureEntryId} />
       </div>
+      </section>
 
-      <h2 className="text-[15.5px] mb-3">Post-trade review</h2>
+      <section id="review" className="trade-editor-section"><div className="trade-section-heading"><div><span className="eyebrow">05 · POST-TRADE REVIEW</span><h2>Turn the outcome into a lesson</h2><p>Separate what happened from what should change next time.</p></div></div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
         <PsychBox label="What happened" value={form.postTradeWhatHappened} onChange={(v) => setForm((f) => ({ ...f, postTradeWhatHappened: v }))} />
         <PsychBox label="What went right" value={form.postTradeWentRight} onChange={(v) => setForm((f) => ({ ...f, postTradeWentRight: v }))} />
         <PsychBox label="What went wrong" value={form.postTradeWentWrong} onChange={(v) => setForm((f) => ({ ...f, postTradeWentWrong: v }))} />
         <PsychBox label="Lesson learned" value={form.postTradeLesson} onChange={(v) => setForm((f) => ({ ...f, postTradeLesson: v }))} />
       </div>
+      </section>
     </div>
   );
 }

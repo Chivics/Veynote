@@ -20,8 +20,14 @@ function createMediaRoutes({ db, root = path.join(__dirname, "..", "..", "upload
       if (attachment.noteId && (!attachment.note || attachment.note.userId !== userId)) return null;
       return attachment;
     }
-    return await db.tradeImage.findFirst({ where: { storedName, userId } })
+    const regularFile = await db.tradeImage.findFirst({ where: { storedName, userId } })
       || await db.fileNode.findFirst({ where: { storedName, userId, isDirectory: false } });
+    if (regularFile || !db.libraryItem) return regularFile;
+    const item = await db.libraryItem.findFirst({ where: { coverStoredName: storedName, userId } });
+    return item && {
+      id: item.id, userId: item.userId, storedName: item.coverStoredName,
+      originalName: item.coverOriginalName, mimeType: item.coverMimeType, sizeBytes: item.coverSizeBytes,
+    };
   }
 
   access.post("/access", requireAuth, asyncHandler(async (req, res) => {

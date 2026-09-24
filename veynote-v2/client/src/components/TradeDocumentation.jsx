@@ -5,7 +5,16 @@ import TradeImageUploader from "./TradeImageUploader";
 import ImageLightbox from "./ImageLightbox";
 import AttachmentList from "./AttachmentList";
 
-const DEFAULT_TIMEFRAMES = ["Monthly", "Weekly", "Daily", "4H", "1H", "30M", "15M", "5M", "1M"];
+const DEFAULT_TIMEFRAMES = ["Monthly", "Weekly", "Daily", "12H", "8H", "6H", "4H", "2H", "1H", "30M", "15M", "5M", "1M"];
+const ANALYSIS_FIELDS = [
+  ["marketStructure", "Market structure", "Trend, range, break of structure…"],
+  ["keyLevels", "Key levels", "Support, resistance, supply, demand…"],
+  ["liquidity", "Liquidity", "Pools, sweeps, resting liquidity…"],
+  ["bias", "Bias", "Bullish, bearish, neutral — and why"],
+  ["setupReasoning", "Setup reasoning", "What makes this timeframe relevant?"],
+  ["confirmation", "Confirmation", "What confirms progression to the next timeframe?"],
+  ["notes", "Notes", "Additional context or invalidation"],
+];
 
 export default function TradeDocumentation({ entryId, ensureEntryId }) {
   const [images, setImages] = useState([]);
@@ -15,6 +24,9 @@ export default function TradeDocumentation({ entryId, ensureEntryId }) {
   const [loaded, setLoaded] = useState(false);
   const [timeframe, setTimeframe] = useState("");
   const [selectedTimeframes, setSelectedTimeframes] = useState([]);
+  const [analysisBlocks, setAnalysisBlocks] = useState([]);
+  const [collapsed, setCollapsed] = useState({});
+  const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const inputRef = useRef(null);
@@ -33,11 +45,13 @@ export default function TradeDocumentation({ entryId, ensureEntryId }) {
     Promise.allSettled([
       api.get(`/trading/entries/${entryId}/images`),
       api.get(`/trading/entries/${entryId}/attachments`),
+      api.get(`/trading/entries/${entryId}/analysis`),
     ])
-      .then(([imgRes, fileRes]) => {
+      .then(([imgRes, fileRes, analysisRes]) => {
         if (cancelled) return;
         if (imgRes.status === "fulfilled") setImages(imgRes.value?.images || []);
         if (fileRes.status === "fulfilled") setAttachments(fileRes.value?.attachments || []);
+        if (analysisRes.status === "fulfilled") setAnalysisBlocks(analysisRes.value?.blocks || []);
       })
       .finally(() => {
         if (!cancelled) setLoaded(true);
@@ -58,7 +72,7 @@ export default function TradeDocumentation({ entryId, ensureEntryId }) {
         );
         setAttachments((prev) => [...prev, attachment]);
       } catch (err) {
-        alert(err.message);
+        setError(err.message || "The file could not be uploaded.");
       } finally {
         setFileUploading((u) => u.filter((x) => x.tempId !== tempId));
       }
@@ -73,12 +87,13 @@ export default function TradeDocumentation({ entryId, ensureEntryId }) {
   const setupImages = images.filter((i) => i.stage === "SETUP");
   const usedTimeframes = useMemo(() => {
     const fromImages = setupImages.map((i) => i.timeframe).filter(Boolean);
-    return [...new Set([...DEFAULT_TIMEFRAMES, ...fromImages])];
-  }, [images]);
+    return [...new Set([...DEFAULT_TIMEFRAMES, ...analysisBlocks.map((block) => block.timeframe), ...fromImages])];
+  }, [analysisBlocks, setupImages]);
   const activeTimeframes = useMemo(() => {
     const fromImages = setupImages.map((i) => i.timeframe).filter(Boolean);
-    return [...new Set([...selectedTimeframes, ...fromImages])];
-  }, [images, selectedTimeframes]);
+    const orderedBlocks = [...analysisBlocks].sort((a, b) => a.position - b.position).map((block) => block.timeframe);
+    return [...new Set([...orderedBlocks, ...selectedTimeframes, ...fromImages])];
+  }, [analysisBlocks, selectedTimeframes, setupImages]);
 
   async function handleUpload(stage, tf, files) {
     const id = entryId || (await ensureEntryId());
@@ -99,7 +114,7 @@ export default function TradeDocumentation({ entryId, ensureEntryId }) {
         );
         setImages((prev) => [...prev, image]);
       } catch (err) {
-        alert(err.message);
+        setError(err.message || "The screenshot could not be uploaded.");
       } finally {
         setUploading((u) => ({ ...u, [key]: (u[key] || []).filter((x) => x.tempId !== tempId) }));
       }
@@ -126,18 +141,63 @@ export default function TradeDocumentation({ entryId, ensureEntryId }) {
       const { image } = await api.upload(`/trading/images/${id}/file`, file, null, undefined, "PATCH");
       setImages((prev) => prev.map((i) => (i.id === id ? image : i)));
     } catch (err) {
-      alert(err.message);
+      setError(err.message || "The screenshot could not be replaced.");
     }
   }
 
-  function addTimeframe(value) {
+  async function addTimeframe(value) {
     const clean = value.trim();
     if (!clean) return;
-    setSelectedTimeframes((prev) =>
-      prev.some((x) => x.toLowerCase() === clean.toLowerCase()) ? prev : [...prev, clean]
-    );
-    setTimeframe("");
-    setOpen(false);
+    if (activeTimeframes.some((item) => item.toLowerCase() === clean.toLowerCase())) { setTimeframe(""); setOpen(false); return; }
+    setError("");
+    try {
+      const id = entryId || (await ensureEntryId());
+      const { block } = await api.post(`/trading/entries/${id}/analysis`, { timeframe: clean });
+      setAnalysisBlocks((current) => [...current.filter((item) => item.id !== block.id), block].sort((a, b) => a.position - b.position));
+      setSelectedTimeframes((prev) => prev.some((item) => item.toLowerCase() === clean.toLowerCase()) ? prev : [...prev, clean]);
+      setTimeframe(""); setOpen(false);
+    } catch (requestError) { setError(requestError.message || "This timeframe could not be added."); }
+  }
+
+  async function updateAnalysis(block, fields) {
+    if (!block?.id) return;
+    setError("");
+    try {
+      const { block: updated } = await api.patch(`/trading/analysis/${block.id}`, fields);
+      setAnalysisBlocks((current) => current.map((item) => item.id === updated.id ? updated : item));
+    } catch (requestError) { setError(requestError.message || "The analysis could not be saved."); }
+  }
+
+  async function ensureAnalysisBlock(tf) {
+    const existing = analysisBlocks.find((item) => item.timeframe === tf);
+    if (existing) return existing;
+    try {
+      const id = entryId || (await ensureEntryId());
+      const { block } = await api.post(`/trading/entries/${id}/analysis`, { timeframe: tf });
+      setAnalysisBlocks((current) => current.some((item) => item.id === block.id) ? current : [...current, block]);
+      return block;
+    } catch (requestError) { setError(requestError.message || "The analysis block could not be created."); return null; }
+  }
+
+  async function removeTimeframe(block, tf, imageCount) {
+    if (imageCount) { setError("Remove this timeframe's screenshots before deleting its analysis."); return; }
+    try {
+      if (block?.id) await api.delete(`/trading/analysis/${block.id}`);
+      setAnalysisBlocks((current) => current.filter((item) => item.id !== block?.id));
+      setSelectedTimeframes((current) => current.filter((item) => item !== tf));
+    } catch (requestError) { setError(requestError.message || "This timeframe could not be removed."); }
+  }
+
+  async function moveTimeframe(index, direction) {
+    const target = index + direction;
+    if (target < 0 || target >= activeTimeframes.length) return;
+    const order = [...activeTimeframes];
+    [order[index], order[target]] = [order[target], order[index]];
+    const reordered = order.map((tf, position) => ({ ...(analysisBlocks.find((block) => block.timeframe === tf) || { timeframe: tf }), position }));
+    setSelectedTimeframes(order);
+    setAnalysisBlocks(reordered.filter((block) => block.id));
+    try { await Promise.all(reordered.filter((block) => block.id).map((block) => api.patch(`/trading/analysis/${block.id}`, { position: block.position }))); }
+    catch (requestError) { setError(requestError.message || "The timeframe order could not be saved."); }
   }
 
   if (!loaded) return <PageSkeleton compact />;
@@ -182,6 +242,7 @@ export default function TradeDocumentation({ entryId, ensureEntryId }) {
             {setupImages.length} setup {setupImages.length === 1 ? "image" : "images"}
           </span>
         </div>
+        {error && <div className="analysis-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError("")}>Dismiss</button></div>}
 
         <div className="timeframe-picker" ref={inputRef}>
           <div className="timeframe-input-wrap">
@@ -225,39 +286,39 @@ export default function TradeDocumentation({ entryId, ensureEntryId }) {
 
         {activeTimeframes.length > 0 && (
           <div className="timeframe-cards">
-            {activeTimeframes.map((tf) => {
+            {activeTimeframes.map((tf, index) => {
               const tfImages = setupImages.filter((i) => i.timeframe === tf);
               const key = `SETUP:${tf}`;
+              const block = analysisBlocks.find((item) => item.timeframe === tf);
+              const isCollapsed = collapsed[tf];
               return (
                 <div className="timeframe-card" key={tf}>
                   <div className="timeframe-card-head">
                     <div>
+                      <span className="analysis-sequence">{String(index + 1).padStart(2, "0")}</span>
                       <span className="timeframe-badge">{tf}</span>
                       <span className="timeframe-meta">
                         {tfImages.length} {tfImages.length === 1 ? "chart" : "charts"}
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      className="text-action"
-                      onClick={() => {
-                        setTimeframe(tf);
-                        setOpen(true);
-                      }}
-                    >
-                      Add / change
-                    </button>
+                    <div className="analysis-card-actions">
+                      <button type="button" aria-label={`Move ${tf} up`} disabled={index === 0} onClick={() => moveTimeframe(index, -1)}>↑</button>
+                      <button type="button" aria-label={`Move ${tf} down`} disabled={index === activeTimeframes.length - 1} onClick={() => moveTimeframe(index, 1)}>↓</button>
+                      <button type="button" onClick={() => setCollapsed((current) => ({ ...current, [tf]: !current[tf] }))}>{isCollapsed ? "Expand" : "Collapse"}</button>
+                      <button type="button" className="danger" onClick={() => removeTimeframe(block, tf, tfImages.length)}>Remove</button>
+                    </div>
                   </div>
-                  <TradeImageUploader
-                    images={tfImages}
-                    uploading={uploading[key] || []}
-                    onUpload={(files) => handleUpload("SETUP", tf, files)}
-                    onRemove={remove}
-                    onCaptionChange={caption}
-                    onReplace={replaceImage}
-                    onOpenLightbox={openLightbox}
-                    compact
-                  />
+                  {!isCollapsed && <>
+                    <div className="analysis-workspace-grid">
+                      <div className="analysis-chart-board">
+                        <div className="analysis-subhead"><div><strong>Chart evidence</strong><span>Upload, annotate externally, replace and caption each view.</span></div><span>{tf}</span></div>
+                        <TradeImageUploader images={tfImages} uploading={uploading[key] || []} onUpload={(files) => handleUpload("SETUP", tf, files)} onRemove={remove} onCaptionChange={caption} onReplace={replaceImage} onOpenLightbox={openLightbox} compact />
+                      </div>
+                      <div className="analysis-observation-board">
+                        {ANALYSIS_FIELDS.map(([field, label, placeholder]) => <label key={field} className={field === "setupReasoning" || field === "notes" ? "wide" : ""}><span>{label}</span><textarea value={block?.[field] || ""} placeholder={placeholder} onFocus={() => ensureAnalysisBlock(tf)} onChange={(event) => setAnalysisBlocks((current) => current.map((item) => item.id === block?.id ? { ...item, [field]: event.target.value } : item))} onBlur={(event) => updateAnalysis(analysisBlocks.find((item) => item.timeframe === tf), { [field]: event.target.value })} /></label>)}
+                      </div>
+                    </div>
+                  </>}
                 </div>
               );
             })}

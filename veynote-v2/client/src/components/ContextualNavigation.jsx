@@ -29,7 +29,7 @@ export default function ContextualNavigation() {
   if (!navigation.destination) return null;
   return <nav aria-label="Page context" className="flex items-center justify-between gap-3 mb-5 md:mb-7">
     <div className="flex items-center gap-4 min-w-0">
-      <button className="context-back" disabled={navigation.busy} onClick={navigation.back} aria-label={`Back to ${navigation.destination.label}`}><Arrow /><span className="hidden sm:inline">Back to </span><span className="truncate">{navigation.destination.label}</span></button>
+      <button className="context-back" disabled={navigation.busy} onClick={navigation.back} aria-label={`Back to ${navigation.destination.label}`}><Arrow /><span className="context-back-prefix">Back to</span><strong className="truncate">{navigation.destination.label}</strong></button>
       <span className="hidden md:block border-l border-app-border pl-4 text-xs text-ink-muted">{navigation.route.label}</span>
     </div>
     <button aria-label="Page navigation options" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)} className="w-11 h-11 rounded-full border border-app-border bg-app-panel text-ink-muted hover:text-ink shrink-0">•••</button>

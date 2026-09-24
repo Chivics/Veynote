@@ -1,27 +1,51 @@
 import { useEffect, useState } from "react";
 
+const DISMISS_KEY = "veynote_install_dismissed_at";
+const DISMISS_FOR = 1000 * 60 * 60 * 24 * 30;
+
+function isInstalled() {
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
 export default function InstallApp() {
-  const [prompt, setPrompt] = useState(null);
-  const [installed, setInstalled] = useState(() => window.matchMedia("(display-mode: standalone)").matches || navigator.standalone);
+  const [prompt, setPrompt] = useState(() => window.__veynoteInstallPrompt || null);
+  const [installed, setInstalled] = useState(isInstalled);
+  const [dismissed, setDismissed] = useState(() => Date.now() - Number(localStorage.getItem(DISMISS_KEY) || 0) < DISMISS_FOR);
   const [error, setError] = useState("");
+
   useEffect(() => {
-    const ready = event => { event.preventDefault(); setPrompt(event); };
+    const ready = () => setPrompt(window.__veynoteInstallPrompt || null);
     const done = () => { setInstalled(true); setPrompt(null); };
-    window.addEventListener("beforeinstallprompt", ready);
-    window.addEventListener("appinstalled", done);
-    return () => { window.removeEventListener("beforeinstallprompt", ready); window.removeEventListener("appinstalled", done); };
+    window.addEventListener("veynote:install-available", ready);
+    window.addEventListener("veynote:installed", done);
+    return () => { window.removeEventListener("veynote:install-available", ready); window.removeEventListener("veynote:installed", done); };
   }, []);
-  if (installed) return null;
+
+  if (installed || dismissed || !prompt) return null;
+
   async function install() {
     try {
       setError("");
       await prompt.prompt();
-      await prompt.userChoice;
+      const choice = await prompt.userChoice;
+      if (choice.outcome !== "accepted") dismiss();
       setPrompt(null);
-    } catch { setError("Installation could not start. Try your browser’s install menu."); }
+    } catch { setError("Veynote could not open the browser install prompt. You can try again when it becomes available."); }
   }
-  return <div className="text-sm text-ink-muted mt-4">
-    {prompt ? <button className="btn-outline" onClick={install}>Install Veynote</button> : <details><summary className="cursor-pointer font-semibold">Install Veynote on your device</summary><p className="mt-2">On iPhone or iPad, open Veynote in Safari, tap Share, then Add to Home Screen. In other supported browsers, use the browser menu’s Install app option when available.</p></details>}
-    {error && <p role="alert" className="text-danger mt-2">{error}</p>}
-  </div>;
+
+  function dismiss() {
+    localStorage.setItem(DISMISS_KEY, String(Date.now()));
+    setDismissed(true);
+  }
+
+  return <section className="install-app-card" aria-labelledby="install-veynote-title">
+    <div className="install-app-mark"><img src="/logo.png" alt="" /></div>
+    <div className="install-app-copy">
+      <span className="eyebrow">Installable workspace</span>
+      <h2 id="install-veynote-title">Install Veynote</h2>
+      <p>Open your workspace faster and use Veynote in its own app window.</p>
+      {error && <p className="install-app-error" role="alert">{error}</p>}
+    </div>
+    <div className="install-app-actions"><button type="button" onClick={dismiss}>Not now</button><button type="button" onClick={install}>Install</button></div>
+  </section>;
 }

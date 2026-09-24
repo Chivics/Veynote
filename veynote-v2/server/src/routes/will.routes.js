@@ -7,6 +7,7 @@ const prisma = require("../lib/prisma");
 const { requireAuth } = require("../middleware/auth");
 const { hasValidVaultAccess } = require("../utils/vaultAccess");
 const { isAllowedMime } = require("../utils/fileTypes");
+const { normalizeAssetAllocations } = require("../utils/willAssetAllocations");
 
 const router = express.Router();
 router.use(requireAuth);
@@ -103,10 +104,17 @@ async function ensureCoreDetails(will) {
     where: { id: will.id },
     include: {
       details: { orderBy: { updatedAt: "desc" }, include: { documents: true } },
-      assets: { orderBy: { updatedAt: "desc" }, include: { documents: true } },
+      assets: { orderBy: { updatedAt: "desc" }, include: {
+        documents: true,
+        responsibleExecutor: { select: { id: true, name: true, relationship: true } },
+        allocations: { include: { beneficiary: { select: { id: true, name: true, relationship: true, beneficiaryType: true } } }, orderBy: { createdAt: "asc" } },
+      } },
       beneficiaries: {
         orderBy: { updatedAt: "desc" },
-        include: { documents: true, specificAsset: { select: { id: true, name: true, type: true } } },
+        include: {
+          documents: true, specificAsset: { select: { id: true, name: true, type: true } },
+          allocations: { include: { asset: { select: { id: true, name: true, type: true, estimatedValue: true, currency: true } } } },
+        },
       },
       contacts: { orderBy: { updatedAt: "desc" } },
       executors: { orderBy: { updatedAt: "desc" } },
@@ -254,7 +262,7 @@ router.delete("/details/:id", async (req, res) => {
 });
 
 // -------------------- Assets --------------------
-const ASSET_FIELDS = ["name", "type", "description", "estimatedValue", "location", "accountReference", "ownership", "instructions"];
+const ASSET_FIELDS = ["name", "type", "description", "estimatedValue", "currency", "location", "institution", "accountReference", "ownership", "instructionType", "instructions", "responsibleExecutorId"];
 function assetData(body, partial = true) {
   const data = {};
   for (const key of ASSET_FIELDS) {
@@ -263,13 +271,34 @@ function assetData(body, partial = true) {
   return data;
 }
 
+const ASSET_INCLUDE = {
+  documents: true,
+  responsibleExecutor: { select: { id: true, name: true, relationship: true } },
+  allocations: { include: { beneficiary: { select: { id: true, name: true, relationship: true, beneficiaryType: true } } }, orderBy: { createdAt: "asc" } },
+};
+
+async function prepareAssetRelationships(userId, willId, body) {
+  const executorId = clean(body?.responsibleExecutorId);
+  if (executorId) {
+    const executor = await prisma.willExecutor.findFirst({ where: { id: executorId, userId, willId }, select: { id: true } });
+    if (!executor) return { error: "The selected responsible person is not part of this estate." };
+  }
+  if (body?.allocations === undefined) return { executorId };
+  const normalized = normalizeAssetAllocations(body.allocations, { userId, willId });
+  if (normalized.error) return normalized;
+  if (normalized.beneficiaryIds.length) {
+    const owned = await prisma.willBeneficiary.count({ where: { id: { in: normalized.beneficiaryIds }, userId, willId } });
+    if (owned !== normalized.beneficiaryIds.length) return { error: "One or more selected beneficiaries are not part of this estate." };
+  }
+  return { executorId, allocations: normalized.allocations, percentageTotal: normalized.percentageTotal };
+}
+
 router.get("/assets/:id", async (req, res) => {
   if (!requireWillAccess(req, res)) return;
   const asset = await prisma.willAsset.findFirst({
     where: { id: req.params.id, userId: req.userId },
     include: {
-      documents: true,
-      beneficiaries: { select: { id: true, name: true, allocation: true, beneficiaryType: true } },
+      ...ASSET_INCLUDE,
     },
   });
   if (!asset) return res.status(404).json({ error: "Asset not found." });
@@ -282,7 +311,14 @@ router.post("/assets", async (req, res) => {
   if (!validateRequiredName(req.body?.name, "Asset name", res)) return;
   const data = assetData(req.body, false);
   if (!data.type) data.type = "Other";
-  const asset = await prisma.willAsset.create({ data: { ...data, userId: req.userId, willId: will.id } });
+  const relationships = await prepareAssetRelationships(req.userId, will.id, req.body);
+  if (relationships.error) return res.status(400).json({ error: relationships.error });
+  data.responsibleExecutorId = relationships.executorId || null;
+  const asset = await prisma.$transaction(async tx => {
+    const created = await tx.willAsset.create({ data: { ...data, userId: req.userId, willId: will.id } });
+    if (relationships.allocations?.length) await tx.willAssetAllocation.createMany({ data: relationships.allocations.map(item => ({ ...item, assetId: created.id })) });
+    return tx.willAsset.findUnique({ where: { id: created.id }, include: ASSET_INCLUDE });
+  });
   await logActivity(will.id, req.userId, "created", "asset", asset.id, `Asset added: ${asset.name}`);
   res.status(201).json({ asset });
 });
@@ -292,7 +328,18 @@ router.patch("/assets/:id", async (req, res) => {
   const asset = await prisma.willAsset.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!asset) return res.status(404).json({ error: "Asset not found." });
   if (req.body?.name !== undefined && !validateRequiredName(req.body.name, "Asset name", res)) return;
-  const updated = await prisma.willAsset.update({ where: { id: asset.id }, data: assetData(req.body, true) });
+  const relationships = await prepareAssetRelationships(req.userId, asset.willId, req.body);
+  if (relationships.error) return res.status(400).json({ error: relationships.error });
+  const updateData = assetData(req.body, true);
+  if (req.body?.responsibleExecutorId !== undefined) updateData.responsibleExecutorId = relationships.executorId || null;
+  const updated = await prisma.$transaction(async tx => {
+    await tx.willAsset.update({ where: { id: asset.id }, data: updateData });
+    if (relationships.allocations) {
+      await tx.willAssetAllocation.deleteMany({ where: { assetId: asset.id } });
+      if (relationships.allocations.length) await tx.willAssetAllocation.createMany({ data: relationships.allocations.map(item => ({ ...item, assetId: asset.id })) });
+    }
+    return tx.willAsset.findUnique({ where: { id: asset.id }, include: ASSET_INCLUDE });
+  });
   await logActivity(updated.willId, req.userId, "updated", "asset", updated.id, `Asset updated: ${updated.name}`);
   res.json({ asset: updated });
 });
@@ -330,7 +377,10 @@ router.get("/beneficiaries/:id", async (req, res) => {
   if (!requireWillAccess(req, res)) return;
   const beneficiary = await prisma.willBeneficiary.findFirst({
     where: { id: req.params.id, userId: req.userId },
-    include: { documents: true, specificAsset: { select: { id: true, name: true, type: true } } },
+    include: {
+      documents: true, specificAsset: { select: { id: true, name: true, type: true } },
+      allocations: { include: { asset: { select: { id: true, name: true, type: true, estimatedValue: true, currency: true } } } },
+    },
   });
   if (!beneficiary) return res.status(404).json({ error: "Beneficiary not found." });
   res.json({ beneficiary: { ...beneficiary, documents: beneficiary.documents.map(documentView) } });

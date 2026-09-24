@@ -6,6 +6,9 @@ import { LIBRARY_CONFIG } from "../../data/libraryConfig";
 import SaveStatus from "../../components/SaveStatus";
 import LinkPreviewCard from "../../components/LinkPreviewCard";
 import { useContextualNavigation } from "../../context/NavigationContext";
+import ConfirmDialog from "../../components/ConfirmDialog.jsx";
+import LibraryCover from "../../components/library/LibraryCover.jsx";
+import NavigationIcon from "../../components/layout/NavigationIcon.jsx";
 
 export default function ItemDetail({ configKey }) {
   const config = LIBRARY_CONFIG[configKey];
@@ -23,6 +26,10 @@ export default function ItemDetail({ configKey }) {
   const draftFields = useRef({});
   const resourceSequence = useRef(0);
   const [loadError, setLoadError] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [coverError, setCoverError] = useState("");
+  const coverInput = useRef(null);
 
   useEffect(() => registerGuard(async () => {
     await pending.current;
@@ -90,7 +97,6 @@ export default function ItemDetail({ configKey }) {
   }
 
   async function remove() {
-    if (!confirm("Delete this item?")) return;
     try {
       await pending.current;
       await api.delete(`/library/${apiSlug}/${id}`);
@@ -101,17 +107,48 @@ export default function ItemDetail({ configKey }) {
     } catch (error) { setSaveError(error.message); setSaveStatus("error"); }
   }
 
+  async function uploadCover(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setCoverUploading(true); setCoverError("");
+    try {
+      const { item: updated } = await api.upload(`/library/${apiSlug}/${id}/cover`, file);
+      setItem(updated);
+    } catch (error) { setCoverError(error.message); }
+    finally { setCoverUploading(false); }
+  }
+
+  async function removeCover() {
+    setCoverUploading(true); setCoverError("");
+    try { const { item: updated } = await api.delete(`/library/${apiSlug}/${id}/cover`); setItem(updated); }
+    catch (error) { setCoverError(error.message); }
+    finally { setCoverUploading(false); }
+  }
+
   if (!item) return loadError ? <section><h1 className="page-title">Library record unavailable</h1><p role="alert" className="text-danger my-4">{loadError}</p><button className="btn-primary" onClick={load}>Retry</button></section> : <PageSkeleton title="Library record" />;
 
   return (
-    <div className="max-w-[640px]">
-      <div className="flex justify-between items-center mb-3">
-        <span className="eyebrow">{config.eyebrow}</span>
+    <div className="library-detail">
+      <div className="flex justify-between items-center mb-5">
+        <div><span className="eyebrow">{config.eyebrow}</span><p className="library-detail-kicker">A private record in your {config.label.toLowerCase()} collection</p></div>
         <div className="flex items-center gap-3">
           <SaveStatus status={saveStatus} error={saveError} />
-          <button onClick={remove} className="text-danger text-[11px] font-semibold">Delete</button>
+          <button onClick={() => setDeleteOpen(true)} className="text-danger text-[11px] font-semibold">Delete</button>
         </div>
       </div>
+
+      <div className="library-detail-layout">
+        <aside className="library-detail-cover-card">
+          <LibraryCover item={item} config={config} configKey={configKey} className="library-detail-cover" />
+          <input ref={coverInput} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={uploadCover} />
+          <button className="btn-outline" disabled={coverUploading} onClick={() => coverInput.current?.click()}><NavigationIcon name="files" size={15} /> {coverUploading ? "Uploading…" : item.coverUrl ? "Replace cover" : "Add cover"}</button>
+          {item.coverUrl && <button className="library-cover-remove" disabled={coverUploading} onClick={removeCover}>Remove cover</button>}
+          {coverError && <p role="alert" className="text-danger text-[11px]">{coverError}</p>}
+          <p>Use a book cover, poster, destination, or image that makes this record recognizable at a glance.</p>
+        </aside>
+
+        <main className="library-detail-main">
 
       <input
         aria-label="Record title" className="page-title w-full bg-transparent outline-none text-[26px] font-bold tracking-tight text-ink mb-4"
@@ -120,7 +157,9 @@ export default function ItemDetail({ configKey }) {
         onBlur={(e) => patch({ title: e.target.value })}
       />
 
-      <div className="flex flex-col mb-5">
+      <section className="library-detail-properties">
+        <header><span className="eyebrow">DETAILS</span><p>Keep the information you will want when you return to this record.</p></header>
+        <div className="flex flex-col">
         {config.categoryLabel && (
           <PropRow label={config.categoryLabel} icon="◈">
             {config.freeCategoryText ? (
@@ -178,14 +217,7 @@ export default function ItemDetail({ configKey }) {
 
         {config.propertyFields?.map((f) => (
           <PropRow key={f.key} label={f.label} icon="✎">
-            <input
-              type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
-              className="bg-transparent outline-none text-[12.5px] text-ink-soft w-full"
-              value={item.properties?.[f.key] || ""}
-              placeholder="—"
-              onChange={(e) => { markDirty(f.key, e.target.value); setItem({ ...item, properties: { ...item.properties, [f.key]: e.target.value } }); }}
-              onBlur={(e) => patch({ [f.key]: e.target.value })}
-            />
+            <PropertyControl field={f} item={item} setItem={setItem} markDirty={markDirty} patch={patch} />
           </PropRow>
         ))}
 
@@ -211,7 +243,8 @@ export default function ItemDetail({ configKey }) {
             )}
           </div>
         </PropRow>
-      </div>
+        </div>
+      </section>
 
       <LinkPreviewCard url={isLikelyUrl(item.link) ? normalizeUrl(item.link) : null} />
 
@@ -234,8 +267,23 @@ export default function ItemDetail({ configKey }) {
         <span className="eyebrow">RELATED ITEMS</span>
         <p className="text-[11.5px] text-ink-muted mt-2">Nothing linked yet.</p>
       </div>
+        </main>
+      </div>
+      <ConfirmDialog open={deleteOpen} title={`Delete ${item.title || "this item"}?`} description="This permanently removes the record and its cover image from your Library." confirmLabel="Delete item" tone="danger" onClose={() => setDeleteOpen(false)} onConfirm={remove} />
     </div>
   );
+}
+
+function PropertyControl({ field, item, setItem, markDirty, patch }) {
+  const value = item.properties?.[field.key] ?? (field.type === "checkbox" ? false : "");
+  if (field.type === "checkbox") return <label className="library-toggle"><input type="checkbox" checked={Boolean(value)} onChange={event => { const next = event.target.checked; setItem({ ...item, properties: { ...item.properties, [field.key]: next } }); patch({ [field.key]: next }); }} /><span />{value ? "Yes" : "No"}</label>;
+  const shared = {
+    value, placeholder: "—",
+    onChange: event => { markDirty(field.key, event.target.value); setItem({ ...item, properties: { ...item.properties, [field.key]: event.target.value } }); },
+    onBlur: event => patch({ [field.key]: event.target.value }),
+  };
+  if (field.type === "textarea") return <textarea {...shared} rows="3" className="library-property-textarea" />;
+  return <input {...shared} type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"} className="bg-transparent outline-none text-[12.5px] text-ink-soft w-full" />;
 }
 
 // Accepts "example.com" as well as "https://example.com" — most people

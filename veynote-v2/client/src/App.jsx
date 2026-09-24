@@ -16,6 +16,7 @@ import Today from "./pages/notes/Today";
 import NoteListPage from "./pages/notes/NoteListPage";
 import NoteEditor from "./pages/notes/NoteEditor";
 import Folders from "./pages/notes/Folders";
+import FolderWorkspace from "./pages/notes/FolderWorkspace";
 import Files from "./pages/notes/Files";
 import LockedNotes from "./pages/notes/LockedNotes";
 import WillInheritance from "./pages/notes/WillInheritance";
@@ -40,6 +41,7 @@ import EntryListPage from "./pages/trading/EntryListPage";
 import TradeEditor from "./pages/trading/TradeEditor";
 import TradeDetail from "./pages/trading/TradeDetail";
 import Accounts from "./pages/trading/Accounts";
+import AccountDetail from "./pages/trading/AccountDetail";
 import Analytics from "./pages/trading/Analytics";
 import TradingCalendar from "./pages/trading/Calendar";
 import TradingRules from "./pages/trading/TradingRules";
@@ -98,7 +100,7 @@ export default function App() {
           <Route path="notes/tags" element={<Tags />} />
           <Route path="notes/tags/:tag" element={<NoteListPage scope="tag" />} />
           <Route path="notes/folders" element={<Folders />} />
-          <Route path="notes/folders/:folderId" element={<NoteListPage scope="folder" />} />
+          <Route path="notes/folders/:folderId" element={<FolderWorkspace />} />
           <Route path="notes/files" element={<Files />} />
           <Route path="notes/files/:id" element={<Files />} />
           <Route path="notes/locked" element={<LockedNotes />} />
@@ -142,6 +144,8 @@ export default function App() {
           <Route path="notes/library" element={<LibraryDashboard />} />
           <Route path="notes/library/reading" element={<ReadingPage />} />
           <Route path="notes/library/reading/:id" element={<ItemDetail configKey="reading" />} />
+          <Route path="notes/library/films" element={<DatabasePage configKey="films" />} />
+          <Route path="notes/library/films/:id" element={<ItemDetail configKey="films" />} />
           <Route path="notes/library/goals" element={<DatabasePage configKey="goals" />} />
           <Route path="notes/library/goals/:id" element={<ItemDetail configKey="goals" />} />
           <Route path="notes/library/travel" element={<DatabasePage configKey="travel" />} />
@@ -168,6 +172,7 @@ export default function App() {
           <Route path="trading/entries/:id" element={<TradeDetail />} />
           <Route path="trading/entries/:id/edit" element={<TradeEditor />} />
           <Route path="trading/accounts" element={<Accounts />} />
+          <Route path="trading/accounts/:id" element={<AccountDetail />} />
           <Route path="trading/rules" element={<TradingRules />} />
           <Route path="trading/rules/:id" element={<TradingRuleDetail />} />
           <Route path="trading/calendar" element={<TradingCalendar />} />

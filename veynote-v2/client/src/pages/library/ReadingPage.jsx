@@ -1,11 +1,12 @@
 import PageSkeleton from "../../components/PageSkeleton.jsx";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { LIBRARY_CONFIG, statusColorClass } from "../../data/libraryConfig";
 import LibrarySidebar from "../../components/layout/LibrarySidebar";
 import EmptyState from "../../components/EmptyState";
+import LibraryCover from "../../components/library/LibraryCover.jsx";
 
 const config = LIBRARY_CONFIG.reading;
 
@@ -15,7 +16,10 @@ export default function ReadingPage() {
   const items = result.data?.items ?? null;
   const [searchParams, setSearchParams] = useSearchParams();
   const view = searchParams.get("view") || "All";
+  const query = searchParams.get("q") || "";
+  const sort = searchParams.get("sort") || "updated";
   const setView = value => setSearchParams(previous => { const next = new URLSearchParams(previous); next.set("view", value); return next; }, { replace: true });
+  const setParam = (key, value) => setSearchParams(previous => { const next = new URLSearchParams(previous); if (value) next.set(key, value); else next.delete(key); return next; }, { replace: true });
   const [templateOpen, setTemplateOpen] = useState(false);
 
 
@@ -30,27 +34,18 @@ export default function ReadingPage() {
 
   const filtered = (() => {
     if (!items) return null;
-    if (view === "Books") return items.filter((i) => i.category === "Book");
-    if (view === "Articles") return items.filter((i) => i.category === "Article");
-    if (view === "Film + TV") return items.filter((i) => i.category === "Film + TV");
-    if (view === "Finished") return items.filter((i) => i.status === "Done");
-    return items;
+    let next = items.filter(item => !query || `${item.title} ${item.properties?.author || ""}`.toLowerCase().includes(query.toLowerCase()));
+    if (view === "Books") next = next.filter((i) => i.category === "Book");
+    if (view === "Articles") next = next.filter((i) => i.category === "Article");
+    if (view === "Finished") next = next.filter((i) => i.status === "Done");
+    return [...next].sort((a, b) => sort === "title" ? a.title.localeCompare(b.title) : sort === "rating" ? (Number(b.properties?.score) || 0) - (Number(a.properties?.score) || 0) : new Date(b.updatedAt) - new Date(a.updatedAt));
   })();
 
   return (
     <div className="flex">
       <LibrarySidebar />
       <div className="flex-1 min-w-0">
-        <div
-          className="w-full h-[130px] rounded-2xl mb-9 flex items-center justify-center text-5xl opacity-40"
-          style={{ background: "linear-gradient(135deg,#14110c,#0a0b0d)" }}
-        >
-          📖
-        </div>
-
-        <span className="eyebrow">{config.eyebrow}</span>
-        <h1 className="page-title text-[26px] tracking-tight mt-1 mb-2.5">{config.title}</h1>
-        <p className="text-[12px] italic text-ink-soft border-l-2 border-accent-notes pl-3 max-w-[480px] mb-5">{config.quote}</p>
+        <header className="reading-hero"><div><span className="eyebrow">{config.eyebrow}</span><h1 className="page-title">{config.title}</h1><p>{config.quote}</p></div><div className="reading-hero-mark">📖</div></header>
 
         <div className="flex gap-1 border-b border-app-border mb-4 flex-wrap">
           {config.views.map((v) => (
@@ -66,9 +61,9 @@ export default function ReadingPage() {
           ))}
         </div>
 
-        <div className="flex items-center gap-2 mb-4 relative">
-          <button className="btn-outline">Filter</button>
-          <button className="btn-outline">Sort</button>
+        <div className="flex items-center gap-2 mb-4 relative library-collection-tools">
+          <input className="input" type="search" value={query} onChange={event => setParam("q", event.target.value)} placeholder="Search titles or authors…" aria-label="Search reading list" />
+          <select className="input library-filter-select" value={sort} onChange={event => setParam("sort", event.target.value)} aria-label="Sort reading list"><option value="updated">Recently updated</option><option value="title">Title</option><option value="rating">Highest rated</option></select>
           <button onClick={() => setTemplateOpen((o) => !o)} className="btn-primary ml-auto">+ New</button>
 
           {templateOpen && (
@@ -95,7 +90,7 @@ export default function ReadingPage() {
         {filtered === null ? (
           <PageSkeleton compact />
         ) : filtered.length === 0 ? (
-          <EmptyState icon="📖" title="No items yet" description="Add the first book, article, or film you want to track." />
+          <EmptyState icon="📖" title="No reading yet" description="Add the first book, article, essay, or research paper you want to track." />
         ) : view === "Grouped by Status" ? (
           <BoardView items={filtered} navigate={navigate} />
         ) : view === "All" || view === "Finished" ? (
@@ -122,7 +117,7 @@ function TableView({ items, navigate }) {
       <tbody>
         {items.map((i) => (
           <tr key={i.id} onClick={() => navigate(`/notes/library/reading/${i.id}`)} className="hover:bg-app-panel2/40 cursor-pointer">
-            <td className="py-3 px-3 border-b border-app-border text-ink font-medium">{i.title}</td>
+            <td className="py-3 px-3 border-b border-app-border text-ink font-medium"><span className="inline-flex items-center gap-2"><LibraryCover item={i} config={config} configKey="reading" compact className="library-cover-thumb" />{i.title}</span></td>
             <td className="py-3 px-3 border-b border-app-border text-ink-soft">{i.category || "—"}</td>
             <td className="py-3 px-3 border-b border-app-border">
               {i.status ? <span className={`text-[9.5px] font-bold px-2.5 py-0.5 rounded-full ${statusColorClass(i.status)}`}>{i.status}</span> : "—"}
@@ -193,13 +188,8 @@ function GalleryView({ items, navigate }) {
             onClick={() => navigate(`/notes/library/reading/${i.id}`)}
             className="card overflow-hidden cursor-pointer flex flex-col hover:border-ink-muted hover:-translate-y-0.5 transition"
           >
-            <div
-              className="relative w-full h-[128px] flex items-center justify-center"
-              style={{
-                backgroundImage: `${style.gradient}, repeating-linear-gradient(135deg, rgba(255,255,255,.035) 0px, rgba(255,255,255,.035) 2px, transparent 2px, transparent 10px)`,
-              }}
-            >
-              <span className="text-[38px] opacity-90 drop-shadow-lg">{style.icon}</span>
+            <div className="relative w-full h-[168px] flex items-center justify-center overflow-hidden" style={{ backgroundImage: style.gradient }}>
+              <LibraryCover item={i} config={config} configKey="reading" compact className="w-full h-full" />
               <span className="absolute top-2.5 left-2.5 text-[8.5px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-black/40 backdrop-blur-sm" style={{ color: style.accent }}>
                 {i.category || "Item"}
               </span>

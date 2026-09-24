@@ -14,6 +14,53 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const VALID_STAGES = ["SETUP", "ENTRY", "DURING_TRADE", "POST_TRADE", "OTHER"];
+const ANALYSIS_FIELDS = ["marketStructure", "keyLevels", "liquidity", "bias", "setupReasoning", "confirmation", "notes"];
+
+async function ownedEntry(entryId, userId) {
+  return prisma.tradingEntry.findFirst({ where: { id: entryId, userId }, select: { id: true } });
+}
+
+router.get("/entries/:entryId/analysis", async (req, res) => {
+  const entry = await ownedEntry(req.params.entryId, req.userId);
+  if (!entry) return res.status(404).json({ error: "Trade entry not found." });
+  const blocks = await prisma.tradeAnalysisBlock.findMany({ where: { tradingEntryId: entry.id }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] });
+  res.json({ blocks });
+});
+
+router.post("/entries/:entryId/analysis", async (req, res) => {
+  const entry = await ownedEntry(req.params.entryId, req.userId);
+  if (!entry) return res.status(404).json({ error: "Trade entry not found." });
+  const timeframe = String(req.body.timeframe || "").trim().slice(0, 40);
+  if (!timeframe) return res.status(400).json({ error: "Choose a timeframe." });
+  const existing = await prisma.tradeAnalysisBlock.findFirst({ where: { tradingEntryId: entry.id, timeframe } });
+  if (existing) return res.json({ block: existing });
+  const count = await prisma.tradeAnalysisBlock.count({ where: { tradingEntryId: entry.id } });
+  const block = await prisma.tradeAnalysisBlock.create({ data: { userId: req.userId, tradingEntryId: entry.id, timeframe, position: count } });
+  res.status(201).json({ block });
+});
+
+router.patch("/analysis/:blockId", async (req, res) => {
+  const existing = await prisma.tradeAnalysisBlock.findFirst({ where: { id: req.params.blockId, userId: req.userId } });
+  if (!existing) return res.status(404).json({ error: "Analysis block not found." });
+  const data = {};
+  for (const field of ANALYSIS_FIELDS) if (field in req.body) data[field] = req.body[field] ? String(req.body[field]).slice(0, 10000) : null;
+  if (req.body.position !== undefined) {
+    const position = Number(req.body.position);
+    if (!Number.isInteger(position) || position < 0) return res.status(400).json({ error: "Invalid analysis position." });
+    data.position = position;
+  }
+  const block = await prisma.tradeAnalysisBlock.update({ where: { id: existing.id }, data });
+  res.json({ block });
+});
+
+router.delete("/analysis/:blockId", async (req, res) => {
+  const existing = await prisma.tradeAnalysisBlock.findFirst({ where: { id: req.params.blockId, userId: req.userId } });
+  if (!existing) return res.status(404).json({ error: "Analysis block not found." });
+  const imageCount = await prisma.tradeImage.count({ where: { tradingEntryId: existing.tradingEntryId, timeframe: existing.timeframe, stage: "SETUP" } });
+  if (imageCount) return res.status(409).json({ error: "Remove this timeframe's screenshots before deleting its analysis." });
+  await prisma.tradeAnalysisBlock.delete({ where: { id: existing.id } });
+  res.json({ ok: true });
+});
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),

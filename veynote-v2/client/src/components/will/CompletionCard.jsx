@@ -1,5 +1,6 @@
 export default function CompletionCard({
   items = [],
+  attention = [],
 }) {
   const completed = items.filter(
     (item) => item.complete
@@ -12,16 +13,14 @@ export default function CompletionCard({
     : 0;
 
   return (
-    <div className="card">
+    <div className="estate-readiness">
       <div className="flex items-start justify-between gap-4">
         <div>
           <span className="eyebrow">
             Will readiness
           </span>
 
-          <h2 className="text-lg font-bold mt-1">
-            {percentage}% complete
-          </h2>
+          <h2>{percentage}% ready for review</h2>
 
           <p className="text-xs text-ink-muted mt-1">
             Complete the important sections before
@@ -29,14 +28,14 @@ export default function CompletionCard({
           </p>
         </div>
 
-        <span className="chip">
+        <span className="estate-readiness-score">
           {completed}/{total}
         </span>
       </div>
 
-      <div className="h-2 rounded-full bg-white/10 mt-5 overflow-hidden">
+      <div className="estate-readiness-progress">
         <div
-          className="h-full bg-current transition-all duration-500"
+          className="transition-all duration-500"
           style={{
             width: `${percentage}%`,
           }}
@@ -63,6 +62,7 @@ export default function CompletionCard({
           </div>
         ))}
       </div>
+      {attention.length > 0 && <div className="estate-attention"><span className="eyebrow">REQUIRES ATTENTION</span>{attention.map((item, index) => <p key={`${item}-${index}`}><i />{item}</p>)}</div>}
     </div>
   );
 }

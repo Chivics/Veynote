@@ -100,11 +100,24 @@ export default function WillInheritance() {
     if (!form.name.trim()) return setError("Asset name is required.");
     setBusy(true); setError("");
     try {
-      const response = modal.id ? await willApi.assets.update(modal.id, form) : await willApi.assets.create(form);
-      setWill((current) => ({ ...current, assets: modal.id ? current.assets.map((x) => x.id === response.asset.id ? response.asset : x) : [response.asset, ...(current.assets || [])] }));
+      const { supportingFiles = [], ...assetFields } = form;
+      const response = modal.id ? await willApi.assets.update(modal.id, assetFields) : await willApi.assets.create(assetFields);
+      let nextAsset = response.asset;
+      for (const file of supportingFiles) {
+        const body = new FormData(); body.append("file", file); body.append("scopeType", "asset"); body.append("scopeId", nextAsset.id);
+        const uploaded = await willApi.documents.upload(body);
+        nextAsset = { ...nextAsset, documents: [uploaded.document, ...(nextAsset.documents || [])] };
+      }
+      setWill((current) => ({ ...current, assets: modal.id ? current.assets.map((x) => x.id === nextAsset.id ? nextAsset : x) : [nextAsset, ...(current.assets || [])], documents: [...(supportingFiles.length ? nextAsset.documents.slice(0, supportingFiles.length) : []), ...(current.documents || [])] }));
       setModal(null); flash(modal.id ? "Asset updated." : "Asset added.");
     } catch (err) { console.error("[WillInheritance] asset save failed", err); setError(err.message || "We couldn't save this asset."); }
     finally { setBusy(false); }
+  }
+
+  async function createBeneficiaryFromAsset(form) {
+    const { beneficiary } = await willApi.beneficiaries.create({ ...EMPTY_BENEFICIARY, ...form });
+    setWill(current => ({ ...current, beneficiaries: [beneficiary, ...(current.beneficiaries || [])] }));
+    return beneficiary;
   }
 
   async function saveBeneficiary(form) {
@@ -178,6 +191,21 @@ export default function WillInheritance() {
     { key: "documents", label: "Supporting documents", complete: documents.length > 0, help: "Attach important supporting documents." },
   ], [will, assets.length, beneficiaries.length, contacts.length, executors.length, details, documents.length]);
 
+  const attentionItems = useMemo(() => {
+    const items = [];
+    const unassigned = assets.filter(asset => !(asset.allocations || []).length).length;
+    const incomplete = assets.filter(asset => { const total = (asset.allocations || []).filter(item => item.allocationType === "PERCENTAGE").reduce((sum, item) => sum + (Number(item.percentage) || 0), 0); return total > 0 && total < 100 && !(asset.allocations || []).some(item => item.allocationType === "REMAINDER"); }).length;
+    const undocumented = assets.filter(asset => !(asset.documents || []).length).length;
+    if (unassigned) items.push(`${unassigned} asset${unassigned === 1 ? " has" : "s have"} no beneficiary allocation.`);
+    if (incomplete) items.push(`${incomplete} asset${incomplete === 1 ? " has" : "s have"} an incomplete percentage allocation.`);
+    if (!executors.length) items.push("No executor or personal representative is assigned.");
+    if (undocumented) items.push(`${undocumented} asset${undocumented === 1 ? " has" : "s have"} no supporting document.`);
+    if (will?.updatedAt && Date.now() - new Date(will.updatedAt).getTime() > 365 * 24 * 60 * 60 * 1000) items.push("This estate record has not been reviewed in the last 12 months.");
+    return items;
+  }, [assets, executors.length, will?.updatedAt]);
+
+  const estimatedEstateValue = useMemo(() => assets.reduce((sum, asset) => { const value = Number(String(asset.estimatedValue || "").replace(/[^0-9.-]/g, "")); return sum + (Number.isFinite(value) ? value : 0); }, 0), [assets]);
+
   if (!unlocked) return <div className="max-w-[620px] mx-auto"><div className="mb-7"><span className="eyebrow">PRIVATE & SENSITIVE</span><h1 className="page-title text-[30px] font-bold mt-1.5">Will & Inheritance</h1><p className="text-[13px] text-ink-muted mt-1.5">A protected workspace for your wishes, assets, beneficiaries and estate instructions.</p></div><VaultGate vault="will" onUnlock={() => setUnlocked(true)} /></div>;
   if (loading && !will) return <div className="max-w-[980px] mx-auto py-8"><PageSkeleton compact /></div>;
 
@@ -194,7 +222,8 @@ export default function WillInheritance() {
       {notice && <div className="rounded-xl border border-accent-notes/30 bg-accent-notes/5 px-3.5 py-3 mb-4 text-[11px] text-accent-notes">✓ {notice}</div>}
 
       <div className="grid gap-4">
-        <CompletionCard items={completionItems} />
+        <div className="estate-summary-grid"><div><span>Total assets</span><strong>{assets.length}</strong><small>Across {new Set(assets.map(item => item.type)).size} categories</small></div><div><span>Estimated value</span><strong>{estimatedEstateValue ? estimatedEstateValue.toLocaleString() : "—"}</strong><small>Based on values you recorded</small></div><div><span>Beneficiaries</span><strong>{beneficiaries.length}</strong><small>{assets.reduce((sum, asset) => sum + (asset.allocations?.length || 0), 0)} asset allocations</small></div><div><span>Protected files</span><strong>{documents.length}</strong><small>Stored inside the Will vault</small></div></div>
+        <CompletionCard items={completionItems} attention={attentionItems} />
 
         <Section eyebrow="01 · WILL DETAILS" title="Your wishes & instructions" count={`${details.length} ${details.length === 1 ? "detail" : "details"}`} description="Create focused records instead of putting your entire estate plan into one long form." action={<button type="button" className="btn-primary" onClick={() => setModal({ type: "detail", initial: EMPTY_DETAIL })}>+ Add Will Detail</button>}>
           {details.length === 0 ? <EmptyState title="No Will details yet" description="Add personal wishes, funeral wishes, digital legacy instructions, family messages or other special requests." action={<button type="button" className="btn-outline" onClick={() => setModal({ type: "detail", initial: EMPTY_DETAIL })}>+ Add Will Detail</button>} /> : <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">{details.map((item) => <RecordCard key={item.id} to={`/will/details/${item.id}`} title={item.title} meta={`Updated ${shortDate(item.updatedAt)}`} badge={item.type.replaceAll("-", " ")} description={item.content} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => setModal({ type: "detail", id: item.id, initial: { type: item.type, title: item.title, content: item.content } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => setDeleteTarget({ type: "detail", id: item.id, label: "Will detail", name: item.title })}>Delete</button></>} />)}</div>}
@@ -237,7 +266,7 @@ export default function WillInheritance() {
 
       <WillModal open={modal?.type === "profile"} title="Edit Will Title" onClose={closeModal}><WillProfileForm initialTitle={modal?.initial?.title} onSubmit={saveProfile} onCancel={closeModal} busy={busy} /></WillModal>
       <WillModal open={modal?.type === "detail"} title={modal?.id ? "Edit Will Detail" : "Add Will Detail"} description="Create one focused record for a specific part of your wishes." onClose={closeModal}><WillDetailForm initial={modal?.initial || EMPTY_DETAIL} onSubmit={saveDetail} onCancel={closeModal} busy={busy} /></WillModal>
-      <WillModal open={modal?.type === "asset"} title={modal?.id ? "Edit Asset" : "Add Asset"} description="Only add the information relevant to this asset." wide onClose={closeModal}><AssetForm initial={modal?.initial || EMPTY_ASSET} onSubmit={saveAsset} onCancel={closeModal} busy={busy} /></WillModal>
+      <WillModal open={modal?.type === "asset"} title={modal?.id ? "Review & Edit Asset" : "Build an Asset Record"} wide onClose={closeModal}><AssetForm initial={modal?.initial || EMPTY_ASSET} beneficiaries={beneficiaries} executors={executors} onCreateBeneficiary={createBeneficiaryFromAsset} onSubmit={saveAsset} onCancel={closeModal} busy={busy} /></WillModal>
       <WillModal open={modal?.type === "beneficiary"} title={modal?.id ? "Edit Beneficiary" : "Add Beneficiary"} description="Describe the intended entitlement clearly." wide onClose={closeModal}><BeneficiaryForm initial={modal?.initial || EMPTY_BENEFICIARY} assets={assets} onSubmit={saveBeneficiary} onCancel={closeModal} busy={busy} /></WillModal>
       <WillModal open={modal?.type === "contact"} title={modal?.id ? "Edit Contact" : "Add Important Contact"} onClose={closeModal}><ContactForm initial={modal?.initial || EMPTY_CONTACT} onSubmit={saveContact} onCancel={closeModal} busy={busy} /></WillModal>
       <WillModal open={modal?.type === "executor"} title={modal?.id ? "Edit Executor" : "Add Executor"} description="You can add more than one personal representative." wide onClose={closeModal}><ExecutorForm initial={modal?.initial || EMPTY_EXECUTOR} onSubmit={saveExecutor} onCancel={closeModal} busy={busy} /></WillModal>

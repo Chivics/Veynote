@@ -467,6 +467,39 @@ router.get("/meta/tags", asyncHandler(async (req, res) => {
   res.json({ tags: tags.map((t) => ({ id: t.id, name: t.name, count: t._count.notes })) });
 }));
 
+router.patch("/meta/tags/:tagId", asyncHandler(async (req, res) => {
+  const name = typeof req.body.name === "string" ? req.body.name.trim().toLowerCase() : "";
+  if (!name || name.length > 60) return res.status(400).json({ error: "Enter a tag name between 1 and 60 characters." });
+  const tag = await prisma.tag.findFirst({ where: { id: req.params.tagId, userId: req.userId } });
+  if (!tag) return res.status(404).json({ error: "Tag not found." });
+  const duplicate = await prisma.tag.findFirst({ where: { userId: req.userId, name, id: { not: tag.id } }, select: { id: true } });
+  if (duplicate) return res.status(409).json({ code: "TAG_EXISTS", error: "That tag already exists. Merge the two tags instead." });
+  const updated = await prisma.tag.update({ where: { id: tag.id }, data: { name } });
+  res.json({ tag: updated });
+}));
+
+router.post("/meta/tags/:tagId/merge", asyncHandler(async (req, res) => {
+  const source = await prisma.tag.findFirst({ where: { id: req.params.tagId, userId: req.userId } });
+  const target = typeof req.body.targetTagId === "string"
+    ? await prisma.tag.findFirst({ where: { id: req.body.targetTagId, userId: req.userId } })
+    : null;
+  if (!source || !target) return res.status(404).json({ error: "One of those tags could not be found." });
+  if (source.id === target.id) return res.status(400).json({ error: "Choose a different tag to merge into." });
+  await prisma.$transaction(async db => {
+    const links = await db.noteTag.findMany({ where: { tagId: source.id }, select: { noteId: true } });
+    if (links.length) await db.noteTag.createMany({ data: links.map(link => ({ noteId: link.noteId, tagId: target.id })), skipDuplicates: true });
+    await db.tag.delete({ where: { id: source.id } });
+  });
+  res.json({ ok: true, target: { id: target.id, name: target.name } });
+}));
+
+router.delete("/meta/tags/:tagId", asyncHandler(async (req, res) => {
+  const tag = await prisma.tag.findFirst({ where: { id: req.params.tagId, userId: req.userId } });
+  if (!tag) return res.status(404).json({ error: "Tag not found." });
+  await prisma.tag.delete({ where: { id: tag.id } });
+  res.json({ ok: true });
+}));
+
 // GET /api/notes/meta/search?q= — powers the [[ note-link picker.
 // Deliberately excludes locked/will notes (linking to one from an
 // ordinary note would leak its existence into normal browsing) and

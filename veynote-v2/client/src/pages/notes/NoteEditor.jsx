@@ -11,6 +11,7 @@ import AttachmentList from "../../components/AttachmentList";
 import SaveStatus from "../../components/SaveStatus";
 import FindReplaceBar from "../../components/FindReplaceBar";
 import TableToolbar from "../../components/TableToolbar";
+import MediaToolbar from "../../components/MediaToolbar";
 import VaultGate from "../../components/VaultGate";
 import VersionHistory from "../../components/VersionHistory";
 import ExportMenu from "../../components/ExportMenu";
@@ -66,6 +67,8 @@ export default function NoteEditor() {
   const [uploading, setUploading] = useState([]);
   const [findOpen, setFindOpen] = useState(false);
   const [tableToolbarRect, setTableToolbarRect] = useState(null);
+  const [mediaToolbar, setMediaToolbar] = useState(null);
+  const [uploadError, setUploadError] = useState("");
   const [stats, setStats] = useState(() => computeStats(""));
   const [vaultRequired, setVaultRequired] = useState(null); // "locked-notes" | "will" | null
   const [isLocked, setIsLocked] = useState(false);
@@ -78,6 +81,7 @@ export default function NoteEditor() {
   const [focusMode, setFocusMode] = useState(false);
   const imageInputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const replacingMedia = useRef(false);
 
   useEffect(() => registerGuard(async () => {
     if (!dirtyRef.current) return true;
@@ -116,7 +120,7 @@ export default function NoteEditor() {
     setVaultRequired(null);
     if (!routeId) {
       const template = getTemplate(searchParams.get("template"));
-      setNoteId(null); setTitle(template?.title || ""); setFolderId(""); setMood(""); setTags([]);
+      setNoteId(null); setTitle(template?.title || ""); setFolderId(searchParams.get("folder") || ""); setMood(""); setTags([]);
       setInitialHTML(template?.html || ""); latestHTML.current = template?.html || "";
       setStats(computeStats(latestHTML.current)); setAttachments([]);
       setIsLocked(false); setIsWill(false); setNoteMeta({ createdAt: null, updatedAt: null });
@@ -350,7 +354,7 @@ export default function NoteEditor() {
   }
 
   // ---------------- attachments ----------------
-  async function uploadOne(file, { inline }) {
+  async function uploadOne(file, { inline, replace = false }) {
     const tempId = `${Date.now()}-${Math.random()}`;
     setUploading((u) => [...u, { tempId, name: file.name, mimeType: file.type, progress: 0 }]);
     try {
@@ -360,13 +364,14 @@ export default function NoteEditor() {
       );
       setUploading((u) => u.filter((x) => x.tempId !== tempId));
       if (inline) {
-        editorRef.current?.insertHTML(`<img src="${escapeHtml(attachment.url)}" alt="${escapeHtml(attachment.originalName)}" />`);
+        if (replace) editorRef.current?.mediaReplace(attachment.url, attachment.originalName);
+        else editorRef.current?.insertBlock(`<div class="editor-media align-center size-wide" data-type="image"><img src="${escapeHtml(attachment.url)}" alt="${escapeHtml(attachment.originalName)}" /><div class="editor-caption"></div></div><p><br></p>`);
       } else {
         setAttachments((prev) => [...prev, attachment]);
       }
     } catch (err) {
       setUploading((u) => u.filter((x) => x.tempId !== tempId));
-      alert(err.message);
+      setUploadError(err.message || "This file could not be uploaded.");
     }
   }
 
@@ -377,7 +382,9 @@ export default function NoteEditor() {
 
   function handleImagePicked(e) {
     const files = Array.from(e.target.files || []);
-    files.forEach((f) => uploadOne(f, { inline: true }));
+    if (replacingMedia.current && files[0]) uploadOne(files[0], { inline: true, replace: true });
+    else files.forEach((f) => uploadOne(f, { inline: true }));
+    replacingMedia.current = false;
     e.target.value = "";
   }
 
@@ -443,9 +450,9 @@ export default function NoteEditor() {
   }
 
   return (
-    <div className={focusMode ? "fixed inset-0 z-50 bg-app-bg overflow-y-auto px-4 sm:px-6 md:px-10 py-6" : ""}>
-      <div onClick={handleContentClick} className="max-sm:pb-16 max-w-[760px] mx-auto">
-        <div className="flex items-center justify-between mb-4">
+    <div className={`note-editor-shell ${focusMode ? "fixed inset-0 z-50 bg-app-bg overflow-y-auto px-4 sm:px-6 md:px-10 py-6 is-focus" : ""}`}>
+      <div onClick={handleContentClick} className="note-editor-document max-sm:pb-16 max-w-[820px] mx-auto">
+        <div className="note-editor-topline">
           <span className="eyebrow">
             {isWill ? "WILL & INHERITANCE" : isLocked ? "🔒 LOCKED NOTE" : routeId || noteId ? "EDITING" : "NEW NOTE"}
           </span>
@@ -489,7 +496,7 @@ export default function NoteEditor() {
           </div>
         </div>
 
-        <div className="flex gap-2.5 mb-4 flex-wrap">
+        <div className="note-editor-meta">
           <select value={folderId} onChange={(e) => setFolderId(e.target.value)} className="chip bg-app-panel2 outline-none" title="Move to folder…">
             <option value="">📁 Move to folder…</option>
             {folders.map((f) => (
@@ -510,13 +517,14 @@ export default function NoteEditor() {
         </div>
 
         <input
-          aria-label="Record title" className="page-title w-full bg-transparent outline-none text-[26px] font-bold tracking-tight text-ink mb-3.5 placeholder:text-ink-muted"
+          aria-label="Record title" className="note-editor-title page-title"
           placeholder="Untitled (title is optional — just start writing)"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
 
         <AttachmentList attachments={attachments} uploading={uploading} onRemove={removeAttachment} />
+        {uploadError && <div className="inline-error" role="alert"><span>{uploadError}</span><button type="button" onClick={() => setUploadError("")}>Dismiss</button></div>}
 
         {findOpen && <FindReplaceBar editorRef={editorRef} onClose={closeFindBar} />}
 
@@ -537,6 +545,7 @@ export default function NoteEditor() {
             onNoteLink={handleNoteLink}
             onImageDrop={(files) => files.forEach((f) => uploadOne(f, { inline: true }))}
             onTableFocus={setTableToolbarRect}
+            onMediaFocus={(rect, state) => setMediaToolbar(rect ? { rect, state } : null)}
           />
         </div>
 
@@ -558,6 +567,7 @@ export default function NoteEditor() {
         )}
 
         <TableToolbar rect={tableToolbarRect} editorRef={editorRef} />
+        <MediaToolbar rect={mediaToolbar?.rect} state={mediaToolbar?.state || { align: "center", size: "wide" }} onAlign={align => editorRef.current?.mediaAlign(align)} onSize={size => editorRef.current?.mediaSize(size)} onReplace={() => { replacingMedia.current = true; imageInputRef.current?.click(); }} onRemove={() => { editorRef.current?.mediaRemove(); setMediaToolbar(null); }} onClose={() => setMediaToolbar(null)} />
 
         <input ref={imageInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImagePicked} />
         <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFilePicked} />

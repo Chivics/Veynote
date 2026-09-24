@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Field } from "./WillSection";
+import EstateAssetWizard from "./EstateAssetWizard.jsx";
 
 const inputClass = "input w-full";
 const textareaClass = "input w-full min-h-[110px] resize-y";
@@ -15,10 +16,15 @@ export const EMPTY_ASSET = {
   type: "property",
   description: "",
   estimatedValue: "",
+  currency: "",
   location: "",
+  institution: "",
   accountReference: "",
   ownership: "",
+  instructionType: "",
   instructions: "",
+  responsibleExecutorId: "",
+  allocations: [],
 };
 
 export const EMPTY_BENEFICIARY = {
@@ -160,23 +166,8 @@ export function WillDetailForm({ initial = EMPTY_DETAIL, onSubmit, onCancel, bus
   );
 }
 
-export function AssetForm({ initial = EMPTY_ASSET, onSubmit, onCancel, busy = false }) {
-  const [value, setValue] = useLocalValueObject({ ...EMPTY_ASSET, ...initial });
-  return (
-    <FormShell onSubmit={(event) => { event.preventDefault(); onSubmit(value); }}>
-      <Field label="Asset name"><input className={inputClass} value={value.name} onChange={(e) => setValue({ ...value, name: e.target.value })} placeholder="e.g. Family house" required /></Field>
-      <Field label="Asset type"><select className={inputClass} value={value.type} onChange={(e) => setValue({ ...value, type: e.target.value })}>{ASSET_TYPES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field>
-      <Field label="Description"><textarea className={textareaClass} value={value.description} onChange={(e) => setValue({ ...value, description: e.target.value })} placeholder="A concise description of the asset." /></Field>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field label="Estimated value"><input className={inputClass} value={value.estimatedValue} onChange={(e) => setValue({ ...value, estimatedValue: e.target.value })} placeholder="e.g. ₦25,000,000" /></Field>
-        <Field label="Location"><input className={inputClass} value={value.location} onChange={(e) => setValue({ ...value, location: e.target.value })} placeholder="Where the asset is located" /></Field>
-      </div>
-      <Field label="Account / reference"><input className={inputClass} value={value.accountReference} onChange={(e) => setValue({ ...value, accountReference: e.target.value })} placeholder="Account, policy or reference number" /></Field>
-      <Field label="Ownership"><input className={inputClass} value={value.ownership} onChange={(e) => setValue({ ...value, ownership: e.target.value })} placeholder="e.g. Sole owner / joint ownership" /></Field>
-      <Field label="Instructions"><textarea className={textareaClass} value={value.instructions} onChange={(e) => setValue({ ...value, instructions: e.target.value })} placeholder="What should happen to this asset?" /></Field>
-      <Buttons busy={busy} saveLabel="Save asset" onCancel={onCancel} />
-    </FormShell>
-  );
+export function AssetForm({ initial = EMPTY_ASSET, beneficiaries = [], executors = [], onCreateBeneficiary, onSubmit, onCancel, busy = false }) {
+  return <EstateAssetWizard initial={{ ...EMPTY_ASSET, ...initial }} beneficiaries={beneficiaries} executors={executors} onCreateBeneficiary={onCreateBeneficiary} onSubmit={onSubmit} onCancel={onCancel} busy={busy} />;
 }
 
 export function BeneficiaryForm({ initial = EMPTY_BENEFICIARY, assets = [], onSubmit, onCancel, busy = false }) {

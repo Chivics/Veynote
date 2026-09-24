@@ -6,6 +6,8 @@ export default {
     extend: {
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
+        display: ["Fraunces", "Georgia", "serif"],
+        mono: ["IBM Plex Mono", "ui-monospace", "monospace"],
       },
       colors: {
         // Tokens copied 1:1 from the approved Veynote V2 board (§5 design system)
@@ -22,9 +24,10 @@ export default {
         },
         accent: {
           notes: "rgb(var(--accent-notes) / <alpha-value>)",
-          "notes-soft": "rgba(124,108,255,.14)",
+          "notes-soft": "rgb(var(--accent-notes) / .14)",
           trade: "rgb(var(--accent-trade) / <alpha-value>)",
-          "trade-soft": "rgba(95,168,255,.14)",
+          "trade-soft": "rgb(var(--accent-trade) / .14)",
+          gold: "rgb(var(--accent-gold) / <alpha-value>)",
         },
         success: "rgb(var(--success) / <alpha-value>)",
         danger: "rgb(var(--danger) / <alpha-value>)",

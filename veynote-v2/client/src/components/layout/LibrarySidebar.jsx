@@ -2,8 +2,11 @@ import { NavLink } from "react-router-dom";
 
 const GROUPS = [
   {
-    label: "Reading",
-    items: [{ to: "/notes/library/reading", label: "All" }],
+    label: "Media",
+    items: [
+      { to: "/notes/library/reading", label: "Reading" },
+      { to: "/notes/library/films", label: "Films & Movies" },
+    ],
   },
   {
     label: "Life",

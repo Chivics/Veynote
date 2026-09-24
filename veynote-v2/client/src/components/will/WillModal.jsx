@@ -45,12 +45,11 @@ export default function WillModal({
       <div
         className={[
           "relative z-10 w-full max-h-[92vh] overflow-y-auto",
-          "rounded-t-2xl sm:rounded-2xl",
-          "bg-[#111113] border border-white/10 shadow-2xl",
-          wide ? "sm:max-w-3xl" : "sm:max-w-xl",
+          "will-modal-panel rounded-t-2xl sm:rounded-2xl",
+          wide ? "sm:max-w-5xl" : "sm:max-w-xl",
         ].join(" ")}
       >
-        <div className="sticky top-0 z-10 flex items-center justify-between gap-4 px-5 py-4 border-b border-white/10 bg-[#111113]">
+        <div className="will-modal-header sticky top-0 z-10 flex items-center justify-between gap-4 px-5 py-4">
           <h2 className="text-sm font-bold">
             {title}
           </h2>

@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
+import ConfirmDialog from "../../components/ConfirmDialog.jsx";
+import NavigationIcon from "../../components/layout/NavigationIcon.jsx";
 
 const COLORS = ["#7c6cff", "#5fa8ff", "#38d39f", "#f5b942", "#ff6878", "#8d96a5"];
 
@@ -16,7 +18,12 @@ export default function Folders() {
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState("");
   const [importing, setImporting] = useState([]);
+  const [showImporter, setShowImporter] = useState(false);
+  const [importFolderId, setImportFolderId] = useState("");
+  const [importError, setImportError] = useState("");
+  const [pendingDelete, setPendingDelete] = useState(null);
   const importInputRef = useRef(null);
+  const displayedFolders = folders?.filter(folder => !folder.parentId) ?? null;
 
   function load() {
     api.get("/folders", { archived: showArchived ? "true" : undefined }).then((d) => setFolders(d.folders));
@@ -40,9 +47,10 @@ export default function Folders() {
     load();
   }
 
-  async function remove(folder) {
-    if (!confirm(`Delete "${folder.name}"? Notes inside will move to All Notes, unfiled.`)) return;
-    await api.delete(`/folders/${folder.id}`);
+  async function remove() {
+    if (!pendingDelete) return;
+    await api.delete(`/folders/${pendingDelete.id}`);
+    setPendingDelete(null);
     load();
   }
 
@@ -61,6 +69,8 @@ export default function Folders() {
     e.target.value = "";
     if (files.length === 0) return;
 
+    if (!importFolderId) { setImportError("Choose the Veynote folder that should receive these files."); return; }
+    setImportError("");
     for (const file of files) {
       const tempId = `${Date.now()}-${Math.random()}`;
       setImporting((prev) => [...prev, { tempId, name: file.name }]);
@@ -68,11 +78,12 @@ export default function Folders() {
         const { note } = await api.post("/notes", {
           title: file.name.replace(/\.[^/.]+$/, ""),
           content: "",
+          folderId: importFolderId,
           draftForAttachment: true,
         });
         await api.upload(`/notes/${note.id}/attachments`, file);
       } catch (err) {
-        alert(`Couldn't import "${file.name}": ${err.message}`);
+        setImportError(`“${file.name}” could not be imported. ${err.message}`);
       } finally {
         setImporting((prev) => prev.filter((i) => i.tempId !== tempId));
       }
@@ -81,20 +92,27 @@ export default function Folders() {
 
   return (
     <div>
-      <div className="flex items-end justify-between gap-6 mb-6 flex-wrap">
+      <div className="product-page-header">
         <div>
           <span className="eyebrow">ORGANIZE</span>
-          <h1 className="page-title text-[30px] tracking-tight my-1.5">Folders</h1>
-          <p className="text-ink-muted text-[13px] m-0">{folders ? `${folders.length} folders` : ""}</p>
+          <h1 className="page-title">Folders</h1>
+          <p>Build focused spaces for related notes, documents, media, and imported files.</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => importInputRef.current?.click()} className="btn-outline">↑ Import from device</button>
-          <button onClick={() => setCreating((c) => !c)} className="btn-primary">+ Create folder</button>
+        <div className="product-page-actions">
+          <button onClick={() => { setShowImporter(value => !value); if (!importFolderId && folders?.[0]) setImportFolderId(folders[0].id); }} className="btn-outline"><NavigationIcon name="files" size={16} /> Import</button>
+          <button onClick={() => setCreating((c) => !c)} className="btn-primary"><NavigationIcon name="plus" size={16} /> Create folder</button>
         </div>
       </div>
       <input ref={importInputRef} type="file" multiple className="hidden" onChange={handleImport} />
 
-      <div className="flex gap-2 mb-5">
+      {showImporter && <section className="folder-importer" aria-labelledby="folder-import-title">
+        <div className="folder-importer-icon"><NavigationIcon name="files" size={22} /></div>
+        <div><span className="eyebrow">Secure device picker</span><h2 id="folder-import-title">Import files into a Veynote folder</h2><p>Your browser will ask you to choose files. Veynote receives only the files you explicitly select.</p></div>
+        <div className="folder-importer-controls"><select value={importFolderId} onChange={event => setImportFolderId(event.target.value)} aria-label="Destination folder"><option value="">Choose destination…</option>{(folders || []).filter(folder => !folder.isArchived).map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select><button type="button" className="btn-primary" disabled={!importFolderId} onClick={() => importInputRef.current?.click()}>Choose files</button></div>
+        {importError && <p className="folder-import-error" role="alert">{importError}</p>}
+      </section>}
+
+      <div className="folder-tabs">
         <button
           onClick={() => setShowArchived(false)}
           className={`text-[11.5px] rounded-lg px-3 py-2 border transition ${!showArchived ? "bg-ink text-app-bg border-ink" : "bg-app-panel2 border-app-border text-ink-muted"}`}
@@ -145,7 +163,7 @@ export default function Folders() {
 
       {folders === null ? (
         <PageSkeleton compact />
-      ) : folders.length === 0 && !creating ? (
+      ) : displayedFolders.length === 0 && !creating ? (
         showArchived ? (
           <EmptyState icon="🗄️" title="No archived folders" description="Folders you archive will show up here." />
         ) : (
@@ -158,7 +176,7 @@ export default function Folders() {
         )
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-          {folders.map((f) => (
+          {displayedFolders.map((f) => (
             <div key={f.id} className="card p-4 flex flex-col gap-2.5 relative">
               <div className="flex items-start justify-between">
                 <div
@@ -185,7 +203,7 @@ export default function Folders() {
                   <button onClick={() => toggleArchive(f)} className="block w-full text-left px-3 py-2 hover:bg-app-border">
                     {f.isArchived ? "Unarchive" : "Archive"}
                   </button>
-                  <button onClick={() => remove(f)} className="block w-full text-left px-3 py-2 hover:bg-app-border text-danger">
+                  <button onClick={() => { setPendingDelete(f); setMenuOpenId(null); }} className="block w-full text-left px-3 py-2 hover:bg-app-border text-danger">
                     Delete
                   </button>
                 </div>
@@ -203,7 +221,7 @@ export default function Folders() {
               ) : (
                 <Link to={`/notes/folders/${f.id}`}>
                   <h3 className="text-[13.5px] m-0">{f.name}</h3>
-                  <span className="text-[11px] text-ink-muted">{f.noteCount} note{f.noteCount === 1 ? "" : "s"}</span>
+                  <span className="text-[11px] text-ink-muted">{f.noteCount} note{f.noteCount === 1 ? "" : "s"}{f.childCount ? ` · ${f.childCount} folder${f.childCount === 1 ? "" : "s"}` : ""}</span>
                 </Link>
               )}
             </div>
@@ -218,6 +236,7 @@ export default function Folders() {
           )}
         </div>
       )}
+      <ConfirmDialog open={Boolean(pendingDelete)} title={`Delete “${pendingDelete?.name || "folder"}”?`} description="The folder will be removed. Notes inside it will remain in All Notes without a folder." confirmLabel="Delete folder" onClose={() => setPendingDelete(null)} onConfirm={remove} />
     </div>
   );
 }

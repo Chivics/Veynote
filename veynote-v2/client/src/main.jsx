@@ -4,6 +4,18 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import App from "./App";
 import "./index.css";
 
+// Capture Chromium's one-shot install event once for every route. Individual
+// surfaces can then present it without inventing or simulating installation.
+window.addEventListener("beforeinstallprompt", event => {
+  event.preventDefault();
+  window.__veynoteInstallPrompt = event;
+  window.dispatchEvent(new CustomEvent("veynote:install-available"));
+});
+window.addEventListener("appinstalled", () => {
+  window.__veynoteInstallPrompt = null;
+  window.dispatchEvent(new CustomEvent("veynote:installed"));
+});
+
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).then(registration => {

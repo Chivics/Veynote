@@ -5,6 +5,7 @@ import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
 
 const STATUSES = ["EVALUATION", "FUNDED", "PERSONAL", "BREACHED"];
+const ACCOUNT_TYPES = ["Personal", "Prop firm challenge", "Funded", "Demo", "Brokerage"];
 
 export default function Accounts() {
   const [accounts, setAccounts] = useState(() => api.peek("/accounts")?.accounts ?? null);
@@ -12,6 +13,10 @@ export default function Accounts() {
   const [name, setName] = useState("");
   const [broker, setBroker] = useState("");
   const [status, setStatus] = useState("PERSONAL");
+  const [accountType, setAccountType] = useState("Personal");
+  const [currency, setCurrency] = useState("USD");
+  const [startingBalance, setStartingBalance] = useState("");
+  const [error, setError] = useState("");
 
   function load() {
     api.get("/accounts").then((d) => setAccounts(d.accounts));
@@ -21,9 +26,16 @@ export default function Accounts() {
   async function createAccount(e) {
     e.preventDefault();
     if (!name.trim()) return;
-    await api.post("/accounts", { name, broker, status });
+    setError("");
+    try {
+      await api.post("/accounts", { name, broker, status, accountType, currency, startingBalance });
+    } catch (requestError) {
+      setError(requestError.message || "We couldn't create this account.");
+      return;
+    }
     setName("");
     setBroker("");
+    setStartingBalance("");
     setCreating(false);
     load();
   }
@@ -40,15 +52,25 @@ export default function Accounts() {
       </div>
 
       {creating && (
-        <form onSubmit={createAccount} className="card p-4 mb-5 flex items-center gap-3 flex-wrap">
-          <input className="input flex-1 min-w-[160px]" placeholder="Account name (e.g. GoatFunded — Phase 2)" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-          <input className="input flex-1 min-w-[140px]" placeholder="Broker / prop firm (optional)" value={broker} onChange={(e) => setBroker(e.target.value)} />
-          <select className="input flex-none w-auto" value={status} onChange={(e) => setStatus(e.target.value)}>
+        <form onSubmit={createAccount} className="card account-setup-panel mb-5">
+          <div className="account-setup-copy">
+            <span className="eyebrow">NEW WORKSPACE</span>
+            <h2>Set up a trading account</h2>
+            <p>Trades, rules, limits and performance remain independent for this account.</p>
+          </div>
+          <div className="account-setup-fields">
+          <label><span>Account name</span><input className="input" placeholder="GoatFunded — Phase 2" value={name} onChange={(e) => setName(e.target.value)} autoFocus /></label>
+          <label><span>Broker / prop firm</span><input className="input" placeholder="Optional" value={broker} onChange={(e) => setBroker(e.target.value)} /></label>
+          <label><span>Account type</span><select className="input" value={accountType} onChange={(e) => setAccountType(e.target.value)}>{ACCOUNT_TYPES.map((type) => <option key={type}>{type}</option>)}</select></label>
+          <label><span>Status</span><select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
             {STATUSES.map((s) => (
               <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>
             ))}
-          </select>
-          <button type="submit" className="btn-primary">Create</button>
+          </select></label>
+          <label><span>Starting balance</span><div className="account-money-input"><select aria-label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}><option>USD</option><option>GBP</option><option>EUR</option><option>NGN</option><option>CAD</option><option>AUD</option></select><input inputMode="decimal" placeholder="10000" value={startingBalance} onChange={(e) => setStartingBalance(e.target.value)} /></div></label>
+          </div>
+          {error && <p className="form-error" role="alert">{error}</p>}
+          <div className="flex justify-end gap-2"><button type="button" className="btn-outline" onClick={() => setCreating(false)}>Cancel</button><button type="submit" className="btn-primary">Create workspace</button></div>
         </form>
       )}
 
@@ -66,7 +88,7 @@ export default function Accounts() {
           {accounts.map((a) => (
             <Link
               key={a.id}
-              to={`/trading/entries?accountId=${a.id}`}
+              to={`/trading/accounts/${a.id}`}
               className="card p-4 flex flex-col gap-2 hover:border-ink-muted transition"
             >
               <div className="w-9 h-9 rounded-lg bg-accent-trade-soft text-[#7db9ff] flex items-center justify-center mb-2 text-base">◆</div>
@@ -79,6 +101,7 @@ export default function Accounts() {
               </span>
               <h3 className="text-[14.5px] m-0">{a.name}</h3>
               {a.broker && <span className="text-[11px] text-ink-muted mb-1">{a.broker}</span>}
+              {a.startingBalance != null && <span className="text-[11px] text-ink-soft">{new Intl.NumberFormat(undefined, { style: "currency", currency: a.currency || "USD", maximumFractionDigits: 0 }).format(a.currentBalance ?? a.startingBalance)}</span>}
               <div className="flex gap-4 mt-1">
                 <div>
                   <small className="block text-[9.5px] text-ink-muted">Entries</small>

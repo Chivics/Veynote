@@ -25,8 +25,14 @@ import { safeHtml } from "../utils/safeHtml";
 
 const PAGE_HEIGHT_PX = 760; // ≈ a comfortable "sheet" of writing space
 
+function mediaState(media) {
+  const align = ["left", "right"].find(value => media.classList.contains(`align-${value}`)) || "center";
+  const size = ["small", "medium"].find(value => media.classList.contains(`size-${value}`)) || "wide";
+  return { align, size };
+}
+
 const PaginatedEditor = forwardRef(function PaginatedEditor(
-  { initialHTML, onChange, placeholder, onSlash, onNoteLink, onImageDrop, onTableFocus, fontSize = "14px" },
+  { initialHTML, onChange, placeholder, onSlash, onNoteLink, onImageDrop, onTableFocus, onMediaFocus, fontSize = "14px" },
   ref
 ) {
   const containerRef = useRef(null);
@@ -36,6 +42,7 @@ const PaginatedEditor = forwardRef(function PaginatedEditor(
   const reflowScheduled = useRef(false);
   const savedRange = useRef(null);
   const activeCellRef = useRef(null); // { cell, row, table } — the table cell the cursor was last in
+  const activeMediaRef = useRef(null);
   const searchMatchesRef = useRef([]); // [{ node, start, end }] — recomputed on every findAll() call
   const currentMatchIndexRef = useRef(-1);
 
@@ -196,6 +203,36 @@ const PaginatedEditor = forwardRef(function PaginatedEditor(
       onTableFocus?.(null);
       reflow();
     }),
+
+    mediaAlign: (align) => {
+      const media = activeMediaRef.current;
+      if (!media || !document.body.contains(media)) return;
+      media.classList.remove("align-left", "align-center", "align-right");
+      media.classList.add(`align-${align}`);
+      onMediaFocus?.(media.getBoundingClientRect(), mediaState(media));
+      reflow();
+    },
+    mediaSize: (size) => {
+      const media = activeMediaRef.current;
+      if (!media || !document.body.contains(media)) return;
+      media.classList.remove("size-small", "size-medium", "size-wide");
+      media.classList.add(`size-${size}`);
+      onMediaFocus?.(media.getBoundingClientRect(), mediaState(media));
+      reflow();
+    },
+    mediaReplace: (src, alt) => {
+      const media = activeMediaRef.current;
+      const image = media?.querySelector("img");
+      if (!image) return;
+      image.src = src; image.alt = alt || "";
+      onMediaFocus?.(media.getBoundingClientRect(), mediaState(media));
+      reflow();
+    },
+    mediaRemove: () => {
+      const media = activeMediaRef.current;
+      if (!media || !document.body.contains(media)) return;
+      media.remove(); activeMediaRef.current = null; onMediaFocus?.(null); reflow();
+    },
 
     // ---- find & replace ----
     // Only one match is ever visually highlighted at a time (the current
@@ -465,6 +502,15 @@ const PaginatedEditor = forwardRef(function PaginatedEditor(
       item.style.textDecoration = checked ? "none" : "line-through";
       item.style.opacity = checked ? "1" : "0.6";
       reflow();
+      return;
+    }
+    const media = e.target.closest?.(".editor-media");
+    if (media) {
+      activeMediaRef.current = media;
+      onMediaFocus?.(media.getBoundingClientRect(), mediaState(media));
+    } else if (activeMediaRef.current && !e.target.closest?.(".media-toolbar")) {
+      activeMediaRef.current = null;
+      onMediaFocus?.(null);
     }
   }
 

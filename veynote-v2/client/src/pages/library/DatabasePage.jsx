@@ -1,11 +1,12 @@
 import PageSkeleton from "../../components/PageSkeleton.jsx";
-import { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { LIBRARY_CONFIG, statusColorClass } from "../../data/libraryConfig";
 import LibrarySidebar from "../../components/layout/LibrarySidebar";
 import EmptyState from "../../components/EmptyState";
+import LibraryCover from "../../components/library/LibraryCover.jsx";
 
 export default function DatabasePage({ configKey }) {
   const config = LIBRARY_CONFIG[configKey];
@@ -15,8 +16,10 @@ export default function DatabasePage({ configKey }) {
   const result = useApiQuery(`/library/${apiSlug}`);
   const [searchParams, setSearchParams] = useSearchParams();
   const filter = searchParams.get("filter") || "";
+  const status = searchParams.get("status") || "";
   const setFilter = value => setSearchParams(previous => { const next = new URLSearchParams(previous); if (value) next.set("filter", value); else next.delete("filter"); return next; }, { replace: true });
-  const items = result.data?.items?.filter(item => item.title.toLowerCase().includes(filter.toLowerCase())) ?? null;
+  const sourceItems = result.data?.items ?? null;
+  const items = sourceItems?.filter(item => item.title.toLowerCase().includes(filter.toLowerCase()) && (!status || item.status === status)) ?? null;
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
 
@@ -42,14 +45,20 @@ export default function DatabasePage({ configKey }) {
     <div className="flex">
       <LibrarySidebar />
       <div className="flex-1 min-w-0">
-        <span className="eyebrow">{config.eyebrow}</span>
-        <h1 className="page-title text-[26px] tracking-tight mt-1 mb-5">{config.title}</h1>
+        <header className="product-page-header library-collection-header">
+          <div><span className="eyebrow">{config.eyebrow}</span><h1 className="page-title">{config.title}</h1><p>{collectionDescription(configKey)}</p></div>
+          <button onClick={() => setCreating((c) => !c)} className="btn-primary">+ New {config.titleLabel?.toLowerCase() || "item"}</button>
+        </header>
+
+        {sourceItems && <div className="library-summary-strip">
+          <div><strong>{sourceItems.length}</strong><span>Total</span></div>
+          <div><strong>{sourceItems.filter(item => ["Completed", "Done", "Watched"].includes(item.status)).length}</strong><span>Completed</span></div>
+          <div><strong>{sourceItems.filter(item => ["In progress", "Planning", "Watching", "Booked"].includes(item.status)).length}</strong><span>Active</span></div>
+        </div>}
 
         <div className="flex items-center gap-2 mb-4">
           <input aria-label="Filter records by title" className="input min-w-0" placeholder="Filter by title…" value={filter} onChange={e => setFilter(e.target.value)} />
-          <button onClick={() => setCreating((c) => !c)} className="btn-primary ml-auto">
-            + New {config.titleLabel?.toLowerCase() || "item"}
-          </button>
+          <select aria-label="Filter by status" className="input library-filter-select" value={status} onChange={event => setSearchParams(previous => { const next = new URLSearchParams(previous); if (event.target.value) next.set("status", event.target.value); else next.delete("status"); return next; }, { replace: true })}><option value="">All statuses</option>{config.statusOptions?.map(option => <option key={option}>{option}</option>)}</select>
         </div>
 
         {creating && (
@@ -73,34 +82,45 @@ export default function DatabasePage({ configKey }) {
             <EmptyState icon={config.icon} title={emptyCopy[0]} description={emptyCopy[1]} />
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-1 px-1">
-<table className="w-full text-[12px] border-collapse">
-            <thead>
-              <tr>
-                {config.columns.map((c) => (
-                  <th key={c.key} className="text-left text-[10px] uppercase tracking-wide text-ink-muted font-bold py-2.5 px-3 border-b border-app-border">
-                    {c.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <tr key={item.id} className="hover:bg-app-panel2/40 cursor-pointer" onClick={() => navigate(`/notes/library/${configKey}/${item.id}`)}>
-                  {config.columns.map((c) => (
-                    <td key={c.key} className="py-3 px-3 border-b border-app-border text-ink-soft">
-                      {renderCell(c, item)}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-</div>
+          <div className={`library-record-grid library-record-grid--${config.presentation || "standard"}`}>
+            {items.map(item => <button key={item.id} className="library-record-card" onClick={() => navigate(`/notes/library/${configKey}/${item.id}`)}>
+              {(config.hasCover || configKey === "films") && <LibraryCover item={item} config={config} configKey={configKey} compact className="library-record-cover" />}
+              <div className="library-record-body">
+                <div className="library-record-meta"><span>{item.category || config.label}</span>{item.priority && <span>{item.priority}</span>}</div>
+                <h3>{item.title}</h3>
+                {item.status && <span className={`library-status ${statusColorClass(item.status)}`}>{item.status}</span>}
+                <RecordInsight item={item} configKey={configKey} />
+              </div>
+            </button>)}
+          </div>
         )}
       </div>
     </div>
   );
+}
+
+function collectionDescription(key) {
+  return {
+    films: "Build a considered watchlist and preserve the films, series, and documentaries worth remembering.",
+    goals: "Turn long-range intentions into visible progress, deadlines, and completed outcomes.",
+    travel: "Shape destinations into practical plans with dates, budgets, companions, and memories.",
+    bucket: "Collect the places, experiences, events, and achievements you want your life to include.",
+    ideas: "Capture early thinking, preserve its source, and make the next useful step obvious.",
+    projects: "Keep active work, milestones, timelines, and progress together in one focused view.",
+  }[key] || "A focused collection of records that matter to you.";
+}
+
+function RecordInsight({ item, configKey }) {
+  const p = item.properties || {};
+  if (configKey === "goals" || configKey === "projects") {
+    const progress = Math.max(0, Math.min(100, Number(p.progress) || 0));
+    return <div className="library-progress"><div><span>Progress</span><strong>{progress}%</strong></div><i><b style={{ width: `${progress}%` }} /></i></div>;
+  }
+  if (configKey === "films") return <p>{p.director || "Creator not added"}{p.releaseYear ? ` · ${p.releaseYear}` : ""}{p.score ? ` · ★ ${p.score}` : ""}</p>;
+  if (configKey === "travel") return <p>{p.travelDate || "Date not set"}{p.budget ? ` · ${p.currency || ""} ${p.budget}` : ""}</p>;
+  if (configKey === "bucket") return <p>{p.location || p.motivation || "Add a place or reason this matters."}</p>;
+  if (configKey === "ideas") return <p>{p.nextStep ? `Next: ${p.nextStep}` : p.summary || "Capture the next step when the idea becomes actionable."}</p>;
+  return null;
 }
 
 function renderCell(col, item) {

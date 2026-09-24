@@ -80,6 +80,7 @@ model User {
   tradingRules    TradingRule[]
   attachments     Attachment[]
   tradeImages     TradeImage[]
+  tradeAnalysisBlocks TradeAnalysisBlock[]
   fileNodes       FileNode[]
   webauthnCredentials WebAuthnCredential[]
   will             Will?
@@ -90,12 +91,16 @@ model User {
   willExecutors    WillExecutor[]
   willDocuments   WillDocument[]
   willActivities  WillActivity[]
+  willAssetAllocations WillAssetAllocation[]
 }
 
 model Folder {
   id         String   @id @default(cuid())
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentId   String?
+  parent     Folder?  @relation("FolderChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  children   Folder[] @relation("FolderChildren")
   name       String
   color      String   @default("#7c6cff")
   icon       String   @default("📁")
@@ -106,6 +111,7 @@ model Folder {
   notes Note[]
 
   @@index([userId])
+  @@index([parentId])
 }
 
 model Tag {
@@ -221,10 +227,20 @@ model TradingAccount {
   name      String
   broker    String? // e.g. "GoatFunded", "FundedNext", or blank for personal
   status    AccountStatus @default(PERSONAL)
+  accountType String?
+  currency String? @default("USD")
+  startingBalance Float?
+  currentBalance Float?
+  equity Float?
+  dailyLossLimit Float?
+  drawdownLimit Float?
+  profitTarget Float?
+  notes String? @db.Text
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
   entries TradingEntry[]
+  rules TradingRule[]
 
   @@index([userId])
 }
@@ -246,6 +262,10 @@ model TradingEntry {
   stopLoss       Float?
   takeProfit     Float?
   riskReward     Float?
+  positionSize   Float?
+  riskAmount     Float?
+  profitLoss     Float?
+  session        String?
   setupTypes     String?  // comma-separated: BOS,OB,LIQUIDITY_SWEEP,FVG,CUSTOM
   biasTimeframe  String?  // e.g. "Daily/4H"
   setupTimeframe String?  // e.g. "1H"
@@ -273,6 +293,7 @@ model TradingEntry {
 
   calendarEvents CalendarEvent[]
   tradeImages TradeImage[]
+  analysisBlocks TradeAnalysisBlock[]
   attachments Attachment[]
 
   @@index([userId])
@@ -317,6 +338,7 @@ model CalendarEvent {
 // ---------------------------------------------------------------------
 enum LibraryDatabase {
   READING
+  FILMS
   LIFE_GOALS
   TRAVEL_PLANS
   BUCKET_LIST
@@ -335,6 +357,10 @@ model LibraryItem {
   priority   String?
   notes      String?         @db.Text
   link       String?
+  coverStoredName   String? @unique
+  coverOriginalName String?
+  coverMimeType     String?
+  coverSizeBytes    Int?
   properties Json? // database-specific extra fields — see client/src/data/libraryConfig.js
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
@@ -394,15 +420,22 @@ model TradingRule {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId String?
+  account   TradingAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
   rule      String
   category  String?
   priority  String?
   status    String   @default("Active")
+  complianceStatus String @default("UNREVIEWED")
+  limitValue Float?
+  limitUnit String?
+  reviewDate DateTime?
   notes     String?  @db.Text
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([accountId])
 }
 
 // Trade Images — supports multiple screenshots per trade, each tagged
@@ -536,6 +569,7 @@ model Will {
   executors     WillExecutor[]
   documents     WillDocument[]
   activities    WillActivity[]
+  assetAllocations WillAssetAllocation[]
 }
 
 model WillDetail {
@@ -567,19 +601,26 @@ model WillAsset {
   type             String   @default("Other")
   description      String?  @db.Text
   estimatedValue   String?
+  currency         String?
   location         String?
+  institution      String?
   accountReference String?
   ownership        String?
+  instructionType  String?
   instructions     String?  @db.Text
+  responsibleExecutorId String?
+  responsibleExecutor WillExecutor? @relation("ResponsibleExecutor", fields: [responsibleExecutorId], references: [id], onDelete: SetNull)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   documents     WillDocument[]
   beneficiaries WillBeneficiary[]
+  allocations   WillAssetAllocation[]
 
   @@index([willId])
   @@index([userId])
   @@index([type])
+  @@index([responsibleExecutorId])
 }
 
 model WillBeneficiary {
@@ -602,6 +643,7 @@ model WillBeneficiary {
   updatedAt           DateTime    @updatedAt
 
   documents WillDocument[]
+  allocations WillAssetAllocation[]
 
   @@index([willId])
   @@index([userId])
@@ -641,7 +683,55 @@ model WillExecutor {
   instructions String?  @db.Text
   createdAt    DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  responsibleAssets WillAsset[] @relation("ResponsibleExecutor")
 
+  @@index([willId])
+  @@index([userId])
+}
+
+model TradeAnalysisBlock {
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tradingEntryId String
+  tradingEntry   TradingEntry @relation(fields: [tradingEntryId], references: [id], onDelete: Cascade)
+  timeframe      String
+  position       Int          @default(0)
+  marketStructure String?     @db.Text
+  keyLevels       String?     @db.Text
+  liquidity       String?     @db.Text
+  bias            String?     @db.Text
+  setupReasoning  String?     @db.Text
+  confirmation    String?     @db.Text
+  notes           String?     @db.Text
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([tradingEntryId, timeframe])
+  @@index([tradingEntryId, position])
+  @@index([userId])
+}
+
+model WillAssetAllocation {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  willId        String
+  will          Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
+  assetId       String
+  asset         WillAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  beneficiaryId String
+  beneficiary   WillBeneficiary @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
+  allocationType String  @default("PERCENTAGE")
+  percentage    Float?
+  specificAmount String?
+  conditions    String?  @db.Text
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([assetId, beneficiaryId])
+  @@index([beneficiaryId])
   @@index([willId])
   @@index([userId])
 }

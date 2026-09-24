@@ -30,7 +30,7 @@ function ToolbarButton({ onMouseDown, children, title, active }) {
         e.preventDefault(); // keep the editor's text selection alive
         onMouseDown();
       }}
-      className={`w-7 h-7 max-sm:w-11 max-sm:h-11 rounded-md flex items-center justify-center text-[12px] max-sm:text-[15px] transition ${
+      className={`editor-tool ${
         active ? "bg-app-panel2 text-ink" : "text-ink-muted hover:bg-app-panel2 hover:text-ink"
       }`}
     >
@@ -59,7 +59,7 @@ function Popover({ label, children, width = 180 }) {
       {open && (
         <div
           style={{ width }}
-          className="absolute z-20 top-full left-0 mt-1 bg-app-panel border border-app-border rounded-lg shadow-xl p-2"
+          className="editor-popover"
           onMouseDown={(e) => e.preventDefault()} // don't steal the editor selection when clicking inside
         >
           {children(() => setOpen(false))}
@@ -69,18 +69,26 @@ function Popover({ label, children, width = 180 }) {
   );
 }
 
+function LinkControls({ onApply, close }) {
+  const [url, setUrl] = useState("");
+  return <form className="editor-link-form" onSubmit={event => { event.preventDefault(); if (url.trim()) { onApply(url.trim()); close(); } }}><span>Link destination</span><input autoFocus type="url" value={url} onChange={event => setUrl(event.target.value)} placeholder="https://example.com" /><button type="submit">Apply link</button></form>;
+}
+
 /**
  * The full formatting toolbar. Every control calls straight into the
  * PaginatedEditor's imperative API (passed as `editorRef`) — nothing
  * here is decorative; every button does exactly what it says.
  */
 export default function EditorToolbar({ editorRef, onOpenInsertMenu }) {
+  const [feedback, setFeedback] = useState("");
+  function selectionRequired() { setFeedback("Select some text first."); window.setTimeout(() => setFeedback(""), 2200); }
   function exec(cmd, arg) {
     editorRef.current?.exec(cmd, arg);
   }
 
   return (
-    <div className="flex gap-0.5 max-sm:gap-1 flex-wrap items-center border border-app-border rounded-t-xl px-2.5 py-2 bg-app-panel sticky top-0 z-10 max-sm:fixed max-sm:bottom-0 max-sm:top-auto max-sm:left-0 max-sm:right-0 max-sm:rounded-none max-sm:border-x-0 max-sm:border-b-0 max-sm:z-30 max-sm:justify-center max-sm:py-2 print:hidden max-sm:[padding-bottom:max(0.5rem,env(safe-area-inset-bottom))]">
+    <div className="editor-toolbar print:hidden">
+      {feedback && <div className="editor-toolbar-feedback" role="status">{feedback}</div>}
       <ToolbarButton title="Insert block" onMouseDown={onOpenInsertMenu}>
         +
       </ToolbarButton>
@@ -111,7 +119,7 @@ export default function EditorToolbar({ editorRef, onOpenInsertMenu }) {
                 style={{ fontSize: f.px }}
                 onClick={() => {
                   const applied = editorRef.current?.applyInlineStyle("fontSize", f.px);
-                  if (!applied) alert("Select some text first, then choose a size.");
+                  if (!applied) selectionRequired();
                   close();
                 }}
               >
@@ -134,7 +142,7 @@ export default function EditorToolbar({ editorRef, onOpenInsertMenu }) {
                   className="w-5 h-5 rounded-full border border-app-border"
                   onClick={() => {
                     const applied = editorRef.current?.applyInlineStyle("color", c);
-                    if (!applied) alert("Select some text first, then pick a color.");
+                    if (!applied) selectionRequired();
                     close();
                   }}
                 />
@@ -156,7 +164,7 @@ export default function EditorToolbar({ editorRef, onOpenInsertMenu }) {
                   className="w-5 h-5 rounded-full border border-app-border"
                   onClick={() => {
                     const applied = editorRef.current?.applyInlineStyle("backgroundColor", c);
-                    if (!applied) alert("Select some text first, then pick a highlight.");
+                    if (!applied) selectionRequired();
                     close();
                   }}
                 />
@@ -262,15 +270,7 @@ export default function EditorToolbar({ editorRef, onOpenInsertMenu }) {
       >
         —
       </ToolbarButton>
-      <ToolbarButton
-        title="Link"
-        onMouseDown={() => {
-          const url = prompt("Enter a URL");
-          if (url) exec("createLink", url);
-        }}
-      >
-        🔗
-      </ToolbarButton>
+      <Popover label="Link" width={230}>{close => <LinkControls close={close} onApply={url => exec("createLink", url)} />}</Popover>
     </div>
   );
 }

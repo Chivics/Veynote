@@ -5,19 +5,22 @@
 
 const LIBRARY_DATABASES = {
   READING: {
-    propertyFields: ["type", "score", "author", "completed"], // type: Book | Article | Film + TV
+    propertyFields: ["score", "author", "genre", "progress", "started", "completed", "review", "isbn"],
+  },
+  FILMS: {
+    propertyFields: ["score", "director", "genre", "releaseYear", "watchDate", "runtime", "review", "favorite"],
   },
   LIFE_GOALS: {
     propertyFields: ["progress", "target"],
   },
   TRAVEL_PLANS: {
-    propertyFields: ["country", "travelDate", "budget"],
+    propertyFields: ["country", "travelDate", "returnDate", "budget", "currency", "companions"],
   },
   BUCKET_LIST: {
-    propertyFields: ["completed"],
+    propertyFields: ["targetDate", "location", "completed", "motivation"],
   },
   IDEAS: {
-    propertyFields: [],
+    propertyFields: ["summary", "nextStep", "source"],
   },
   PROJECTS: {
     propertyFields: ["progress", "startDate", "targetDate", "description"],

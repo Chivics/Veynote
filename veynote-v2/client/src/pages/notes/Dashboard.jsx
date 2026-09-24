@@ -1,199 +1,79 @@
-import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
-import StatCard from "../../components/StatCard";
 import TemplateMenu from "../../components/TemplateMenu";
 import EmptyState from "../../components/EmptyState";
+import PageSkeleton from "../../components/PageSkeleton.jsx";
+import NavigationIcon from "../../components/layout/NavigationIcon.jsx";
+
+function stripHtml(html) { return html?.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() || ""; }
+function shortDate(value) { return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
+
+function NoteCard({ note, featured = false }) {
+  return <Link to={`/notes/${note.id}`} className={`record-card ${featured ? "is-featured" : ""}`}>
+    <div className="record-card-meta"><span className="type-pill">{note.isPinned ? "Pinned note" : "Note"}</span><time>{shortDate(note.entryDate)}</time></div>
+    <h3>{note.title || "Untitled note"}</h3>
+    <p>{stripHtml(note.content).slice(0, featured ? 230 : 145) || "Open this note and begin writing."}</p>
+    <div className="record-card-footer">
+      <span>{note.folder?.name ? <><NavigationIcon name="folder" size={13} /> {note.folder.name}</> : "Personal record"}</span>
+      <span>{note.tags?.slice(0, 2).map(tag => <i key={tag}>#{tag}</i>)}</span>
+      <NavigationIcon name="chevron" size={15} />
+    </div>
+  </Link>;
+}
 
 export default function NotesDashboard() {
   const { user } = useAuth();
   const [notes, setNotes] = useState(() => api.peek("/notes", { scope: "all" })?.notes ?? null);
   const [stats, setStats] = useState(() => api.peek("/analytics/notes") ?? null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    api.get("/notes", { scope: "all" }).then((d) => setNotes(d.notes));
-    api.get("/analytics/notes").then(setStats);
+    let active = true;
+    Promise.all([api.get("/notes", { scope: "all" }), api.get("/analytics/notes")])
+      .then(([noteData, analytics]) => { if (active) { setNotes(noteData.notes); setStats(analytics); setError(""); } })
+      .catch(err => { if (active) setError(err.message || "Your records could not be refreshed."); });
+    return () => { active = false; };
   }, []);
 
-  const pinned = notes?.filter((n) => n.isPinned) ?? [];
+  const pinned = notes?.filter(note => note.isPinned) ?? [];
   const recent = (notes ?? []).slice(0, 6);
-
+  const continuation = pinned[0] || recent[0] || null;
   const hour = new Date().getHours();
-  const greeting =
-    hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const firstName = user?.name?.split(" ")[0] || "there";
+  const folderCount = notes ? new Set(notes.map(note => note.folderId).filter(Boolean)).size : 0;
+  const favoriteCount = notes?.filter(note => note.isFavorite).length || 0;
 
-  return (
-    <div className="px-1 sm:px-0">
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-5 md:gap-6 mb-8 md:mb-7">
-        <div className="min-w-0 mb-4">
-          <span className="eyebrow">
-            {new Date().toDateString().toUpperCase()}
-          </span>
-          <h1 className="page-title font-bold text-[22px] leading-tight sm:text-[26px] md:text-[30px] tracking-tight my-1.5 break-words">
-            {greeting}, {user?.name}
-          </h1>
-          <p className="text-ink-muted text-[13px] m-0 max-w-[520px]">
-            Here's where your journal stands today.
-          </p>
-        </div>
+  return <div className="notes-home">
+    <header className="product-page-header">
+      <div><span className="eyebrow">{new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</span><h1 className="page-title">{greeting}, {firstName}</h1><p>Your records are ready when you are. Capture something new or continue where you left off.</p></div>
+      <div className="product-page-actions"><TemplateMenu /><Link to="/notes/new" className="btn-primary"><NavigationIcon name="plus" size={16} /> New note</Link></div>
+    </header>
 
-        <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
-          <div className="flex-1 md:flex-none min-w-0">
-            <TemplateMenu />
-          </div>
-          <Link
-            to="/notes/new"
-            className="btn-primary flex-1 md:flex-none text-center whitespace-nowrap"
-          >
-            + New note
-          </Link>
-        </div>
+    {error && <div className="inline-error" role="alert"><span>{error}</span><button type="button" onClick={() => window.location.reload()}>Retry</button></div>}
+
+    <section className="capture-stage" aria-labelledby="capture-heading">
+      <div className="capture-stage-copy"><span className="eyebrow">Quick capture</span><h2 id="capture-heading">Turn a thought into a useful record.</h2><p>Write freely now. Organize, connect, and revisit it when the context matters.</p><div><Link to="/notes/new" className="capture-primary"><NavigationIcon name="note" size={17} /> Start writing</Link><Link to="/notes/today"><NavigationIcon name="sun" size={16} /> Today’s journal</Link><Link to="/notes/tasks"><NavigationIcon name="tasks" size={16} /> Add a task</Link></div></div>
+      <div className="capture-stage-continuation">
+        <div className="continuation-label"><span><i /> Resume</span><small>{continuation ? `Updated ${shortDate(continuation.updatedAt || continuation.entryDate)}` : "Your next record"}</small></div>
+        {continuation ? <><h3>{continuation.title || "Untitled note"}</h3><p>{stripHtml(continuation.content).slice(0, 180) || "Continue shaping this note."}</p><Link to={`/notes/${continuation.id}`}>Continue writing <NavigationIcon name="chevron" size={14} /></Link></> : <><h3>Your workspace starts here</h3><p>Create your first note. Veynote will preserve it here so you can resume naturally.</p><Link to="/notes/new">Create a note <NavigationIcon name="chevron" size={14} /></Link></>}
       </div>
+    </section>
 
-      <div className="rounded-2xl p-4 md:p-5 flex flex-col md:flex-row md:items-center gap-4 md:gap-3.5 mb-8 md:mb-7 border border-app-border bg-gradient-to-br from-app-panel to-accent-notes-soft">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="w-[38px] h-[38px] rounded-xl bg-accent-notes-soft text-[#a89fff] flex items-center justify-center text-base shrink-0">
-            ✨
-          </div>
-          <div className="min-w-0">
-            <strong className="block text-[13.5px] mb-0.5">
-              What are you working on?
-            </strong>
-            <span className="text-[11.5px] text-ink-muted leading-snug">
-              Start a note, capture a reminder, or reflect on today.
-            </span>
-          </div>
-        </div>
+    <section className="record-overview" aria-label="Notes overview">
+      <div><span>Total records</span><strong>{stats?.hasData ? stats.totalNotes : notes?.length || 0}</strong><small>Across your Notes workspace</small></div>
+      <div><span>This month</span><strong>{stats?.hasData ? stats.notesThisMonth : 0}</strong><small>New entries captured</small></div>
+      <div><span>Folders</span><strong>{folderCount}</strong><small>Organized collections</small></div>
+      <div><span>Favorites</span><strong>{favoriteCount}</strong><small>Important records</small></div>
+    </section>
 
-        <div className="flex flex-wrap gap-2 md:ml-auto shrink-0">
-          <Link to="/notes/new" className="chip hover:bg-app-border">
-            ✎ New note
-          </Link>
-          <Link to="/notes/calendar" className="chip hover:bg-app-border">
-            ☀️ Today
-          </Link>
-          <Link to="/notes/search" className="chip hover:bg-app-border">
-            ◎ Search
-          </Link>
-        </div>
-      </div>
+    {pinned.length > 1 && <section className="home-section"><div className="section-heading"><div><span className="eyebrow">Within reach</span><h2>Pinned notes</h2></div><Link to="/notes/favorites">View favorites <NavigationIcon name="chevron" size={13} /></Link></div><div className="record-grid">{pinned.slice(0, 2).map(note => <NoteCard key={note.id} note={note} />)}</div></section>}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8 md:mb-7">
-        <StatCard
-          label="Total notes"
-          value={stats?.hasData ? stats.totalNotes : "0"}
-        />
-        <StatCard
-          label="This month"
-          value={stats?.hasData ? stats.notesThisMonth : "0"}
-          hint="entries"
-        />
-        <StatCard
-          label="Folders"
-          value={
-            notes
-              ? new Set(notes.map((n) => n.folderId).filter(Boolean)).size
-              : "0"
-          }
-        />
-        <StatCard
-          label="Favorites"
-          value={notes ? notes.filter((n) => n.isFavorite).length : "0"}
-        />
-      </div>
-
-      {pinned.length > 0 && (
-        <>
-          <div className="flex items-end justify-between mb-4 md:mb-3.5">
-            <div>
-              <span className="eyebrow">PINNED</span>
-              <h2 className="text-[15.5px] mt-1 mb-0">Pinned notes</h2>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8 md:mb-7">
-            {pinned.map((n) => (
-              <NoteCard key={n.id} note={n} />
-            ))}
-          </div>
-        </>
-      )}
-
-      <div className="flex items-end justify-between mb-4 md:mb-3.5">
-        <div>
-          <span className="eyebrow">RECENT</span>
-          <h2 className="text-[15.5px] mt-1 mb-0">Recent notes</h2>
-        </div>
-        <Link to="/notes/all" className="text-ink-soft text-[11.5px]">
-          View all →
-        </Link>
-      </div>
-
-      {notes === null ? (
-        <PageSkeleton compact />
-      ) : recent.length === 0 ? (
-        <div className="grid grid-cols-1">
-          <EmptyState
-            icon="📓"
-            title="No notes yet."
-            description="Write your first one to see it here."
-            action={
-              <Link to="/notes/new" className="btn-primary">
-                Write your first note
-              </Link>
-            }
-          />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {recent.map((n) => (
-            <NoteCard key={n.id} note={n} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function NoteCard({ note }) {
-  return (
-    <Link
-      to={`/notes/${note.id}`}
-      className="card p-3.5 md:p-4 block hover:border-ink-muted transition min-w-0"
-    >
-      <div className="flex justify-between items-center gap-2 mb-2.5">
-        <span className="type-pill shrink-0">Note</span>
-        <span className="text-[10px] text-ink-muted whitespace-nowrap">
-          {new Date(note.entryDate).toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-          })}
-        </span>
-      </div>
-
-      <h3 className="text-[14px] m-0 mb-1.5 tracking-tight leading-snug break-words">
-        {note.title}
-      </h3>
-
-      <p className="text-[11.5px] leading-relaxed text-ink-muted m-0 mb-3 line-clamp-2">
-        {stripHtml(note.content).slice(0, 140) || "No content yet."}
-      </p>
-
-      <div className="border-t border-app-border pt-2.5 flex justify-between items-center gap-2 min-w-0">
-        <div className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
-          {note.tags?.map((t) => (
-            <span key={t} className="text-[10px] text-ink-muted mr-1.5">
-              #{t}
-            </span>
-          ))}
-        </div>
-        {note.isFavorite && <span className="shrink-0">♥</span>}
-      </div>
-    </Link>
-  );
-}
-
-function stripHtml(html) {
-  return html?.replace(/<[^>]*>/g, " ") || "";
+    <section className="home-section">
+      <div className="section-heading"><div><span className="eyebrow">Your latest context</span><h2>Recent notes</h2></div><Link to="/notes/all">View all <NavigationIcon name="chevron" size={13} /></Link></div>
+      {notes === null ? <PageSkeleton compact /> : recent.length === 0 ? <EmptyState icon="✦" title="Your first record is waiting" description="Capture an idea, reflection, meeting, or plan. It will stay connected to the rest of your Veynote history." action={<Link to="/notes/new" className="btn-primary">Write your first note</Link>} /> : <div className="record-grid">{recent.map((note, index) => <NoteCard key={note.id} note={note} featured={index === 0 && recent.length > 2} />)}</div>}
+    </section>
+  </div>;
 }

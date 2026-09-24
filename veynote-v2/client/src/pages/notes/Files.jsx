@@ -1,5 +1,5 @@
 import PageSkeleton from "../../components/PageSkeleton.jsx";
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
@@ -8,6 +8,8 @@ import ImageLightbox from "../../components/ImageLightbox";
 import AuthImage from "../../components/AuthImage";
 import FileDownload from "../../components/FileDownload";
 import { resolveMediaUrl } from "../../utils/media";
+import ConfirmDialog from "../../components/ConfirmDialog.jsx";
+import NavigationIcon from "../../components/layout/NavigationIcon.jsx";
 
 function formatSize(bytes) {
   if (bytes == null) return "";
@@ -49,6 +51,11 @@ export default function Files() {
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState("");
+  const [search, setSearch] = useState("");
+  const [kind, setKind] = useState("all");
+  const [sort, setSort] = useState("name");
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [uploadError, setUploadError] = useState("");
   const folderInputRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -79,7 +86,7 @@ export default function Files() {
       );
       load();
     } catch (err) {
-      alert(err.message);
+      setUploadError(err.message || "The selected files could not be uploaded.");
     } finally {
       setUploadBatches((b) => b.filter((x) => x.batchId !== batchId));
     }
@@ -101,12 +108,10 @@ export default function Files() {
     load();
   }
 
-  async function remove(node) {
-    const warning = node.isDirectory
-      ? `Delete "${node.name}" and everything inside it? This can't be undone.`
-      : `Delete "${node.name}"? This can't be undone.`;
-    if (!confirm(warning)) return;
-    await api.delete(`/files/${node.id}`);
+  async function remove() {
+    if (!pendingDelete) return;
+    await api.delete(`/files/${pendingDelete.id}`);
+    setPendingDelete(null);
     setMenuOpenId(null);
     load();
   }
@@ -122,24 +127,39 @@ export default function Files() {
         const link = document.createElement("a");
         link.href = url; link.download = node.name; link.rel = "noreferrer";
         link.click();
-      } catch (err) { alert(err.message); }
+      } catch (err) { setUploadError(err.message || "This file could not be opened."); }
     }
   }
 
+  const visibleChildren = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return children.filter(node => {
+      if (needle && !node.name.toLowerCase().includes(needle)) return false;
+      if (kind === "all") return true;
+      if (kind === "folders") return node.isDirectory;
+      if (node.isDirectory) return false;
+      if (kind === "images") return node.mimeType?.startsWith("image/");
+      if (kind === "documents") return /pdf|document|word|text|sheet|excel|presentation/.test(node.mimeType || "");
+      return true;
+    }).sort((a, b) => {
+      if (sort === "size") return (b.sizeBytes || 0) - (a.sizeBytes || 0);
+      if (sort === "recent") return new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
+      return Number(b.isDirectory) - Number(a.isDirectory) || a.name.localeCompare(b.name);
+    });
+  }, [children, search, kind, sort]);
+
   return (
     <div>
-      <div className="flex items-end justify-between gap-6 mb-4 flex-wrap">
+      <div className="product-page-header">
         <div>
           <span className="eyebrow">ORGANIZE</span>
-          <h1 className="page-title text-[30px] tracking-tight my-1.5">Files</h1>
-          <p className="text-ink-muted text-[13px] m-0">
-            Upload a whole folder from your device and it keeps its structure — open it here just like on your computer.
-          </p>
+          <h1 className="page-title">Files</h1>
+          <p>A secure overview of documents and media imported into your Veynote workspace.</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => fileInputRef.current?.click()} className="btn-outline">↑ Upload files</button>
-          <button onClick={() => folderInputRef.current?.click()} className="btn-outline">↑ Upload folder</button>
-          <button onClick={() => setCreatingFolder((c) => !c)} className="btn-primary">+ New folder</button>
+        <div className="product-page-actions">
+          <button onClick={() => fileInputRef.current?.click()} className="btn-outline"><NavigationIcon name="files" size={16} /> Upload files</button>
+          <button onClick={() => folderInputRef.current?.click()} className="btn-outline"><NavigationIcon name="folder" size={16} /> Import folder</button>
+          <button onClick={() => setCreatingFolder((c) => !c)} className="btn-primary"><NavigationIcon name="plus" size={16} /> New folder</button>
         </div>
       </div>
 
@@ -163,8 +183,7 @@ export default function Files() {
         onChange={(e) => { runUpload(e.target.files, { withPaths: true }); e.target.value = ""; }}
       />
 
-      {/* Breadcrumb */}
-      <div className="flex items-center flex-wrap gap-1 mb-4 text-[12px]">
+      <div className="file-breadcrumb" aria-label="File location">
         <Link to="/notes/files" className={`px-2 py-1 rounded-md ${!id ? "text-ink font-semibold" : "text-ink-muted hover:text-ink"}`}>
           Files
         </Link>
@@ -179,6 +198,13 @@ export default function Files() {
             </Link>
           </span>
         ))}
+      </div>
+
+      <div className="file-overview">
+        <div><span>Current location</span><strong>{folder?.name || "Files"}</strong></div>
+        <div><span>Folders</span><strong>{children.filter(node => node.isDirectory).length}</strong></div>
+        <div><span>Files</span><strong>{children.filter(node => !node.isDirectory).length}</strong></div>
+        <div><span>Storage shown</span><strong>{formatSize(children.reduce((total, node) => total + (node.sizeBytes || 0), 0)) || "0 B"}</strong></div>
       </div>
 
       {creatingFolder && (
@@ -207,6 +233,14 @@ export default function Files() {
         </div>
       )}
 
+      {uploadError && <div className="inline-error" role="alert"><span>{uploadError}</span><button onClick={() => setUploadError("")}>Dismiss</button></div>}
+
+      <div className="collection-toolbar file-toolbar">
+        <label><NavigationIcon name="search" size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search files in this location…" /></label>
+        <select value={kind} onChange={event => setKind(event.target.value)} aria-label="File type"><option value="all">All types</option><option value="folders">Folders</option><option value="images">Images</option><option value="documents">Documents</option></select>
+        <select value={sort} onChange={event => setSort(event.target.value)} aria-label="Sort files"><option value="name">Name</option><option value="recent">Recently updated</option><option value="size">Largest first</option></select>
+      </div>
+
       {result.error && <p role="alert" className="text-danger">{result.error.message} <button className="btn-outline" onClick={load}>Retry</button></p>}
       {!loaded ? (
         <PageSkeleton compact />
@@ -217,20 +251,20 @@ export default function Files() {
           description="Upload a whole folder to mirror its structure here, or upload individual files."
           action={<button onClick={() => folderInputRef.current?.click()} className="btn-primary">Upload a folder</button>}
         />
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-          {children.map((node) => (
-            <div key={node.id} className="card p-3 relative group">
+      ) : visibleChildren.length === 0 ? <EmptyState icon="⌕" title="No matching files" description="Clear the search or choose another file type." action={<button className="btn-outline" onClick={() => { setSearch(""); setKind("all"); }}>Clear filters</button>} /> : (
+        <div className="file-grid">
+          {visibleChildren.map((node) => (
+            <div key={node.id} className="file-card group">
               <button type="button" onClick={() => openNode(node)} className="w-full flex flex-col items-center gap-2 text-center">
                 {!node.isDirectory && node.mimeType?.startsWith("image/") ? (
                   <AuthImage src={node.url} alt={node.name} className="w-full aspect-square object-cover rounded-lg border border-app-border" />
                 ) : (
-                  <div className="w-full aspect-square rounded-lg border border-app-border bg-app-panel2 flex items-center justify-center text-3xl">
+                  <div className="file-card-placeholder">
                     {iconFor(node)}
                   </div>
                 )}
-                {renamingId !== node.id && <p className="text-[11.5px] text-ink truncate w-full m-0">{node.name}</p>}
-                <p className="text-[9.5px] text-ink-muted m-0">
+                {renamingId !== node.id && <p className="file-card-name">{node.name}</p>}
+                <p className="file-card-meta">
                   {node.isDirectory ? "Folder" : formatSize(node.sizeBytes)}
                 </p>
               </button>
@@ -268,7 +302,7 @@ export default function Files() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => remove(node)}
+                    onClick={() => { setPendingDelete(node); setMenuOpenId(null); }}
                     className="block w-full text-left px-3 py-2 hover:bg-app-panel2 text-danger"
                   >
                     Delete
@@ -283,6 +317,7 @@ export default function Files() {
       {lightboxIndex !== null && (
         <ImageLightbox images={images} startIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
       )}
+      <ConfirmDialog open={Boolean(pendingDelete)} title={`Delete “${pendingDelete?.name || "item"}”?`} description={pendingDelete?.isDirectory ? "This folder and everything stored inside it will be permanently deleted. This action cannot be undone." : "This file will be permanently deleted. This action cannot be undone."} confirmLabel="Delete permanently" onClose={() => setPendingDelete(null)} onConfirm={remove} />
     </div>
   );
 }

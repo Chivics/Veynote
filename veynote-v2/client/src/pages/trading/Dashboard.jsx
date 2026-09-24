@@ -237,7 +237,7 @@ function AccountCard({ account }) {
 
   return (
     <Link
-      to={`/trading/entries?accountId=${account.id}`}
+      to={`/trading/accounts/${account.id}`}
       className="card p-4 flex flex-col gap-2 hover:border-ink-muted transition min-w-0"
     >
       <div className="w-9 h-9 rounded-lg bg-accent-trade-soft text-[#7db9ff] flex items-center justify-center mb-2 text-base">
