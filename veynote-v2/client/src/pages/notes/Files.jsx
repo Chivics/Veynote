@@ -1,4 +1,3 @@
-import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
@@ -58,6 +57,7 @@ export default function Files() {
   const [uploadError, setUploadError] = useState("");
   const folderInputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const skipRenameBlur = useRef(false);
 
   function load() {
     return result.refresh().catch(() => {});
@@ -95,25 +95,40 @@ export default function Files() {
   async function createFolder(e) {
     e.preventDefault();
     if (!newFolderName.trim()) return;
-    await api.post("/files/folders", { name: newFolderName.trim(), parentId: id || null });
-    setNewFolderName("");
-    setCreatingFolder(false);
-    load();
+    try {
+      await api.post("/files/folders", { name: newFolderName.trim(), parentId: id || null });
+      setNewFolderName("");
+      setCreatingFolder(false);
+      setUploadError("");
+      load();
+    } catch (err) {
+      setUploadError(err.message || "The folder could not be created.");
+    }
   }
 
   async function rename(node) {
     if (!renameValue.trim()) return;
-    await api.patch(`/files/${node.id}`, { name: renameValue.trim() });
-    setRenamingId(null);
-    load();
+    try {
+      await api.patch(`/files/${node.id}`, { name: renameValue.trim() });
+      setRenamingId(null);
+      setUploadError("");
+      load();
+    } catch (err) {
+      setUploadError(err.message || "The item could not be renamed.");
+    }
   }
 
   async function remove() {
     if (!pendingDelete) return;
-    await api.delete(`/files/${pendingDelete.id}`);
-    setPendingDelete(null);
-    setMenuOpenId(null);
-    load();
+    try {
+      await api.delete(`/files/${pendingDelete.id}`);
+      setPendingDelete(null);
+      setMenuOpenId(null);
+      setUploadError("");
+      load();
+    } catch (err) {
+      setUploadError(err.message || "The item could not be deleted.");
+    }
   }
 
   async function openNode(node) {
@@ -202,9 +217,9 @@ export default function Files() {
 
       <div className="file-overview">
         <div><span>Current location</span><strong>{folder?.name || "Files"}</strong></div>
-        <div><span>Folders</span><strong>{children.filter(node => node.isDirectory).length}</strong></div>
-        <div><span>Files</span><strong>{children.filter(node => !node.isDirectory).length}</strong></div>
-        <div><span>Storage shown</span><strong>{formatSize(children.reduce((total, node) => total + (node.sizeBytes || 0), 0)) || "0 B"}</strong></div>
+        <div><span>Folders</span><strong>{loaded ? children.filter(node => node.isDirectory).length : "—"}</strong></div>
+        <div><span>Files</span><strong>{loaded ? children.filter(node => !node.isDirectory).length : "—"}</strong></div>
+        <div><span>Storage shown</span><strong>{loaded ? formatSize(children.reduce((total, node) => total + (node.sizeBytes || 0), 0)) || "0 B" : "—"}</strong></div>
       </div>
 
       {creatingFolder && (
@@ -217,6 +232,7 @@ export default function Files() {
             onChange={(e) => setNewFolderName(e.target.value)}
           />
           <button type="submit" className="btn-primary">Create</button>
+          <button type="button" className="btn-outline" onClick={() => { setCreatingFolder(false); setNewFolderName(""); }}>Cancel</button>
         </form>
       )}
 
@@ -243,7 +259,7 @@ export default function Files() {
 
       {result.error && <p role="alert" className="text-danger">{result.error.message} <button className="btn-outline" onClick={load}>Retry</button></p>}
       {!loaded ? (
-        <PageSkeleton compact />
+        !result.error && <p className="file-inline-status" role="status">Checking this location…</p>
       ) : children.length === 0 && uploadBatches.length === 0 ? (
         <EmptyState
           icon="🗂️"
@@ -274,15 +290,23 @@ export default function Files() {
                   className="input text-[11.5px] w-full text-center mt-1.5"
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
-                  onBlur={() => rename(node)}
-                  onKeyDown={(e) => { if (e.key === "Enter") rename(node); if (e.key === "Escape") setRenamingId(null); }}
+                  onBlur={() => {
+                    if (skipRenameBlur.current) { skipRenameBlur.current = false; return; }
+                    rename(node);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+                    if (e.key === "Escape") { skipRenameBlur.current = true; setRenamingId(null); e.currentTarget.blur(); }
+                  }}
                 />
               )}
 
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === node.id ? null : node.id); }}
-                className="absolute top-2 right-2 w-6 h-6 rounded-md text-ink-muted opacity-0 group-hover:opacity-100 hover:bg-app-panel2 hover:text-ink text-[13px]"
+                aria-label={`Actions for ${node.name}`}
+                aria-expanded={menuOpenId === node.id}
+                className="file-card-menu-trigger absolute top-2 right-2 rounded-md text-ink-muted hover:bg-app-panel2 hover:text-ink"
               >
                 ⋯
               </button>
