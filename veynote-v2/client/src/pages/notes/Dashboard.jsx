@@ -4,7 +4,6 @@ import { api } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import TemplateMenu from "../../components/TemplateMenu";
 import EmptyState from "../../components/EmptyState";
-import PageSkeleton from "../../components/PageSkeleton.jsx";
 import NavigationIcon from "../../components/layout/NavigationIcon.jsx";
 
 function stripHtml(html) { return html?.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() || ""; }
@@ -27,15 +26,20 @@ export default function NotesDashboard() {
   const { user } = useAuth();
   const [notes, setNotes] = useState(() => api.peek("/notes", { scope: "all" })?.notes ?? null);
   const [stats, setStats] = useState(() => api.peek("/analytics/notes") ?? null);
-  const [error, setError] = useState("");
+  const [notesError, setNotesError] = useState("");
+  const [statsError, setStatsError] = useState("");
 
-  useEffect(() => {
-    let active = true;
-    Promise.all([api.get("/notes", { scope: "all" }), api.get("/analytics/notes")])
-      .then(([noteData, analytics]) => { if (active) { setNotes(noteData.notes); setStats(analytics); setError(""); } })
-      .catch(err => { if (active) setError(err.message || "Your records could not be refreshed."); });
-    return () => { active = false; };
-  }, []);
+  function loadNotes(force = false) {
+    setNotesError("");
+    api.get("/notes", { scope: "all" }, { force }).then((data) => setNotes(data.notes))
+      .catch((error) => setNotesError(error.message || "Your notes could not be loaded."));
+  }
+  function loadStats(force = false) {
+    setStatsError("");
+    api.get("/analytics/notes", undefined, { force }).then(setStats)
+      .catch((error) => setStatsError(error.message || "Note statistics could not be loaded."));
+  }
+  useEffect(() => { loadNotes(); loadStats(); }, []);
 
   const pinned = notes?.filter(note => note.isPinned) ?? [];
   const recent = (notes ?? []).slice(0, 6);
@@ -43,8 +47,8 @@ export default function NotesDashboard() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const firstName = user?.name?.split(" ")[0] || "there";
-  const folderCount = notes ? new Set(notes.map(note => note.folderId).filter(Boolean)).size : 0;
-  const favoriteCount = notes?.filter(note => note.isFavorite).length || 0;
+  const folderCount = notes ? new Set(notes.map(note => note.folderId).filter(Boolean)).size : "—";
+  const favoriteCount = notes ? notes.filter(note => note.isFavorite).length : "—";
 
   return <div className="notes-home">
     <header className="product-page-header">
@@ -52,19 +56,20 @@ export default function NotesDashboard() {
       <div className="product-page-actions"><TemplateMenu /><Link to="/notes/new" className="btn-primary"><NavigationIcon name="plus" size={16} /> New note</Link></div>
     </header>
 
-    {error && <div className="inline-error" role="alert"><span>{error}</span><button type="button" onClick={() => window.location.reload()}>Retry</button></div>}
+    {notesError && <div className="inline-error" role="alert"><span>Notes are unavailable: {notesError}</span><button type="button" onClick={() => loadNotes(true)}>Retry notes</button></div>}
+    {statsError && <div className="inline-error" role="alert"><span>Overview statistics are unavailable: {statsError}</span><button type="button" onClick={() => loadStats(true)}>Retry statistics</button></div>}
 
     <section className="capture-stage" aria-labelledby="capture-heading">
       <div className="capture-stage-copy"><span className="eyebrow">Quick capture</span><h2 id="capture-heading">Turn a thought into a useful record.</h2><p>Write freely now. Organize, connect, and revisit it when the context matters.</p><div><Link to="/notes/new" className="capture-primary"><NavigationIcon name="note" size={17} /> Start writing</Link><Link to="/journal"><NavigationIcon name="sun" size={16} /> Today’s journal</Link><Link to="/notes/tasks"><NavigationIcon name="tasks" size={16} /> Add a task</Link></div></div>
       <div className="capture-stage-continuation">
         <div className="continuation-label"><span><i /> Resume</span><small>{continuation ? `Updated ${shortDate(continuation.updatedAt || continuation.entryDate)}` : "Your next record"}</small></div>
-        {continuation ? <><h3>{continuation.title || "Untitled note"}</h3><p>{stripHtml(continuation.content).slice(0, 180) || "Continue shaping this note."}</p><Link to={`/notes/${continuation.id}`}>Continue writing <NavigationIcon name="chevron" size={14} /></Link></> : <><h3>Your workspace starts here</h3><p>Create your first note. Veynote will preserve it here so you can resume naturally.</p><Link to="/notes/new">Create a note <NavigationIcon name="chevron" size={14} /></Link></>}
+        {continuation ? <><h3>{continuation.title || "Untitled note"}</h3><p>{stripHtml(continuation.content).slice(0, 180) || "Continue shaping this note."}</p><Link to={`/notes/${continuation.id}`}>Continue writing <NavigationIcon name="chevron" size={14} /></Link></> : notes === null ? <><h3>Your workspace</h3><p>{notesError ? "Recent records could not be opened. Try again above." : "Opening your recent records…"}</p></> : <><h3>Your workspace starts here</h3><p>Create your first note. Veynote will preserve it here so you can resume naturally.</p><Link to="/notes/new">Create a note <NavigationIcon name="chevron" size={14} /></Link></>}
       </div>
     </section>
 
     <section className="record-overview" aria-label="Notes overview">
-      <div><span>Total records</span><strong>{stats?.hasData ? stats.totalNotes : notes?.length || 0}</strong><small>Across your Notes workspace</small></div>
-      <div><span>This month</span><strong>{stats?.hasData ? stats.notesThisMonth : 0}</strong><small>New entries captured</small></div>
+      <div><span>Total records</span><strong>{stats?.hasData ? stats.totalNotes : notes?.length ?? "—"}</strong><small>Across your Notes workspace</small></div>
+      <div><span>This month</span><strong>{stats?.hasData ? stats.notesThisMonth : "—"}</strong><small>New entries captured</small></div>
       <div><span>Folders</span><strong>{folderCount}</strong><small>Organized collections</small></div>
       <div><span>Favorites</span><strong>{favoriteCount}</strong><small>Important records</small></div>
     </section>
@@ -73,7 +78,7 @@ export default function NotesDashboard() {
 
     <section className="home-section">
       <div className="section-heading"><div><span className="eyebrow">Your latest context</span><h2>Recent notes</h2></div><Link to="/notes/all">View all <NavigationIcon name="chevron" size={13} /></Link></div>
-      {notes === null ? <PageSkeleton compact /> : recent.length === 0 ? <EmptyState icon="✦" title="Your first record is waiting" description="Capture an idea, reflection, meeting, or plan. It will stay connected to the rest of your Veynote history." action={<Link to="/notes/new" className="btn-primary">Write your first note</Link>} /> : <div className="record-grid">{recent.map((note, index) => <NoteCard key={note.id} note={note} featured={index === 0 && recent.length > 2} />)}</div>}
+      {notes === null ? (!notesError && <p className="collection-inline-status" role="status">Opening recent notes…</p>) : recent.length === 0 ? <EmptyState icon="✦" title="Your first record is waiting" description="Capture an idea, reflection, meeting, or plan. It will stay connected to the rest of your Veynote history." action={<Link to="/notes/new" className="btn-primary">Write your first note</Link>} /> : <div className="record-grid">{recent.map((note, index) => <NoteCard key={note.id} note={note} featured={index === 0 && recent.length > 2} />)}</div>}
     </section>
   </div>;
 }
