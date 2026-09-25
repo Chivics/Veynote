@@ -1,4 +1,3 @@
-import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
@@ -10,6 +9,7 @@ import { useApiQuery } from "../../hooks/useApiQuery";
 export default function EntryListPage({ mode }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [accounts, setAccounts] = useState(() => api.peek("/accounts")?.accounts ?? []);
+  const [accountsError, setAccountsError] = useState("");
   const accountId = searchParams.get("accountId") || "";
   const [q, setQ] = useState(searchParams.get("q") || "");
   const [searchQuery, setSearchQuery] = useState(q);
@@ -18,15 +18,22 @@ export default function EntryListPage({ mode }) {
   const entries = result.data?.entries ?? null;
 
   useEffect(() => {
-    api.get("/accounts").then((d) => setAccounts(d.accounts));
+    api.get("/accounts").then((data) => { setAccounts(data.accounts); setAccountsError(""); })
+      .catch(error => setAccountsError(error.message || "Account filters could not be loaded."));
   }, []);
 
 
   const activeAccount = accounts.find((a) => a.id === accountId);
+  const setAccount = value => setSearchParams(previous => {
+    const next = new URLSearchParams(previous);
+    if (value) next.set("accountId", value); else next.delete("accountId");
+    return next;
+  }, { replace: true });
 
   return (
     <div>
       {result.error && <p role="alert" className="text-danger mb-3">{result.error.message} <button onClick={() => result.refresh().catch(() => {})}>Retry</button></p>}
+      {accountsError && <p role="alert" className="text-danger mb-3">{accountsError}</p>}
       <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
         <div className="min-w-0">
           <span className="eyebrow">JOURNAL</span>
@@ -57,21 +64,21 @@ export default function EntryListPage({ mode }) {
       )}
 
       <div className="flex gap-2 mb-5 flex-wrap">
-        <FilterChip active={!accountId} onClick={() => setSearchParams({})}>All</FilterChip>
+        <FilterChip active={!accountId} onClick={() => setAccount("")}>All</FilterChip>
         {accounts.map((a) => (
-          <FilterChip key={a.id} active={accountId === a.id} onClick={() => setSearchParams({ accountId: a.id })}>
+          <FilterChip key={a.id} active={accountId === a.id} onClick={() => setAccount(a.id)}>
             {a.name}
           </FilterChip>
         ))}
       </div>
 
       {entries === null ? (
-        <PageSkeleton compact />
+        !result.error && <p className="collection-inline-status" role="status">Checking trade history…</p>
       ) : entries.length === 0 ? (
         <EmptyState
           icon="📈"
-          title={activeAccount ? `No entries in ${activeAccount.name} yet.` : "No trades yet"}
-          description="Log your first trade to start tracking performance."
+          title={mode === "search" && searchQuery ? "No matching trades" : activeAccount ? `No entries in ${activeAccount.name} yet.` : "No trades yet"}
+          description={mode === "search" && searchQuery ? "Try a different search phrase or account." : "Log your first trade to start tracking performance."}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

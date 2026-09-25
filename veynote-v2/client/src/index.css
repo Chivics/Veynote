@@ -113,6 +113,9 @@
 .account-money-input select { border-right: 1px solid rgb(var(--app-border)); color: rgb(var(--ink-soft)); }
 .form-error { color: rgb(var(--danger)); font-size: 12px; margin: 0; grid-column: 1 / -1; }
 .account-workspace { padding-bottom: 36px; }
+.account-workspace-pending { padding-top: 18px; }
+.account-workspace-pending > p { margin-top: 16px; color: rgb(var(--ink-muted)); font-size: 11px; }
+.trading-calendar-account { width: min(100%, 240px); }
 .account-hero { position: relative; overflow: hidden; border: 1px solid rgb(var(--app-border)); border-radius: 22px; padding: 26px; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 20px; background: linear-gradient(135deg, color-mix(in srgb, rgb(var(--app-panel)) 92%, #446dff 8%), rgb(var(--app-panel))); box-shadow: var(--shadow-card); }
 .account-hero::after { content:""; position:absolute; width:280px; height:280px; right:-120px; top:-170px; border-radius:50%; background:radial-gradient(circle, rgba(82,126,255,.18), transparent 70%); pointer-events:none; }
 .account-hero-main,.account-hero-actions,.account-balance-panel { position:relative; z-index:1; }

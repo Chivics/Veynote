@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
 
@@ -9,13 +9,18 @@ const MONTHS = [
 ];
 
 export default function TradingCalendar() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const accountId = searchParams.get("accountId") || "";
+  const [accounts, setAccounts] = useState(() => api.peek("/accounts")?.accounts ?? []);
+  useEffect(() => { api.get("/accounts").then(data => setAccounts(data.accounts)).catch(() => {}); }, []);
+  const activeAccount = accounts.find(account => account.id === accountId);
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
   const [selectedDay, setSelectedDay] = useState(today.getDate());
-  const result = useApiQuery("/calendar", { mode: "TRADING", year, month });
+  const result = useApiQuery("/calendar", { mode: "TRADING", year, month, accountId: accountId || undefined });
   const data = result.data;
-  const dayResult = useApiQuery("/calendar/day", { mode: "TRADING", date: new Date(Date.UTC(year, month - 1, selectedDay)).toISOString() });
+  const dayResult = useApiQuery("/calendar/day", { mode: "TRADING", date: new Date(Date.UTC(year, month - 1, selectedDay)).toISOString(), accountId: accountId || undefined });
   const dayDetail = dayResult.data;
 
   function changeMonth(delta) {
@@ -42,8 +47,7 @@ export default function TradingCalendar() {
 
   return (
     <div>
-      <span className="eyebrow">TIMELINE</span>
-      <h1 className="page-title text-[30px] tracking-tight mt-1.5 mb-6">Trading calendar</h1>
+      <div className="product-page-header"><div><span className="eyebrow">TRADING · TIMELINE</span><h1 className="page-title">Trading calendar</h1><p>{activeAccount ? `Only trades logged under ${activeAccount.name} appear in this view.` : "Review your recorded trades by day and return to their full context."}</p></div><select className="input trading-calendar-account" aria-label="Trading account" value={accountId} onChange={event => setSearchParams(previous => { const next = new URLSearchParams(previous); if (event.target.value) next.set("accountId", event.target.value); else next.delete("accountId"); return next; }, { replace: true })}><option value="">All accounts</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></div>
       {(result.error || dayResult.error) && <p role="alert" className="text-danger">{(result.error || dayResult.error).message} <button className="btn-outline" onClick={() => Promise.allSettled([result.refresh(), dayResult.refresh()])}>Retry</button></p>}
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
@@ -112,9 +116,9 @@ export default function TradingCalendar() {
               </div>
             </>
           ) : (
-            <p className="text-[11px] text-ink-muted mb-3.5">No trades logged this day</p>
+            <p className="text-[11px] text-ink-muted mb-3.5">{dayDetail ? "No trades logged this day" : dayResult.error ? "Day details are unavailable." : "Checking this day…"}</p>
           )}
-          <Link to={`/trading/entries/new`} className="btn-outline w-full text-center block mt-3.5">
+          <Link to={`/trading/entries/new${accountId ? `?accountId=${encodeURIComponent(accountId)}` : ""}`} className="btn-outline w-full text-center block mt-3.5">
             + Log a trade
           </Link>
         </div>

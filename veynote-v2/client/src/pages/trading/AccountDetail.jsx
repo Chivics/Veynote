@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
-import PageSkeleton from "../../components/PageSkeleton";
 import StatCard from "../../components/StatCard";
 import { EntryCard } from "./Dashboard";
 
@@ -25,14 +24,14 @@ function Breakdown({ title, rows, empty }) {
   );
 }
 
-function AccountCalendar({ days = [] }) {
+function AccountCalendar({ days = [], accountId }) {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
   const firstOffset = new Date(year, month, 1).getDay();
   const count = new Date(year, month + 1, 0).getDate();
   const indexed = Object.fromEntries(days.map((day) => [day.date, day]));
-  return <section className="card account-calendar-panel"><div className="section-heading"><div><span className="eyebrow">TRADING CALENDAR</span><h2>{now.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</h2></div><Link to="/trading/calendar">Full calendar →</Link></div><div className="account-calendar-weekdays">{["S", "M", "T", "W", "T", "F", "S"].map((day, index) => <span key={`${day}-${index}`}>{day}</span>)}</div><div className="account-calendar-grid">{Array.from({ length: firstOffset }).map((_, index) => <span key={`blank-${index}`} />)}{Array.from({ length: count }).map((_, index) => { const dayNumber = index + 1; const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNumber).padStart(2, "0")}`; const activity = indexed[key]; return <div key={key} className={activity ? activity.totalR > 0 ? "positive" : activity.totalR < 0 ? "negative" : "neutral" : ""}><b>{dayNumber}</b>{activity && <small>{activity.totalR > 0 ? "+" : ""}{activity.totalR}R</small>}</div>; })}</div></section>;
+  return <section className="card account-calendar-panel"><div className="section-heading"><div><span className="eyebrow">TRADING CALENDAR</span><h2>{now.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</h2></div><Link to={`/trading/calendar?accountId=${encodeURIComponent(accountId)}`}>Full calendar →</Link></div><div className="account-calendar-weekdays">{["S", "M", "T", "W", "T", "F", "S"].map((day, index) => <span key={`${day}-${index}`}>{day}</span>)}</div><div className="account-calendar-grid">{Array.from({ length: firstOffset }).map((_, index) => <span key={`blank-${index}`} />)}{Array.from({ length: count }).map((_, index) => { const dayNumber = index + 1; const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNumber).padStart(2, "0")}`; const activity = indexed[key]; return <div key={key} className={activity ? activity.totalR > 0 ? "positive" : activity.totalR < 0 ? "negative" : "neutral" : ""}><b>{dayNumber}</b>{activity && <small>{activity.totalR > 0 ? "+" : ""}{activity.totalR}R</small>}</div>; })}</div></section>;
 }
 
 export default function AccountDetail() {
@@ -42,19 +41,26 @@ export default function AccountDetail() {
   const [payload, setPayload] = useState(() => api.peek(accountPath) ?? null);
   const [analytics, setAnalytics] = useState(() => api.peek(analyticsPath) ?? null);
   const [error, setError] = useState("");
+  const [analyticsError, setAnalyticsError] = useState("");
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState(null);
 
   useEffect(() => {
     let active = true;
-    Promise.all([api.get(accountPath), api.get(analyticsPath)])
-      .then(([accountData, analyticsData]) => { if (active) { setPayload(accountData); setAnalytics(analyticsData); } })
-      .catch((requestError) => { if (active) setError(requestError.message || "This account could not be loaded."); });
+    setPayload(api.peek(accountPath) ?? null);
+    setAnalytics(api.peek(analyticsPath) ?? null);
+    setError("");
+    setAnalyticsError("");
+    api.get(accountPath).then(accountData => { if (active) setPayload(accountData); })
+      .catch(requestError => { if (active) setError(requestError.message || "This account could not be loaded."); });
+    api.get(analyticsPath).then(analyticsData => { if (active) setAnalytics(analyticsData); })
+      .catch(requestError => { if (active) setAnalyticsError(requestError.message || "Account performance could not be loaded."); });
     return () => { active = false; };
   }, [accountPath, analyticsPath]);
 
-  const account = payload?.account;
+  const account = payload?.account?.id === id ? payload.account : null;
+  const performance = analytics || { hasData: false, cumulativeR: [], setupBreakdown: [], instrumentBreakdown: [], directionBreakdown: [], calendarDays: [] };
   const currency = account?.currency || "USD";
   const balanceChange = useMemo(() => {
     if (account?.startingBalance == null || account?.currentBalance == null) return null;
@@ -76,8 +82,10 @@ export default function AccountDetail() {
     finally { setSaving(false); }
   }
 
-  if (error && !account) return <EmptyState icon="!" title="Account unavailable" description={error} action={<Link className="btn-outline" to="/trading/accounts">Back to accounts</Link>} />;
-  if (!account || !analytics) return <PageSkeleton title="Trading account" />;
+  if (!account) return <section className="account-workspace account-workspace-pending">
+    <span className="eyebrow">ACCOUNT WORKSPACE</span><h1 className="page-title">Trading account</h1>
+    {error ? <EmptyState icon="!" title="Account unavailable" description={error} action={<Link className="btn-outline" to="/trading/accounts">Back to accounts</Link>} /> : <p role="status">Opening this account…</p>}
+  </section>;
 
   return (
     <div className="account-workspace">
@@ -94,6 +102,8 @@ export default function AccountDetail() {
           <small className={balanceChange == null ? "" : balanceChange >= 0 ? "text-success" : "text-danger"}>{balanceChange == null ? "Add balances in account settings" : `${balanceChange >= 0 ? "+" : ""}${money(balanceChange, currency)} from start`}</small>
         </div>
       </header>
+
+      {analyticsError && <div className="inline-error" role="alert"><span>{analyticsError}</span><button type="button" onClick={() => { setAnalyticsError(""); api.get(analyticsPath, undefined, { force: true }).then(setAnalytics).catch(requestError => setAnalyticsError(requestError.message || "Account performance could not be loaded.")); }}>Retry performance</button></div>}
 
       {editing && <form className="card account-settings-panel" onSubmit={saveSettings}>
         <div className="section-heading"><div><span className="eyebrow">ACCOUNT CONFIGURATION</span><h2>Balances, risk limits & targets</h2></div><button type="button" className="text-action" onClick={() => setEditing(false)}>Close</button></div>
@@ -115,20 +125,20 @@ export default function AccountDetail() {
       </form>}
 
       <div className="account-metrics-grid">
-        <StatCard label="Win rate" value={analytics.hasData ? `${analytics.winRate}%` : "—"} hint={analytics.hasData ? `${analytics.wins}W · ${analytics.losses}L · ${analytics.breakEven}BE` : "No closed trades"} />
-        <StatCard label="Total R" value={analytics.hasData ? `${analytics.totalR > 0 ? "+" : ""}${analytics.totalR}R` : "—"} />
-        <StatCard label="Realized P&L" value={analytics.hasData && analytics.realizedPnl != null ? money(analytics.realizedPnl, currency) : "—"} hint="From recorded P&L" />
-        <StatCard label="Max drawdown" value={analytics.hasData ? `${analytics.maximumDrawdown}R` : "—"} />
-        <StatCard label="Average win" value={analytics.hasData && analytics.averageWin != null ? `${analytics.averageWin}R` : "—"} />
-        <StatCard label="Average loss" value={analytics.hasData && analytics.averageLoss != null ? `${analytics.averageLoss}R` : "—"} />
-        <StatCard label="Planned R:R" value={analytics.hasData && analytics.avgRiskReward != null ? `${analytics.avgRiskReward}R` : "—"} />
+        <StatCard label="Win rate" value={performance.hasData ? `${performance.winRate}%` : "—"} hint={performance.hasData ? `${performance.wins}W · ${performance.losses}L · ${performance.breakEven}BE` : analytics === null ? "Checking performance…" : "No closed trades"} />
+        <StatCard label="Total R" value={performance.hasData ? `${performance.totalR > 0 ? "+" : ""}${performance.totalR}R` : "—"} />
+        <StatCard label="Realized P&L" value={performance.hasData && performance.realizedPnl != null ? money(performance.realizedPnl, currency) : "—"} hint="From recorded P&L" />
+        <StatCard label="Max drawdown" value={performance.hasData ? `${performance.maximumDrawdown}R` : "—"} />
+        <StatCard label="Average win" value={performance.hasData && performance.averageWin != null ? `${performance.averageWin}R` : "—"} />
+        <StatCard label="Average loss" value={performance.hasData && performance.averageLoss != null ? `${performance.averageLoss}R` : "—"} />
+        <StatCard label="Planned R:R" value={performance.hasData && performance.avgRiskReward != null ? `${performance.avgRiskReward}R` : "—"} />
         <StatCard label="Account rules" value={payload.rules?.length || 0} hint={payload.rules?.filter((rule) => rule.status === "Active").length ? `${payload.rules.filter((rule) => rule.status === "Active").length} active` : "No active rules"} />
       </div>
 
       <div className="account-primary-grid">
         <section className="card account-equity-panel">
           <div className="section-heading"><div><span className="eyebrow">EQUITY CURVE</span><h2>Performance over time</h2></div><span className="type-pill">R multiple</span></div>
-          {!analytics.hasData ? <p className="account-empty-copy">Closed trades will build this curve.</p> : <div className="account-equity-chart" aria-label="Cumulative R chart">{analytics.cumulativeR.map((point, index) => { const values = analytics.cumulativeR.map((item) => item.value); const min = Math.min(...values, 0); const max = Math.max(...values, 0); const range = Math.max(max - min, 1); const height = ((point.value - min) / range) * 78 + 10; return <div key={point.tradeId || index} className="account-equity-column"><i className={point.value >= 0 ? "positive" : "negative"} style={{ height: `${height}%` }} /><span>{index === 0 || index === analytics.cumulativeR.length - 1 ? `${point.value}R` : ""}</span></div>; })}</div>}
+          {!performance.hasData ? <p className="account-empty-copy">{analytics === null ? "Checking account performance…" : "Closed trades will build this curve."}</p> : <div className="account-equity-chart" aria-label="Cumulative R chart">{performance.cumulativeR.map((point, index) => { const values = performance.cumulativeR.map((item) => item.value); const min = Math.min(...values, 0); const max = Math.max(...values, 0); const range = Math.max(max - min, 1); const height = ((point.value - min) / range) * 78 + 10; return <div key={point.tradeId || index} className="account-equity-column"><i className={point.value >= 0 ? "positive" : "negative"} style={{ height: `${height}%` }} /><span>{index === 0 || index === performance.cumulativeR.length - 1 ? `${point.value}R` : ""}</span></div>; })}</div>}
         </section>
         <section className="card account-limits-panel">
           <div className="section-heading"><div><span className="eyebrow">RISK ENVELOPE</span><h2>Limits & targets</h2></div><Link to="/trading/rules">Rulebook →</Link></div>
@@ -136,9 +146,9 @@ export default function AccountDetail() {
         </section>
       </div>
 
-      <div className="account-breakdown-grid"><Breakdown title="Setups" rows={analytics.setupBreakdown} empty="Setup performance appears after closed trades." /><Breakdown title="Instruments" rows={analytics.instrumentBreakdown} empty="Instrument performance appears here." /><Breakdown title="Long vs short" rows={analytics.directionBreakdown} empty="Direction performance appears here." /></div>
+      <div className="account-breakdown-grid"><Breakdown title="Setups" rows={performance.setupBreakdown} empty={analytics === null ? "Checking performance…" : "Setup performance appears after closed trades."} /><Breakdown title="Instruments" rows={performance.instrumentBreakdown} empty={analytics === null ? "Checking performance…" : "Instrument performance appears here."} /><Breakdown title="Long vs short" rows={performance.directionBreakdown} empty={analytics === null ? "Checking performance…" : "Direction performance appears here."} /></div>
 
-      <AccountCalendar days={analytics.calendarDays} />
+      {analytics === null ? <section className="card account-calendar-panel"><div className="section-heading"><div><span className="eyebrow">TRADING CALENDAR</span><h2>Account calendar</h2></div></div><p className="account-empty-copy" role={analyticsError ? undefined : "status"}>{analyticsError ? "Account calendar is unavailable until performance is reloaded." : "Checking account calendar…"}</p></section> : <AccountCalendar days={performance.calendarDays} accountId={id} />}
 
       <section className="account-recent-section">
         <div className="section-heading"><div><span className="eyebrow">ACCOUNT HISTORY</span><h2>Recent trades</h2></div><Link to={`/trading/entries?accountId=${id}`}>View all →</Link></div>

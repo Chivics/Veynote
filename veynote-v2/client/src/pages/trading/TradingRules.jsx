@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
-import PageSkeleton from "../../components/PageSkeleton.jsx";
 
 const CATEGORIES = ["Risk Management", "Entry", "Exit", "Psychology", "Position Sizing", "Session", "News", "Prop Firm", "Other"];
 const PRIORITIES = ["Must follow", "Important", "Optional"];
@@ -24,8 +23,11 @@ export default function TradingRules() {
   const [category, setCategory] = useState("ALL");
   const [status, setStatus] = useState("ACTIVE");
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [creatingBusy, setCreatingBusy] = useState(false);
+  const createInFlight = useRef(false);
 
-  function load() { api.get("/trading-rules").then((data) => setRules(data.rules)).catch((requestError) => setError(requestError.message)); }
+  function load() { api.get("/trading-rules").then((data) => { setRules(data.rules); setLoadError(""); }).catch((requestError) => setLoadError(requestError.message || "Rules could not be loaded.")); }
   useEffect(() => { load(); api.get("/accounts").then((data) => setAccounts(data.accounts)).catch(() => {}); }, []);
 
   const filtered = useMemo(() => (rules || []).filter((rule) => {
@@ -44,7 +46,9 @@ export default function TradingRules() {
 
   async function createRule(event) {
     event.preventDefault();
-    if (!draft.rule.trim()) return;
+    if (!draft.rule.trim() || createInFlight.current) return;
+    createInFlight.current = true;
+    setCreatingBusy(true);
     setError("");
     try {
       const { rule } = await api.post("/trading-rules", draft);
@@ -52,6 +56,7 @@ export default function TradingRules() {
       setCreating(false);
       navigate(`/trading/rules/${rule.id}`);
     } catch (requestError) { setError(requestError.message || "We couldn't create this rule."); }
+    finally { createInFlight.current = false; setCreatingBusy(false); }
   }
 
   return (
@@ -62,10 +67,10 @@ export default function TradingRules() {
       </header>
 
       <section className="rulebook-briefing">
-        <div><span>Active rules</span><strong>{summary.active}</strong><small>Currently enforced</small></div>
-        <div><span>Non-negotiable</span><strong>{summary.critical}</strong><small>Must-follow controls</small></div>
-        <div><span>Needs attention</span><strong className={summary.warnings ? "text-danger" : ""}>{summary.warnings}</strong><small>At risk or violated</small></div>
-        <div><span>Account coverage</span><strong>{summary.assigned}/{accounts.length || 0}</strong><small>Accounts with specific rules</small></div>
+        <div><span>Active rules</span><strong>{rules === null ? "—" : summary.active}</strong><small>Currently enforced</small></div>
+        <div><span>Non-negotiable</span><strong>{rules === null ? "—" : summary.critical}</strong><small>Must-follow controls</small></div>
+        <div><span>Needs attention</span><strong className={summary.warnings ? "text-danger" : ""}>{rules === null ? "—" : summary.warnings}</strong><small>At risk or violated</small></div>
+        <div><span>Account coverage</span><strong>{rules === null ? "—" : `${summary.assigned}/${accounts.length}`}</strong><small>Accounts with specific rules</small></div>
       </section>
 
       {creating && <form className="card rule-composer" onSubmit={createRule}>
@@ -77,7 +82,7 @@ export default function TradingRules() {
           <label><span>Applies to</span><select value={draft.accountId} onChange={(event) => setDraft({ ...draft, accountId: event.target.value })}><option value="">All accounts</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
         </div>
         {error && <p className="form-error" role="alert">{error}</p>}
-        <div className="flex justify-end gap-2"><button type="button" className="btn-outline" onClick={() => setCreating(false)}>Cancel</button><button className="btn-primary" type="submit">Create rule</button></div>
+        <div className="flex justify-end gap-2"><button type="button" className="btn-outline" disabled={creatingBusy} onClick={() => setCreating(false)}>Cancel</button><button className="btn-primary" type="submit" disabled={creatingBusy || !draft.rule.trim()}>{creatingBusy ? "Creating…" : "Create rule"}</button></div>
       </form>}
 
       <div className="rulebook-toolbar">
@@ -86,7 +91,8 @@ export default function TradingRules() {
         <div className="rule-status-tabs" aria-label="Filter by status">{[["ACTIVE", "Active"], ["RETIRED", "Reviewing / retired"], ["ALL", "All"]].map(([value, label]) => <button key={value} onClick={() => setStatus(value)} className={status === value ? "active" : ""}>{label}</button>)}</div>
       </div>
 
-      {rules === null ? <PageSkeleton compact /> : filtered.length === 0 ? <EmptyState icon="✓" title={rules.length ? "No matching rules" : "Your rulebook is ready"} description={rules.length ? "Adjust the search or filters to see more rules." : "Create the first risk or execution rule you want Veynote to keep visible."} action={!rules.length ? <button className="btn-primary" onClick={() => setCreating(true)}>Create first rule</button> : null} /> : (
+      {loadError && <div className="inline-error" role="alert"><span>{loadError}</span><button type="button" onClick={load}>Retry</button></div>}
+      {rules === null ? !loadError && <p className="collection-inline-status" role="status">Checking your rulebook…</p> : filtered.length === 0 ? <EmptyState icon="✓" title={rules.length ? "No matching rules" : "Your rulebook is ready"} description={rules.length ? "Adjust the search or filters to see more rules." : "Create the first risk or execution rule you want Veynote to keep visible."} action={!rules.length ? <button className="btn-primary" onClick={() => setCreating(true)}>Create first rule</button> : null} /> : (
         <div className="rulebook-grid">{filtered.map((rule) => <button key={rule.id} className={`rule-card ${priorityClass(rule.priority)}`} onClick={() => navigate(`/trading/rules/${rule.id}`)}>
           <div className="rule-card-top"><span className="rule-category">{rule.category || "Uncategorized"}</span><span className={`rule-compliance ${rule.complianceStatus?.toLowerCase()}`}>{(rule.complianceStatus || "UNREVIEWED").replaceAll("_", " ")}</span></div>
           <h2>{rule.rule}</h2>

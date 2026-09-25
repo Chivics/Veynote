@@ -1,5 +1,4 @@
-import PageSkeleton from "../../components/PageSkeleton.jsx";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
@@ -17,21 +16,30 @@ export default function Accounts() {
   const [currency, setCurrency] = useState("USD");
   const [startingBalance, setStartingBalance] = useState("");
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [creatingBusy, setCreatingBusy] = useState(false);
+  const createInFlight = useRef(false);
 
   function load() {
-    api.get("/accounts").then((d) => setAccounts(d.accounts));
+    api.get("/accounts").then((data) => { setAccounts(data.accounts); setLoadError(""); })
+      .catch(requestError => setLoadError(requestError.message || "Trading accounts could not be loaded."));
   }
   useEffect(load, []);
 
   async function createAccount(e) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || createInFlight.current) return;
+    createInFlight.current = true;
+    setCreatingBusy(true);
     setError("");
     try {
-      await api.post("/accounts", { name, broker, status, accountType, currency, startingBalance });
+      await api.post("/accounts", { name: name.trim(), broker, status, accountType, currency, startingBalance });
     } catch (requestError) {
       setError(requestError.message || "We couldn't create this account.");
       return;
+    } finally {
+      createInFlight.current = false;
+      setCreatingBusy(false);
     }
     setName("");
     setBroker("");
@@ -50,6 +58,7 @@ export default function Accounts() {
         </div>
         <button onClick={() => setCreating((c) => !c)} className="btn-primary shrink-0">+ Add account</button>
       </div>
+      {loadError && <div className="inline-error" role="alert"><span>{loadError}</span><button type="button" onClick={load}>Retry</button></div>}
 
       {creating && (
         <form onSubmit={createAccount} className="card account-setup-panel mb-5">
@@ -70,12 +79,12 @@ export default function Accounts() {
           <label><span>Starting balance</span><div className="account-money-input"><select aria-label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}><option>USD</option><option>GBP</option><option>EUR</option><option>NGN</option><option>CAD</option><option>AUD</option></select><input inputMode="decimal" placeholder="10000" value={startingBalance} onChange={(e) => setStartingBalance(e.target.value)} /></div></label>
           </div>
           {error && <p className="form-error" role="alert">{error}</p>}
-          <div className="flex justify-end gap-2"><button type="button" className="btn-outline" onClick={() => setCreating(false)}>Cancel</button><button type="submit" className="btn-primary">Create workspace</button></div>
+          <div className="flex justify-end gap-2"><button type="button" className="btn-outline" disabled={creatingBusy} onClick={() => setCreating(false)}>Cancel</button><button type="submit" className="btn-primary" disabled={creatingBusy || !name.trim()}>{creatingBusy ? "Creating…" : "Create workspace"}</button></div>
         </form>
       )}
 
       {accounts === null ? (
-        <PageSkeleton compact />
+        !loadError && <p className="collection-inline-status" role="status">Checking trading accounts…</p>
       ) : accounts.length === 0 && !creating ? (
         <EmptyState
           icon="◆"

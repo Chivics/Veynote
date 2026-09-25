@@ -11,8 +11,12 @@ router.use(requireAuth);
 // GET /api/calendar?mode=NOTES|TRADING&year=2026&month=8
 router.get("/", async (req, res) => {
   const mode = req.query.mode === "TRADING" ? "TRADING" : "NOTES";
+  const accountId = mode === "TRADING" && typeof req.query.accountId === "string" ? req.query.accountId : null;
   const year = parseInt(req.query.year, 10) || new Date().getFullYear();
   const month = parseInt(req.query.month, 10) || new Date().getMonth() + 1;
+  if (accountId && !await prisma.tradingAccount.findFirst({ where: { id: accountId, userId: req.userId }, select: { id: true } })) {
+    return res.status(404).json({ error: "Trading account not found." });
+  }
 
   const start = new Date(Date.UTC(year, month - 1, 1));
   const end = new Date(Date.UTC(year, month, 1));
@@ -31,7 +35,7 @@ router.get("/", async (req, res) => {
   let tradingDaySummaries = [];
   if (mode === "TRADING") {
     const trades = await prisma.tradingEntry.findMany({
-      where: { userId: req.userId, isTrade: true, entryDate: { gte: start, lt: end } },
+      where: { userId: req.userId, isTrade: true, ...(accountId && { accountId }), entryDate: { gte: start, lt: end } },
     });
     const byDay = {};
     for (const t of trades) {
@@ -44,7 +48,7 @@ router.get("/", async (req, res) => {
   }
 
   res.json({
-    userEvents: userEvents.map((event) => calendarEventPublic(event, req.userId)),
+    userEvents: (accountId ? userEvents.filter(event => event.linkedTrade?.accountId === accountId) : userEvents).map((event) => calendarEventPublic(event, req.userId)),
     systemEvents,
     tradingDaySummaries,
   });
@@ -53,6 +57,10 @@ router.get("/", async (req, res) => {
 // GET /api/calendar/day?mode=&date=2026-08-29
 router.get("/day", async (req, res) => {
   const mode = req.query.mode === "TRADING" ? "TRADING" : "NOTES";
+  const accountId = mode === "TRADING" && typeof req.query.accountId === "string" ? req.query.accountId : null;
+  if (accountId && !await prisma.tradingAccount.findFirst({ where: { id: accountId, userId: req.userId }, select: { id: true } })) {
+    return res.status(404).json({ error: "Trading account not found." });
+  }
   const date = new Date(req.query.date);
   const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
   const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
@@ -65,7 +73,7 @@ router.get("/day", async (req, res) => {
   let trades = [];
   if (mode === "TRADING") {
     trades = await prisma.tradingEntry.findMany({
-      where: { userId: req.userId, entryDate: { gte: start, lt: end } },
+      where: { userId: req.userId, ...(accountId && { accountId }), entryDate: { gte: start, lt: end } },
       include: { account: true },
     });
   }
@@ -74,7 +82,7 @@ router.get("/day", async (req, res) => {
     (e) => new Date(e.date).getUTCDate() === date.getUTCDate()
   );
 
-  res.json({ userEvents: userEvents.map((event) => calendarEventPublic(event, req.userId)), systemEvents, trades });
+  res.json({ userEvents: (accountId ? userEvents.filter(event => event.linkedTrade?.accountId === accountId) : userEvents).map((event) => calendarEventPublic(event, req.userId)), systemEvents, trades });
 });
 
 router.post("/",
