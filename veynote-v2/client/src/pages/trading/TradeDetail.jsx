@@ -1,5 +1,4 @@
-import PageSkeleton from "../../components/PageSkeleton.jsx";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../../api/client";
 import ImageLightbox from "../../components/ImageLightbox";
@@ -8,22 +7,57 @@ import DocumentContent from "../../components/DocumentContent";
 
 export default function TradeDetail() {
   const { id } = useParams();
-  const [entry, setEntry] = useState(null);
+  const [entry, setEntry] = useState(() => api.peek(`/trading/entries/${id}`)?.entry ?? null);
   const [images, setImages] = useState([]);
   const [analysisBlocks, setAnalysisBlocks] = useState([]);
   const [lightboxIndex, setLightboxIndex] = useState(null);
+  const [error, setError] = useState("");
+  const [mediaError, setMediaError] = useState("");
+  const [mediaLoading, setMediaLoading] = useState(true);
+  const requestGeneration = useRef(0);
 
   function openLightbox(image) {
     setLightboxIndex(images.findIndex((i) => i.id === image.id));
   }
 
+  function loadEntry(force = false) {
+    const generation = requestGeneration.current;
+    setError("");
+    api.get(`/trading/entries/${id}`, undefined, { force })
+      .then((data) => { if (requestGeneration.current === generation) setEntry(data.entry); })
+      .catch((requestError) => { if (requestGeneration.current === generation) setError(requestError.message || "This trade could not be loaded."); });
+  }
+
+  function loadMedia(force = false) {
+    const generation = requestGeneration.current;
+    setMediaError("");
+    setMediaLoading(true);
+    Promise.allSettled([
+      api.get(`/trading/entries/${id}/images`, undefined, { force }),
+      api.get(`/trading/entries/${id}/analysis`, undefined, { force }),
+    ]).then(([imageResult, analysisResult]) => {
+      if (requestGeneration.current !== generation) return;
+      setMediaLoading(false);
+      if (imageResult.status === "fulfilled") setImages(imageResult.value.images || []);
+      if (analysisResult.status === "fulfilled") setAnalysisBlocks(analysisResult.value.blocks || []);
+      if (imageResult.status === "rejected" || analysisResult.status === "rejected") {
+        setMediaError("Some screenshots or analysis could not be loaded. Your trade record is still available.");
+      }
+    });
+  }
+
   useEffect(() => {
-    api.get(`/trading/entries/${id}`).then((d) => setEntry(d.entry));
-    api.get(`/trading/entries/${id}/images`).then((d) => setImages(d.images));
-    api.get(`/trading/entries/${id}/analysis`).then((d) => setAnalysisBlocks(d.blocks || [])).catch(() => setAnalysisBlocks([]));
+    requestGeneration.current += 1;
+    setEntry(api.peek(`/trading/entries/${id}`)?.entry ?? null);
+    setImages([]);
+    setAnalysisBlocks([]);
+    setLightboxIndex(null);
+    loadEntry();
+    loadMedia();
+    return () => { requestGeneration.current += 1; };
   }, [id]);
 
-  if (!entry) return <PageSkeleton title="Trade" />;
+  if (!entry || String(entry.id) !== String(id)) return <div className="max-w-[900px] mx-auto"><span className="eyebrow">TRADING JOURNAL</span><h1 className="page-title mt-1.5">Trade detail</h1>{error ? <div className="inline-error mt-5" role="alert"><span>{error}</span><button type="button" onClick={() => loadEntry(true)}>Retry</button></div> : <p className="collection-inline-status mt-5" role="status">Opening this trade…</p>}<Link className="btn-outline inline-block mt-5" to="/trading/entries">← Back to Journal</Link></div>;
 
   const resultTone = entry.result === "WIN" ? "text-success" : entry.result === "LOSS" ? "text-danger" : "text-ink";
   const setupTypes = (entry.setupTypes || "").split(",").filter(Boolean);
@@ -36,6 +70,8 @@ export default function TradeDetail() {
 
   return (
     <div>
+      {error && <div className="inline-error mb-4" role="alert"><span>{error} Showing the last available copy.</span><button type="button" onClick={() => loadEntry(true)}>Retry</button></div>}
+      {mediaError && <div className="inline-error mb-4" role="alert"><span>{mediaError}</span><button type="button" onClick={() => loadMedia(true)}>Retry media</button></div>}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <span className="eyebrow">
           {entry.account?.name || "No account"} · {entry.result}
@@ -102,6 +138,7 @@ export default function TradeDetail() {
         </>
       )}
 
+      {mediaLoading && !hasAnyDocumentation && <p className="collection-inline-status mb-6" role="status">Opening screenshots and analysis…</p>}
       {hasAnyDocumentation && (
         <>
           <h2 className="text-[15.5px] mb-3">Trade documentation</h2>

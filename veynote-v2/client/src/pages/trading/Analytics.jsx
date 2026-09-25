@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
-import PageSkeleton from "../../components/PageSkeleton.jsx";
 import StatCard from "../../components/StatCard";
 
 function PerformanceTable({ title, subtitle, rows }) {
@@ -16,17 +15,26 @@ export default function Analytics() {
   const [data, setData] = useState(() => api.peek(path) ?? null);
   const [accounts, setAccounts] = useState(() => api.peek("/accounts")?.accounts ?? []);
   const [error, setError] = useState("");
+  const [accountsError, setAccountsError] = useState("");
+  const requestGeneration = useRef(0);
 
-  useEffect(() => { setData(api.peek(path) ?? null); setError(""); api.get(path).then(setData).catch((requestError) => setError(requestError.message)); }, [path]);
-  useEffect(() => { api.get("/accounts").then((result) => setAccounts(result.accounts)).catch(() => {}); }, []);
+  function load(force = false) {
+    const generation = requestGeneration.current;
+    setError("");
+    api.get(path, undefined, { force })
+      .then((result) => { if (generation === requestGeneration.current) setData(result); })
+      .catch((requestError) => { if (generation === requestGeneration.current) setError(requestError.message || "Analytics could not be loaded."); });
+  }
+  useEffect(() => { requestGeneration.current += 1; setData(api.peek(path) ?? null); load(); return () => { requestGeneration.current += 1; }; }, [path]);
+  useEffect(() => { api.get("/accounts").then((result) => setAccounts(result.accounts)).catch((requestError) => setAccountsError(requestError.message || "Accounts could not be loaded.")); }, []);
   const account = accounts.find((item) => item.id === accountId);
   const expectancy = useMemo(() => data?.hasData && data.averageWin != null && data.averageLoss != null ? ((data.winRate / 100) * data.averageWin - ((100 - data.winRate) / 100) * data.averageLoss).toFixed(2) : null, [data]);
 
-  if (data === null && !error) return <PageSkeleton title="Trading analytics" />;
   return <div className="trading-analytics-page">
-    <header className="analytics-header"><div><span className="eyebrow">PERFORMANCE INTELLIGENCE</span><h1 className="page-title">Trading Analytics</h1><p>{account ? `Only trades logged under ${account.name} contribute to this view.` : "A factual view across every trading account."}</p></div><select aria-label="Trading account" value={accountId} onChange={(event) => { const next = new URLSearchParams(searchParams); event.target.value ? next.set("accountId", event.target.value) : next.delete("accountId"); setSearchParams(next); }}><option value="">All accounts</option>{accounts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></header>
-    {error && <div className="analysis-error"><span>{error}</span><button onClick={() => api.get(path).then(setData).catch((requestError) => setError(requestError.message))}>Retry</button></div>}
-    {!data?.hasData ? <EmptyState icon="↗" title="Performance starts with a closed trade" description="Open trades remain visible in the journal, while this page waits for a completed outcome before calculating statistics." action={<Link className="btn-primary" to={`/trading/entries/new${accountId ? `?accountId=${accountId}` : ""}`}>Log a trade</Link>} /> : <>
+    <header className="analytics-header"><div><span className="eyebrow">PERFORMANCE INTELLIGENCE</span><h1 className="page-title">Trading Analytics</h1><p>{accountId ? account ? `Only trades logged under ${account.name} contribute to this view.` : "Only trades logged under the selected account contribute to this view." : "A factual view across every trading account."}</p></div><select aria-label="Trading account" value={accountId} onChange={(event) => { const next = new URLSearchParams(searchParams); event.target.value ? next.set("accountId", event.target.value) : next.delete("accountId"); setSearchParams(next); }}><option value="">All accounts</option>{accounts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></header>
+    {accountsError && <div className="analysis-error" role="alert"><span>Account choices could not be loaded: {accountsError}</span><button type="button" onClick={() => { setAccountsError(""); api.get("/accounts", undefined, { force: true }).then((result) => setAccounts(result.accounts)).catch((requestError) => setAccountsError(requestError.message || "Accounts could not be loaded.")); }}>Retry accounts</button></div>}
+    {error && <div className="analysis-error" role="alert"><span>{error}{data ? " Showing the last available results." : ""}</span><button type="button" onClick={() => load(true)}>Retry</button></div>}
+    {data === null ? (!error && <p className="collection-inline-status" role="status">Opening performance results…</p>) : !data.hasData ? <EmptyState icon="↗" title="Performance starts with a closed trade" description="Open trades remain visible in the journal, while this page waits for a completed outcome before calculating statistics." action={<Link className="btn-primary" to={`/trading/entries/new${accountId ? `?accountId=${accountId}` : ""}`}>Log a trade</Link>} /> : <>
       <section className="analytics-scoreboard"><div className="analytics-primary-score"><span>NET PERFORMANCE</span><strong className={data.totalR >= 0 ? "text-success" : "text-danger"}>{data.totalR > 0 ? "+" : ""}{data.totalR}R</strong><small>{data.totalTrades} closed trades · {data.wins} wins · {data.losses} losses</small></div><div><span>Win rate</span><strong>{data.winRate}%</strong><small>{data.breakEven} break-even</small></div><div><span>Expectancy</span><strong>{expectancy != null ? `${expectancy}R` : "—"}</strong><small>Per closed trade</small></div><div><span>Max drawdown</span><strong>{data.maximumDrawdown}R</strong><small>Peak-to-trough</small></div></section>
       <div className="analytics-metric-grid"><StatCard label="Average win" value={data.averageWin != null ? `${data.averageWin}R` : "—"} /><StatCard label="Average loss" value={data.averageLoss != null ? `${data.averageLoss}R` : "—"} /><StatCard label="Planned R:R" value={data.avgRiskReward != null ? `${data.avgRiskReward}R` : "—"} /><StatCard label="Journal coverage" value={`${data.ruleAdherence.journaledPct}%`} hint="Psychology captured" /><StatCard label="Best trade" value={data.bestTrade ? `${data.bestTrade.achievedR > 0 ? "+" : ""}${data.bestTrade.achievedR || 0}R` : "—"} hint={data.bestTrade?.asset || ""} /><StatCard label="Worst trade" value={data.worstTrade ? `${data.worstTrade.achievedR || 0}R` : "—"} hint={data.worstTrade?.asset || ""} /></div>
       <section className="card analytics-equity-card"><div className="section-heading"><div><span className="eyebrow">PERFORMANCE CURVE</span><h2>Cumulative R</h2><p>Every point represents a closed trade in chronological order.</p></div><span className="type-pill">{account?.name || "All accounts"}</span></div><div className="analytics-equity-chart">{data.cumulativeR.map((point, index) => { const values = data.cumulativeR.map((item) => item.value); const min = Math.min(...values, 0); const max = Math.max(...values, 0); const range = Math.max(max - min, 1); const height = ((point.value - min) / range) * 82 + 8; return <Link to={`/trading/entries/${point.tradeId}`} key={point.tradeId || index} className="analytics-equity-point" title={`${point.value}R · ${new Date(point.date).toLocaleDateString()}`}><i className={point.value >= 0 ? "positive" : "negative"} style={{ height: `${height}%` }} /><span>{index === 0 || index === data.cumulativeR.length - 1 ? `${point.value}R` : ""}</span></Link>; })}</div></section>

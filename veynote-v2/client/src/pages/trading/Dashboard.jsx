@@ -1,4 +1,3 @@
-import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
@@ -9,11 +8,30 @@ export default function TradingDashboard() {
   const [entries, setEntries] = useState(() => api.peek("/trading/entries")?.entries ?? null);
   const [accounts, setAccounts] = useState(() => api.peek("/accounts")?.accounts ?? null);
   const [analytics, setAnalytics] = useState(() => api.peek("/analytics/trading") ?? null);
+  const [entriesError, setEntriesError] = useState("");
+  const [accountsError, setAccountsError] = useState("");
+  const [analyticsError, setAnalyticsError] = useState("");
+
+  function loadEntries(force = false) {
+    setEntriesError("");
+    api.get("/trading/entries", undefined, { force }).then((data) => setEntries(data.entries))
+      .catch((error) => setEntriesError(error.message || "Trades could not be loaded."));
+  }
+  function loadAccounts(force = false) {
+    setAccountsError("");
+    api.get("/accounts", undefined, { force }).then((data) => setAccounts(data.accounts))
+      .catch((error) => setAccountsError(error.message || "Accounts could not be loaded."));
+  }
+  function loadAnalytics(force = false) {
+    setAnalyticsError("");
+    api.get("/analytics/trading", undefined, { force }).then(setAnalytics)
+      .catch((error) => setAnalyticsError(error.message || "Performance could not be loaded."));
+  }
 
   useEffect(() => {
-    api.get("/trading/entries").then((d) => setEntries(d.entries));
-    api.get("/accounts").then((d) => setAccounts(d.accounts));
-    api.get("/analytics/trading").then(setAnalytics);
+    loadEntries();
+    loadAccounts();
+    loadAnalytics();
   }, []);
 
   const openPositions = entries?.filter((e) => e.isTrade && e.result === "OPEN") || [];
@@ -38,6 +56,8 @@ export default function TradingDashboard() {
           + Log trade
         </Link>
       </div>
+
+      {analyticsError && <div className="inline-error mb-4" role="alert"><span>Performance is unavailable: {analyticsError}</span><button type="button" onClick={() => loadAnalytics(true)}>Retry</button></div>}
 
       <div className="rounded-2xl p-4 md:p-5 flex flex-col md:flex-row md:items-center gap-4 md:gap-3.5 mb-8 md:mb-7 border border-app-border bg-gradient-to-br from-app-panel to-accent-trade-soft">
         <div className="flex items-start gap-3 min-w-0">
@@ -65,7 +85,7 @@ export default function TradingDashboard() {
         <StatCard
           label="Win rate"
           value={analytics?.hasData ? `${analytics.winRate}%` : "—"}
-          hint={analytics?.hasData ? "All logged trades" : "Log a trade to start"}
+          hint={analytics === null ? "Awaiting performance" : analytics.hasData ? "All closed trades" : "Close a trade to start"}
         />
         <StatCard
           label="Total R"
@@ -82,10 +102,10 @@ export default function TradingDashboard() {
         />
         <StatCard
           label="Open positions"
-          value={openPositions.length}
+          value={entries ? openPositions.length : "—"}
           hint={openPositions[0]?.asset || ""}
         />
-        <StatCard label="Total entries" value={entries ? entries.length : "0"} />
+        <StatCard label="Total entries" value={entries ? entries.length : "—"} />
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mt-10 mb-4">
@@ -100,8 +120,9 @@ export default function TradingDashboard() {
         </Link>
       </div>
 
+      {entriesError && <div className="inline-error mb-4" role="alert"><span>Recent trades are unavailable: {entriesError}</span><button type="button" onClick={() => loadEntries(true)}>Retry</button></div>}
       {entries === null ? (
-        <PageSkeleton compact />
+        !entriesError && <p className="collection-inline-status mb-8" role="status">Opening recent trades…</p>
       ) : recent.length === 0 ? (
         <EmptyState
           icon="📈"
@@ -130,8 +151,9 @@ export default function TradingDashboard() {
           </h2>
         </div>
       </div>
+      {accountsError && <div className="inline-error mb-4" role="alert"><span>Accounts are unavailable: {accountsError}</span><button type="button" onClick={() => loadAccounts(true)}>Retry</button></div>}
       {accounts === null ? (
-        <PageSkeleton compact />
+        !accountsError && <p className="collection-inline-status" role="status">Opening trading accounts…</p>
       ) : accounts.length === 0 ? (
         <EmptyState
           icon="◆"
