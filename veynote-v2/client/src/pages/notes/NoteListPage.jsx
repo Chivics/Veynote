@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
-import PageSkeleton from "../../components/PageSkeleton.jsx";
 import ConfirmDialog from "../../components/ConfirmDialog.jsx";
 import NavigationIcon from "../../components/layout/NavigationIcon.jsx";
 import { useApiQuery } from "../../hooks/useApiQuery";
@@ -45,6 +44,7 @@ export default function NoteListPage({ scope }) {
   const [view, setView] = useState("grid");
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [actionError, setActionError] = useState("");
   const copy = SCOPE_COPY[scope];
   const folderId = params.folderId;
   const tag = params.tag;
@@ -77,13 +77,20 @@ export default function NoteListPage({ scope }) {
     });
   }, [notes, filterText, sort]);
 
-  async function toggleFavorite(note) { await api.patch(`/notes/${note.id}`, { isFavorite: !note.isFavorite }); await result.refresh(); }
-  async function restoreNote(note) { await api.post(`/notes/${note.id}/restore`); await result.refresh(); }
-  async function unarchiveNote(note) { await api.patch(`/notes/${note.id}`, { isArchived: false }); await result.refresh(); }
+  async function runAction(action) {
+    setActionError("");
+    try { await action(); result.refresh().catch(() => {}); }
+    catch (error) { setActionError(error.message || "The record could not be updated. Please try again."); }
+  }
+  function toggleFavorite(note) { return runAction(() => api.patch(`/notes/${note.id}`, { isFavorite: !note.isFavorite })); }
+  function restoreNote(note) { return runAction(() => api.post(`/notes/${note.id}/restore`)); }
+  function unarchiveNote(note) { return runAction(() => api.patch(`/notes/${note.id}`, { isArchived: false })); }
   async function deleteForever() {
     if (!pendingDelete) return;
     setDeleting(true);
-    try { await api.delete(`/notes/${pendingDelete.id}`); setPendingDelete(null); await result.refresh(); } finally { setDeleting(false); }
+    try { await api.delete(`/notes/${pendingDelete.id}`); setPendingDelete(null); setActionError(""); result.refresh().catch(() => {}); }
+    catch (error) { setActionError(error.message || "The note could not be deleted."); }
+    finally { setDeleting(false); }
   }
 
   const title = scope === "folder" ? folder?.name || "Folder" : scope === "tag" ? `#${tag}` : copy.title;
@@ -101,6 +108,7 @@ export default function NoteListPage({ scope }) {
 
     {scope === "trash" && <div className="retention-notice"><NavigationIcon name="clock" size={18} /><div><strong>Recoverable until you delete permanently</strong><span>Restore anything you still need. Permanent deletion cannot be undone.</span></div></div>}
     {result.error && <div className="inline-error" role="alert"><span>{result.error.message}</span><button type="button" onClick={() => result.refresh().catch(() => {})}>Retry</button></div>}
+    {actionError && <div className="inline-error" role="alert"><span>{actionError}</span><button type="button" onClick={() => setActionError("")}>Dismiss</button></div>}
 
     <div className="collection-toolbar">
       <label><NavigationIcon name="search" size={17} /><input value={searchValue} onChange={event => setSearchValue(event.target.value)} placeholder={scope === "search" ? "Search title, writing, or tags…" : "Filter this collection…"} autoFocus={scope === "search"} /></label>
@@ -110,7 +118,7 @@ export default function NoteListPage({ scope }) {
 
     <div className="collection-summary"><span>{notes ? `${visibleNotes.length} ${visibleNotes.length === 1 ? "record" : "records"}` : "Preparing records"}</span>{filterText && notes && <small>{notes.length - visibleNotes.length} hidden by filter</small>}</div>
 
-    {notes === null ? <PageSkeleton compact /> : visibleNotes.length === 0 ? <EmptyState icon={scope === "trash" ? "⌫" : "✦"} title={filterText ? "No matching records" : copy.empty} description={filterText ? "Clear the filter or try a different phrase." : copy.emptyDesc} action={filterText ? <button className="btn-outline" onClick={() => setFilterText("")}>Clear filter</button> : undefined} /> : <div className={`note-records ${view === "list" ? "is-list" : ""}`}>{visibleNotes.map(note => <RecordCard key={note.id} note={note} scope={scope} view={view} onFavorite={toggleFavorite} onRestore={restoreNote} onUnarchive={unarchiveNote} onDelete={setPendingDelete} />)}</div>}
+    {notes === null ? !result.error && <p className="collection-inline-status" role="status">Checking this collection…</p> : visibleNotes.length === 0 ? <EmptyState icon={scope === "trash" ? "⌫" : "✦"} title={filterText ? "No matching records" : copy.empty} description={filterText ? "Clear the filter or try a different phrase." : copy.emptyDesc} action={filterText ? <button className="btn-outline" onClick={() => setFilterText("")}>Clear filter</button> : undefined} /> : <div className={`note-records ${view === "list" ? "is-list" : ""}`}>{visibleNotes.map(note => <RecordCard key={note.id} note={note} scope={scope} view={view} onFavorite={toggleFavorite} onRestore={restoreNote} onUnarchive={unarchiveNote} onDelete={setPendingDelete} />)}</div>}
 
     <ConfirmDialog open={Boolean(pendingDelete)} title="Delete this note permanently?" description={`“${pendingDelete?.title || "Untitled note"}” will be removed immediately and cannot be restored.`} confirmLabel="Delete permanently" busy={deleting} onClose={() => !deleting && setPendingDelete(null)} onConfirm={deleteForever} />
   </div>;

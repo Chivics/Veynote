@@ -2074,6 +2074,7 @@ body {
 .file-card:hover .file-card-menu-trigger,.file-card:focus-within .file-card-menu-trigger,.file-card-menu-trigger[aria-expanded="true"] { opacity: 1; }
 .file-card-menu-trigger:focus-visible { outline: 2px solid rgb(var(--accent-notes)); outline-offset: 2px; }
 .file-inline-status { margin: 0; padding: 20px 22px; border: 1px solid rgb(var(--app-border)); border-radius: 14px; color: rgb(var(--ink-muted)); background: rgb(var(--app-panel)); font-size: 11px; }
+.collection-inline-status { margin: 0; padding: 22px 24px; border: 1px solid rgb(var(--app-border)); border-radius: 14px; color: rgb(var(--ink-muted)); background: rgb(var(--app-panel)); font-size: 11px; }
 @media (hover: none) { .file-card-menu-trigger { opacity: 1; } }
 
 @media (max-width: 1180px) { .file-grid { grid-template-columns: repeat(4,minmax(0,1fr)); } }
