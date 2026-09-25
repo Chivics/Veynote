@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import NavigationIcon from "../../components/layout/NavigationIcon";
-import PageSkeleton from "../../components/PageSkeleton";
 import { computeStreaks, dayKey, MOODS, stripHtml, useJournalEntries } from "./journalUtils";
 
 const prompts = [
@@ -27,11 +26,11 @@ export default function JournalDashboard() {
     </header>
 
     {error && <div className="inline-error"><span>{error}</span><button onClick={refresh}>Retry</button></div>}
-    {entries === null ? <PageSkeleton compact /> : <>
+    <>
       <section className="journal-capture-stage">
         <div className="journal-date-rail"><span>{new Date().toLocaleDateString(undefined, { month: "short" })}</span><strong>{new Date().getDate()}</strong><small>{new Date().toLocaleDateString(undefined, { weekday: "long" })}</small></div>
         <div className="journal-capture-copy"><span className="eyebrow">{today ? "CONTINUE TODAY" : `GOOD ${new Date().getHours() < 12 ? "MORNING" : new Date().getHours() < 18 ? "AFTERNOON" : "EVENING"}, ${firstName.toUpperCase()}`}</span><h2>{today?.title || prompt}</h2><p>{today ? stripHtml(today.content).slice(0, 190) || "Your entry is ready for the rest of the story." : "Write without arranging everything first. Veynote will keep the date, mood, context, and history together."}</p><Link to={today ? `/journal/entries/${today.id}` : "/journal/new"}>{today ? "Continue writing" : "Begin today’s entry"} <NavigationIcon name="chevron" size={14} /></Link></div>
-        <div className="journal-streak"><span>Continuity</span><strong>{streak.current}</strong><small>day{streak.current === 1 ? "" : "s"} current</small><i /><p>{streak.longest} longest · {streak.total} days recorded</p></div>
+        <div className="journal-streak"><span>Continuity</span><strong>{entries === null ? "—" : streak.current}</strong><small>day{streak.current === 1 ? "" : "s"} current</small><i /><p>{entries === null ? "Checking your history…" : `${streak.longest} longest · ${streak.total} days recorded`}</p></div>
       </section>
 
       <section className="journal-overview-grid">
@@ -42,8 +41,8 @@ export default function JournalDashboard() {
 
       <section className="journal-recent-section">
         <div className="section-heading"><div><span className="eyebrow">RECENT MEMORY</span><h2>Previous entries</h2></div><Link to="/journal/timeline">Open timeline <NavigationIcon name="chevron" size={13} /></Link></div>
-        {recent.length ? <div className="journal-entry-list">{recent.map(entry => <Link key={entry.id} to={`/journal/entries/${entry.id}`} className="journal-entry-row"><time><strong>{new Date(entry.entryDate).getDate()}</strong><span>{new Date(entry.entryDate).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</span></time><div><h3>{entry.title || "Untitled reflection"}</h3><p>{stripHtml(entry.content).slice(0, 150) || "A quiet entry without preview text."}</p><small>{MOODS[entry.mood]?.symbol} {MOODS[entry.mood]?.label || "No mood recorded"}</small></div><NavigationIcon name="chevron" size={16} /></Link>)}</div> : <div className="journal-empty"><span>✦</span><h2>Your history begins with one honest entry.</h2><p>No streak pressure and no performance score. Record what matters when it matters.</p><Link className="btn-primary" to="/journal/new">Write the first entry</Link></div>}
+        {recent.length ? <div className="journal-entry-list">{recent.map(entry => <Link key={entry.id} to={`/journal/entries/${entry.id}`} className="journal-entry-row"><time><strong>{new Date(entry.entryDate).getDate()}</strong><span>{new Date(entry.entryDate).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</span></time><div><h3>{entry.title || "Untitled reflection"}</h3><p>{stripHtml(entry.content).slice(0, 150) || "A quiet entry without preview text."}</p><small>{MOODS[entry.mood]?.symbol} {MOODS[entry.mood]?.label || "No mood recorded"}</small></div><NavigationIcon name="chevron" size={16} /></Link>)}</div> : entries === null ? <p className="journal-inline-status" role="status">Checking recent entries…</p> : <div className="journal-empty"><span>✦</span><h2>Your history begins with one honest entry.</h2><p>No streak pressure and no performance score. Record what matters when it matters.</p><Link className="btn-primary" to="/journal/new">Write the first entry</Link></div>}
       </section>
-    </>}
+    </>
   </div>;
 }
