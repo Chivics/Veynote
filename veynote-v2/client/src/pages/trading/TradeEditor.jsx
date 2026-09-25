@@ -419,17 +419,17 @@ function TradeEditorForm() {
       />
       </section>
 
+      <section id="analysis" className="trade-editor-section"><div className="trade-section-heading"><div><span className="eyebrow">03 · TOP-DOWN ANALYSIS</span><h2>Build the evidence board</h2><p>Choose only the timeframes that belong to this trade, then document the progression to execution.</p></div></div>
+      <div className="mb-8">
+        <TradeDocumentation entryId={entryId} ensureEntryId={ensureEntryId} />
+      </div>
+      </section>
+
       <section id="psychology" className="trade-editor-section"><div className="trade-section-heading"><div><span className="eyebrow">04 · PSYCHOLOGY</span><h2>Track the decision state</h2><p>Record emotion, discipline and impulse without turning reflection into a questionnaire.</p></div></div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 mb-8">
         <PsychBox label="Before trade" value={form.psychologyBefore} onChange={(v) => setForm((f) => ({ ...f, psychologyBefore: v }))} />
         <PsychBox label="During trade" value={form.psychologyDuring} onChange={(v) => setForm((f) => ({ ...f, psychologyDuring: v }))} />
         <PsychBox label="After trade" value={form.psychologyAfter} onChange={(v) => setForm((f) => ({ ...f, psychologyAfter: v }))} />
-      </div>
-      </section>
-
-      <section id="analysis" className="trade-editor-section"><div className="trade-section-heading"><div><span className="eyebrow">03 · TOP-DOWN ANALYSIS</span><h2>Build the evidence board</h2><p>Choose only the timeframes that belong to this trade, then document the progression to execution.</p></div></div>
-      <div className="mb-8">
-        <TradeDocumentation entryId={entryId} ensureEntryId={ensureEntryId} />
       </div>
       </section>
 

@@ -159,7 +159,7 @@ export default function LockedNotes() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {notes.map((note) => (
-            <Link key={note.id} to={`/notes/${note.id}`} className="card p-4 block">
+            <Link key={note.id} to={note.kind === "JOURNAL" ? `/journal/entries/${note.id}` : `/notes/${note.id}`} className="card p-4 block">
               <div className="flex justify-between items-center mb-3">
                 <span className="type-pill">🔒 Locked</span>
               </div>

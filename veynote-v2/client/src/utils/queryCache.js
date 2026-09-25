@@ -27,5 +27,5 @@ export function createQueryCache({ maxEntries = 60, staleMs = 30000 } = {}) {
 export function cacheablePath(path) {
   const url = new URL(path, "https://cache.invalid");
   if (url.searchParams.get("scope") === "locked") return false;
-  return /^(\/notes(?:\/meta\/tags)?|\/folders|\/accounts|\/calendar(?:\/day)?|\/analytics\/(?:trading|notes)|\/trading\/entries|\/trading-rules|\/tasks|\/library(?:\/[a-z_-]+)?|\/files(?:\/[a-zA-Z0-9_-]+)?)$/.test(url.pathname);
+  return /^(\/notes(?:\/meta\/tags)?|\/folders|\/accounts|\/calendar(?:\/day)?|\/analytics\/(?:trading|notes)|\/trading\/entries|\/trading-rules|\/tasks|\/library(?:\/[a-z_-]+)?|\/files(?:\/[a-zA-Z0-9_-]+)?|\/business\/workspaces|\/business\/[a-zA-Z0-9_-]+\/(?:overview|customers(?:\/[a-zA-Z0-9_-]+)?|opportunities|follow-ups))$/.test(url.pathname);
 }

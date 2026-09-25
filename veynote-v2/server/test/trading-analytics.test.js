@@ -15,6 +15,8 @@ test("calculates account statistics from only the supplied closed trades", () =>
   assert.equal(result.realizedPnl, 100);
   assert.equal(result.maximumDrawdown, 1);
   assert.equal(result.instrumentBreakdown[0].count, 2);
+  assert.equal(result.calendarDays.length, 2);
+  assert.equal(result.calendarDays[0].totalR, 2);
 });
 
 test("returns an honest empty state when there are no closed trades", () => {

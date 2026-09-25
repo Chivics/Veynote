@@ -1,88 +1,37 @@
-import PageSkeleton from "../../components/PageSkeleton.jsx";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
-import StatCard from "../../components/StatCard";
 import EmptyState from "../../components/EmptyState";
+import PageSkeleton from "../../components/PageSkeleton.jsx";
+import StatCard from "../../components/StatCard";
 
-export default function Analytics() {
-  const [data, setData] = useState(() => api.peek("/analytics/trading") ?? null);
-
-  useEffect(() => {
-    api.get("/analytics/trading").then(setData);
-  }, []);
-
-  if (data === null) return <PageSkeleton title="Trading analytics" />;
-
-  return (
-    <div>
-      <span className="eyebrow">INSIGHTS</span>
-      <h1 className="page-title text-[30px] tracking-tight mt-1.5 mb-6">Analytics</h1>
-
-      {!data.hasData ? (
-        <EmptyState
-          icon="▲"
-          title="Not enough trades yet"
-          description="Your performance patterns will show up here after a few logged trades."
-        />
-      ) : (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-7">
-            <StatCard label="Total trades" value={data.totalTrades} />
-            <StatCard label="Win rate" value={`${data.winRate}%`} />
-            <StatCard label="Avg R:R" value={`${data.avgRiskReward}R`} />
-            <StatCard label="Best setup" value={data.bestSetup ? data.bestSetup.type : "—"} hint={data.bestSetup ? `${data.bestSetup.winRate}% win rate` : ""} />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="card p-[18px]">
-              <h2 className="text-[14px] mt-0 mb-0.5">Cumulative R</h2>
-              <span className="text-[10px] text-ink-muted">Every logged closed trade</span>
-              <div className="h-[150px] flex items-end gap-1.5 mt-4">
-                {data.cumulativeR.map((point, i) => {
-                  const max = Math.max(...data.cumulativeR.map((p) => Math.abs(p.value)), 1);
-                  const heightPct = Math.max(4, (Math.abs(point.value) / max) * 100);
-                  return (
-                    <div
-                      key={i}
-                      title={`${point.value}R on ${new Date(point.date).toLocaleDateString()}`}
-                      className={`flex-1 rounded-t ${point.value >= 0 ? "bg-gradient-to-t from-[#4f83ff] to-[#8c7fff]" : "bg-danger/60"}`}
-                      style={{ height: `${heightPct}%` }}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="card p-[18px]">
-              <h2 className="text-[14px] mt-0 mb-0.5">Rule adherence</h2>
-              <span className="text-[10px] text-ink-muted">Based on psychology fields you fill in</span>
-              <div className="mt-5">
-                <Row label="Trades journaled" value={`${data.ruleAdherence.journaledPct}%`} />
-                <Row label="Avg confidence on wins" value={data.ruleAdherence.avgConfidenceOnWins != null ? `${data.ruleAdherence.avgConfidenceOnWins}/10` : "—"} />
-                <Row label="Best setup" value={data.setupBreakdown[0]?.type || "—"} last />
-              </div>
-            </div>
-          </div>
-
-          {data.setupBreakdown.length > 0 && (
-            <div className="card p-[18px] mt-3">
-              <h2 className="text-[14px] mt-0 mb-3.5">Win rate by setup type</h2>
-              {data.setupBreakdown.map((s) => (
-                <Row key={s.type} label={`${s.type} (${s.count} trades)`} value={`${s.winRate}%`} />
-              ))}
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
+function PerformanceTable({ title, subtitle, rows }) {
+  return <section className="card analytics-breakdown"><div className="section-heading"><div><span className="eyebrow">BREAKDOWN</span><h2>{title}</h2><p>{subtitle}</p></div></div>{!rows?.length ? <p className="account-empty-copy">Not enough categorized trades yet.</p> : <div>{rows.slice(0, 8).map((row) => <div className="analytics-breakdown-row" key={row.key}><div><strong>{row.key}</strong><span>{row.count} trade{row.count === 1 ? "" : "s"}</span></div><div className="analytics-rate"><i><b style={{ width: `${Math.max(row.winRate, 3)}%` }} /></i><span>{row.winRate}%</span></div><b className={row.totalR >= 0 ? "text-success" : "text-danger"}>{row.totalR > 0 ? "+" : ""}{row.totalR}R</b></div>)}</div>}</section>;
 }
 
-function Row({ label, value, last }) {
-  return (
-    <div className={`flex justify-between py-3 ${last ? "" : "border-b border-app-border"}`}>
-      <b className="text-[11px] font-normal">{label}</b>
-      <strong className="text-[12px]">{value}</strong>
-    </div>
-  );
+export default function Analytics() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const accountId = searchParams.get("accountId") || "";
+  const path = `/analytics/trading${accountId ? `?accountId=${accountId}` : ""}`;
+  const [data, setData] = useState(() => api.peek(path) ?? null);
+  const [accounts, setAccounts] = useState(() => api.peek("/accounts")?.accounts ?? []);
+  const [error, setError] = useState("");
+
+  useEffect(() => { setData(api.peek(path) ?? null); setError(""); api.get(path).then(setData).catch((requestError) => setError(requestError.message)); }, [path]);
+  useEffect(() => { api.get("/accounts").then((result) => setAccounts(result.accounts)).catch(() => {}); }, []);
+  const account = accounts.find((item) => item.id === accountId);
+  const expectancy = useMemo(() => data?.hasData && data.averageWin != null && data.averageLoss != null ? ((data.winRate / 100) * data.averageWin - ((100 - data.winRate) / 100) * data.averageLoss).toFixed(2) : null, [data]);
+
+  if (data === null && !error) return <PageSkeleton title="Trading analytics" />;
+  return <div className="trading-analytics-page">
+    <header className="analytics-header"><div><span className="eyebrow">PERFORMANCE INTELLIGENCE</span><h1 className="page-title">Trading Analytics</h1><p>{account ? `Only trades logged under ${account.name} contribute to this view.` : "A factual view across every trading account."}</p></div><select aria-label="Trading account" value={accountId} onChange={(event) => { const next = new URLSearchParams(searchParams); event.target.value ? next.set("accountId", event.target.value) : next.delete("accountId"); setSearchParams(next); }}><option value="">All accounts</option>{accounts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></header>
+    {error && <div className="analysis-error"><span>{error}</span><button onClick={() => api.get(path).then(setData).catch((requestError) => setError(requestError.message))}>Retry</button></div>}
+    {!data?.hasData ? <EmptyState icon="↗" title="Performance starts with a closed trade" description="Open trades remain visible in the journal, while this page waits for a completed outcome before calculating statistics." action={<Link className="btn-primary" to={`/trading/entries/new${accountId ? `?accountId=${accountId}` : ""}`}>Log a trade</Link>} /> : <>
+      <section className="analytics-scoreboard"><div className="analytics-primary-score"><span>NET PERFORMANCE</span><strong className={data.totalR >= 0 ? "text-success" : "text-danger"}>{data.totalR > 0 ? "+" : ""}{data.totalR}R</strong><small>{data.totalTrades} closed trades · {data.wins} wins · {data.losses} losses</small></div><div><span>Win rate</span><strong>{data.winRate}%</strong><small>{data.breakEven} break-even</small></div><div><span>Expectancy</span><strong>{expectancy != null ? `${expectancy}R` : "—"}</strong><small>Per closed trade</small></div><div><span>Max drawdown</span><strong>{data.maximumDrawdown}R</strong><small>Peak-to-trough</small></div></section>
+      <div className="analytics-metric-grid"><StatCard label="Average win" value={data.averageWin != null ? `${data.averageWin}R` : "—"} /><StatCard label="Average loss" value={data.averageLoss != null ? `${data.averageLoss}R` : "—"} /><StatCard label="Planned R:R" value={data.avgRiskReward != null ? `${data.avgRiskReward}R` : "—"} /><StatCard label="Journal coverage" value={`${data.ruleAdherence.journaledPct}%`} hint="Psychology captured" /><StatCard label="Best trade" value={data.bestTrade ? `${data.bestTrade.achievedR > 0 ? "+" : ""}${data.bestTrade.achievedR || 0}R` : "—"} hint={data.bestTrade?.asset || ""} /><StatCard label="Worst trade" value={data.worstTrade ? `${data.worstTrade.achievedR || 0}R` : "—"} hint={data.worstTrade?.asset || ""} /></div>
+      <section className="card analytics-equity-card"><div className="section-heading"><div><span className="eyebrow">PERFORMANCE CURVE</span><h2>Cumulative R</h2><p>Every point represents a closed trade in chronological order.</p></div><span className="type-pill">{account?.name || "All accounts"}</span></div><div className="analytics-equity-chart">{data.cumulativeR.map((point, index) => { const values = data.cumulativeR.map((item) => item.value); const min = Math.min(...values, 0); const max = Math.max(...values, 0); const range = Math.max(max - min, 1); const height = ((point.value - min) / range) * 82 + 8; return <Link to={`/trading/entries/${point.tradeId}`} key={point.tradeId || index} className="analytics-equity-point" title={`${point.value}R · ${new Date(point.date).toLocaleDateString()}`}><i className={point.value >= 0 ? "positive" : "negative"} style={{ height: `${height}%` }} /><span>{index === 0 || index === data.cumulativeR.length - 1 ? `${point.value}R` : ""}</span></Link>; })}</div></section>
+      <div className="analytics-breakdown-grid"><PerformanceTable title="Setup performance" subtitle="Which playbook ideas produce results." rows={data.setupBreakdown} /><PerformanceTable title="Instrument performance" subtitle="Where your edge is concentrated." rows={data.instrumentBreakdown} /><PerformanceTable title="Long vs short" subtitle="Directional execution and outcome." rows={data.directionBreakdown} /></div>
+      <section className="card analytics-discipline"><div><span className="eyebrow">DISCIPLINE SIGNALS</span><h2>Evidence quality</h2><p>These values describe what was actually recorded. They do not infer discipline from missing data.</p></div><div><span>Trades with psychology context</span><strong>{data.ruleAdherence.journaledPct}%</strong></div><div><span>Average confidence on wins</span><strong>{data.ruleAdherence.avgConfidenceOnWins != null ? `${data.ruleAdherence.avgConfidenceOnWins}/10` : "—"}</strong></div><Link to="/trading/rules" className="btn-outline">Open Rulebook</Link></section>
+    </>}
+  </div>;
 }

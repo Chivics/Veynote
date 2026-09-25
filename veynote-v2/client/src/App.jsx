@@ -12,7 +12,6 @@ import PickMode from "./pages/auth/PickMode";
 import AuthCallback from "./pages/auth/AuthCallback";
 
 import NotesDashboard from "./pages/notes/Dashboard";
-import Today from "./pages/notes/Today";
 import NoteListPage from "./pages/notes/NoteListPage";
 import NoteEditor from "./pages/notes/NoteEditor";
 import Folders from "./pages/notes/Folders";
@@ -35,6 +34,11 @@ import ItemDetail from "./pages/library/ItemDetail";
 
 import TaskBoard from "./pages/tasks/TaskBoard";
 import TaskDetail from "./pages/tasks/TaskDetail";
+import JournalDashboard from "./pages/journal/JournalDashboard";
+import JournalTimeline from "./pages/journal/Timeline";
+import JournalCalendar from "./pages/journal/JournalCalendar";
+import JournalInsights from "./pages/journal/Insights";
+import BusinessWorkspace, { BusinessDashboard, BusinessCustomers, BusinessCustomerDetail, BusinessPipeline, BusinessFollowUps } from "./pages/business/BusinessWorkspace";
 
 import TradingDashboard from "./pages/trading/Dashboard";
 import EntryListPage from "./pages/trading/EntryListPage";
@@ -90,7 +94,7 @@ export default function App() {
 
           {/* Notes mode */}
           <Route path="notes" element={<NotesDashboard />} />
-          <Route path="notes/today" element={<Today />} />
+          <Route path="notes/today" element={<Navigate to="/journal" replace />} />
           <Route path="notes/new" element={<NoteEditor />} />
           <Route path="notes/all" element={<NoteListPage scope="all" />} />
           <Route path="notes/favorites" element={<NoteListPage scope="favorites" />} />
@@ -164,6 +168,22 @@ export default function App() {
           {/* This catch-all note editor route must stay last among /notes/*
               routes so it doesn't shadow the static paths above. */}
           <Route path="notes/:id" element={<NoteEditor />} />
+
+          {/* Personal Journal — persisted through the rich record engine */}
+          <Route path="journal" element={<JournalDashboard />} />
+          <Route path="journal/new" element={<NoteEditor kind="JOURNAL" />} />
+          <Route path="journal/timeline" element={<JournalTimeline />} />
+          <Route path="journal/calendar" element={<JournalCalendar />} />
+          <Route path="journal/insights" element={<JournalInsights />} />
+          <Route path="journal/entries/:id" element={<NoteEditor kind="JOURNAL" />} />
+
+          <Route path="business" element={<BusinessWorkspace />}>
+            <Route index element={<BusinessDashboard />} />
+            <Route path="customers" element={<BusinessCustomers />} />
+            <Route path="customers/:id" element={<BusinessCustomerDetail />} />
+            <Route path="pipeline" element={<BusinessPipeline />} />
+            <Route path="follow-ups" element={<BusinessFollowUps />} />
+          </Route>
 
           {/* Trading Journal mode */}
           <Route path="trading" element={<TradingDashboard />} />

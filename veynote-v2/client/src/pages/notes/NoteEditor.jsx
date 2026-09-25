@@ -17,6 +17,7 @@ import VersionHistory from "../../components/VersionHistory";
 import ExportMenu from "../../components/ExportMenu";
 import ShareMenu from "../../components/ShareMenu";
 import NoteOptionsMenu from "../../components/NoteOptionsMenu";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import { computeStats, formatStats } from "../../utils/textStats";
 import { getTemplate } from "../../data/noteTemplates";
 import { escapeHtml } from "../../utils/safeHtml";
@@ -31,7 +32,7 @@ function hasMeaningfulContent({ title, html, mood, tags }) {
   return Boolean(title?.trim()) || plainText.length > 0 || Boolean(mood?.trim()) || (tags && tags.length > 0);
 }
 
-export default function NoteEditor() {
+export default function NoteEditor({ kind = "NOTE" }) {
   const { id: routeId } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -54,6 +55,7 @@ export default function NoteEditor() {
   const [folderId, setFolderId] = useState("");
   const [folders, setFolders] = useState([]);
   const [mood, setMood] = useState("");
+  const [entryDate, setEntryDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [tags, setTags] = useState([]);
   const [initialHTML, setInitialHTML] = useState("");
   const [loaded, setLoaded] = useState(!routeId);
@@ -73,6 +75,10 @@ export default function NoteEditor() {
   const [vaultRequired, setVaultRequired] = useState(null); // "locked-notes" | "will" | null
   const [isLocked, setIsLocked] = useState(false);
   const [isWill, setIsWill] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [isArchived, setIsArchived] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [trashBusy, setTrashBusy] = useState(false);
   const [backlinks, setBacklinks] = useState([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyBase, setHistoryBase] = useState(null);
@@ -90,14 +96,14 @@ export default function NoteEditor() {
     const currentWriter = writer.current, sequence = saveSeq.current;
     try {
       setSaveStatus("saving");
-      await currentWriter.save({ title, content: latestHTML.current, folderId: folderId || null, mood, tags });
+      await currentWriter.save({ title, content: latestHTML.current, folderId: folderId || null, mood, tags, kind, ...(kind === "JOURNAL" && { entryDate }) });
       if (!alive.current || currentWriter !== writer.current || sequence !== saveSeq.current) return false;
       dirtyRef.current = false; setSaveStatus("saved"); setSaveError(""); return true;
     } catch (error) {
       if (alive.current) { setSaveStatus([409, 410, 428].includes(error.status) ? "conflict" : "error"); setSaveError(error.message); }
       return false;
     }
-  }, () => dirtyRef.current), [registerGuard, title, folderId, mood, tags]);
+  }, () => dirtyRef.current), [registerGuard, title, folderId, mood, tags, kind, entryDate]);
 
   useEffect(() => {
     api.get("/folders").then((d) => setFolders(d.folders)).catch(() => {});
@@ -121,9 +127,10 @@ export default function NoteEditor() {
     if (!routeId) {
       const template = getTemplate(searchParams.get("template"));
       setNoteId(null); setTitle(template?.title || ""); setFolderId(searchParams.get("folder") || ""); setMood(""); setTags([]);
+      setEntryDate(new Date().toISOString().slice(0, 10));
       setInitialHTML(template?.html || ""); latestHTML.current = template?.html || "";
       setStats(computeStats(latestHTML.current)); setAttachments([]);
-      setIsLocked(false); setIsWill(false); setNoteMeta({ createdAt: null, updatedAt: null });
+      setIsLocked(false); setIsWill(false); setIsFavorite(false); setIsArchived(false); setNoteMeta({ createdAt: null, updatedAt: null });
       setShareState({ shareEnabled: false, shareToken: null }); setLoaded(true);
       return;
     }
@@ -131,11 +138,13 @@ export default function NoteEditor() {
       .get(`/notes/${routeId}`)
       .then((d) => {
         if (requestSequence !== loadSequence.current) return;
+        if (d.note.kind !== kind) { setLoadError("This record belongs to a different workspace."); return; }
         writer.current = createNoteWriter(api, d.note);
         setNoteId(d.note.id);
         setTitle(d.note.title || "");
         setFolderId(d.note.folderId || "");
         setMood(d.note.mood || "");
+        setEntryDate(new Date(d.note.entryDate || d.note.createdAt).toISOString().slice(0, 10));
         setTags(d.note.tags || []);
         setInitialHTML(d.note.content || "");
         latestHTML.current = d.note.content || "";
@@ -143,6 +152,8 @@ export default function NoteEditor() {
         setAttachments((d.note.attachments || []).filter((a) => a.kind === "FILE"));
         setIsLocked(Boolean(d.note.isLocked));
         setIsWill(Boolean(d.note.isWill));
+        setIsFavorite(Boolean(d.note.isFavorite));
+        setIsArchived(Boolean(d.note.isArchived));
         setNoteMeta({ createdAt: d.note.createdAt, updatedAt: d.note.updatedAt });
         setShareState({ shareEnabled: Boolean(d.note.shareEnabled), shareToken: d.note.shareToken || null });
         setLoaded(true);
@@ -169,13 +180,13 @@ export default function NoteEditor() {
       clearTimeout(saveTimer.current);
       if (dirtyRef.current) {
         const lockingSequence = saveSeq.current;
-        await writer.current.save({ title, content: latestHTML.current, folderId: folderId || null, mood, tags });
+        await writer.current.save({ title, content: latestHTML.current, folderId: folderId || null, mood, tags, kind, ...(kind === "JOURNAL" && { entryDate }) });
         if (lockingSequence !== saveSeq.current) throw new Error("Your note changed while saving. Wait for Saved, then change its lock.");
         dirtyRef.current = false;
         setSaveStatus("saved");
       }
       const { note } = await api.patch(`/notes/${routeId}/lock`, { locked: !isLocked });
-      writer.current = createNoteWriter(api, { id: note.id, updatedAt: note.updatedAt });
+      writer.current = createNoteWriter(api, note);
       setIsLocked(Boolean(note.isLocked));
       if (note.isLocked) {
         clearNoteGrant();
@@ -196,13 +207,13 @@ export default function NoteEditor() {
       clearTimeout(saveTimer.current);
       const currentWriter = writer.current;
       const sequence = saveSeq.current;
-      await currentWriter.save({ title, content: latestHTML.current, folderId: folderId || null, mood, tags });
+      await currentWriter.save({ title, content: latestHTML.current, folderId: folderId || null, mood, tags, kind, ...(kind === "JOURNAL" && { entryDate }) });
       if (!alive.current || currentWriter !== writer.current) return;
       if (sequence !== saveSeq.current) throw new Error("Your note changed while saving. Wait for Saved, then duplicate it.");
       dirtyRef.current = false; setSaveStatus("saved");
       const { note } = await api.post(`/notes/${routeId}/duplicate`, {});
       if (!alive.current || currentWriter !== writer.current) return;
-      navigate(`/notes/${note.id}`);
+      navigate(kind === "JOURNAL" ? `/journal/entries/${note.id}` : `/notes/${note.id}`);
     } catch (err) {
       alert(err.message);
     }
@@ -218,6 +229,8 @@ export default function NoteEditor() {
         folderId: fields.folderId || null,
         mood: fields.mood,
         tags: fields.tags,
+        kind,
+        ...(kind === "JOURNAL" && { entryDate: fields.entryDate }),
       };
 
       if (!fields.noteId && !hasMeaningfulContent({ title: fields.title, html: fields.html, mood: fields.mood, tags: fields.tags })) {
@@ -233,7 +246,8 @@ export default function NoteEditor() {
         if (!alive.current || currentWriter !== writer.current) return;
         setNoteId(note.id);
         setNoteMeta({ createdAt: note.createdAt, updatedAt: note.updatedAt });
-        if (!navigatedNoteId.current && replaceSavedNote(`/notes/${note.id}`)) {
+        const savedPath = kind === "JOURNAL" ? `/journal/entries/${note.id}` : `/notes/${note.id}`;
+        if (!navigatedNoteId.current && replaceSavedNote(savedPath)) {
           navigatedNoteId.current = note.id;
           createdNoteId.current = note.id;
         }
@@ -251,11 +265,11 @@ export default function NoteEditor() {
         }
       }
     },
-    [navigate, replaceSavedNote]
+    [kind, replaceSavedNote]
   );
 
   function scheduleAutosave() {
-    if (!writer.current.hasChanges({ title, content: latestHTML.current, folderId, mood, tags })) {
+    if (!writer.current.hasChanges({ title, content: latestHTML.current, folderId, mood, tags, kind, ...(kind === "JOURNAL" && { entryDate }) })) {
       dirtyRef.current = false;
       setSaveStatus("saved");
       return;
@@ -265,8 +279,40 @@ export default function NoteEditor() {
     setSaveStatus(navigator.onLine ? "pending" : "offline");
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      doSave({ noteId, title, html: latestHTML.current, folderId, mood, tags, sequence });
+      doSave({ noteId, title, html: latestHTML.current, folderId, mood, tags, entryDate, sequence });
     }, 900);
+  }
+
+  async function changeRecordStatus(field, next) {
+    try {
+      clearTimeout(saveTimer.current);
+      const currentWriter = writer.current;
+      const sequence = saveSeq.current;
+      await currentWriter.save({ title, content: latestHTML.current, folderId: folderId || null, mood, tags, kind, ...(kind === "JOURNAL" && { entryDate }) });
+      if (!alive.current || currentWriter !== writer.current) return;
+      const note = await currentWriter.patchMetadata({ [field]: next });
+      if (!alive.current || currentWriter !== writer.current) return;
+      if (field === "isFavorite") setIsFavorite(Boolean(note.isFavorite));
+      if (field === "isArchived") setIsArchived(Boolean(note.isArchived));
+      if (sequence === saveSeq.current) dirtyRef.current = false;
+      if (!dirtyRef.current) setSaveStatus("saved");
+      setSaveError("");
+    } catch (error) { setSaveError(error.message); setSaveStatus("error"); }
+  }
+
+  async function moveToTrash() {
+    if (!routeId) return;
+    setTrashBusy(true);
+    try {
+      clearTimeout(saveTimer.current);
+      const currentWriter = writer.current, sequence = saveSeq.current;
+      await currentWriter.save({ title, content: latestHTML.current, folderId: folderId || null, mood, tags, kind, ...(kind === "JOURNAL" && { entryDate }) });
+      if (sequence !== saveSeq.current) throw new Error("This record changed while saving. Wait for Saved before moving it to Trash.");
+      await api.delete(`/notes/${routeId}`);
+      dirtyRef.current = false;
+      setTrashOpen(false);
+      navigate(kind === "JOURNAL" ? "/journal/timeline" : "/notes/trash", { replace: true });
+    } catch (error) { setSaveError(error.message); setSaveStatus("error"); } finally { setTrashBusy(false); }
   }
 
   async function openHistory() {
@@ -275,7 +321,7 @@ export default function NoteEditor() {
     const sequence = saveSeq.current;
     try {
       setSaveError("");
-      const note = await currentWriter.save({ title, content: latestHTML.current, folderId: folderId || null, mood, tags });
+      const note = await currentWriter.save({ title, content: latestHTML.current, folderId: folderId || null, mood, tags, kind, ...(kind === "JOURNAL" && { entryDate }) });
       if (!alive.current || currentWriter !== writer.current) return;
       if (sequence !== saveSeq.current) throw new Error("Your note changed while saving. Wait for Saved, then reopen history.");
       dirtyRef.current = false; setSaveStatus("saved");
@@ -328,7 +374,7 @@ export default function NoteEditor() {
     scheduleAutosave();
     return () => clearTimeout(saveTimer.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, folderId, mood, tags, loaded]);
+  }, [title, folderId, mood, tags, entryDate, loaded]);
 
   // A note must exist on the server before a file can be attached to it —
   // if the user attaches something before typing a single word, create an
@@ -342,11 +388,14 @@ export default function NoteEditor() {
       folderId: folderId || null,
       mood,
       tags,
+      kind,
+      ...(kind === "JOURNAL" && { entryDate }),
       draftForAttachment: true,
     });
     if (!alive.current || currentWriter !== writer.current) throw new Error("The open note changed. Return to the original note to attach this file.");
     setNoteId(note.id);
-    if (navigatedNoteId.current !== note.id && replaceSavedNote(`/notes/${note.id}`)) {
+    const savedPath = kind === "JOURNAL" ? `/journal/entries/${note.id}` : `/notes/${note.id}`;
+    if (navigatedNoteId.current !== note.id && replaceSavedNote(savedPath)) {
       navigatedNoteId.current = note.id;
       createdNoteId.current = note.id;
     }
@@ -454,7 +503,7 @@ export default function NoteEditor() {
       <div onClick={handleContentClick} className="note-editor-document max-sm:pb-16 max-w-[820px] mx-auto">
         <div className="note-editor-topline">
           <span className="eyebrow">
-            {isWill ? "WILL & INHERITANCE" : isLocked ? "🔒 LOCKED NOTE" : routeId || noteId ? "EDITING" : "NEW NOTE"}
+            {isWill ? "WILL & INHERITANCE" : isLocked ? "🔒 LOCKED NOTE" : kind === "JOURNAL" ? routeId || noteId ? "JOURNAL ENTRY" : "NEW JOURNAL ENTRY" : routeId || noteId ? "EDITING" : "NEW NOTE"}
           </span>
           <div className="flex items-center gap-1.5 print:hidden">
             {routeId && (
@@ -481,16 +530,21 @@ export default function NoteEditor() {
               onOpenHistory={openHistory}
               onDuplicate={duplicateNote}
               onToggleLock={toggleLock}
+              isFavorite={isFavorite}
+              isArchived={isArchived}
+              onToggleFavorite={() => changeRecordStatus("isFavorite", !isFavorite)}
+              onToggleArchive={() => changeRecordStatus("isArchived", !isArchived)}
+              onMoveToTrash={() => setTrashOpen(true)}
               focusMode={focusMode}
               onToggleFocusMode={() => setFocusMode((f) => !f)}
             />
             <SaveStatus status={saveStatus} error={saveError} />
             {["error", "offline"].includes(saveStatus) && <button type="button" className="btn-outline" onClick={scheduleAutosave}>Retry save</button>}
-            {recoveredNoteId && ["conflict", "error", "offline"].includes(saveStatus) && <a className="btn-outline" target="_blank" rel="noopener noreferrer" href={`/notes/${encodeURIComponent(recoveredNoteId)}`}>Open saved note in another tab</a>}
+            {recoveredNoteId && ["conflict", "error", "offline"].includes(saveStatus) && <a className="btn-outline" target="_blank" rel="noopener noreferrer" href={kind === "JOURNAL" ? `/journal/entries/${encodeURIComponent(recoveredNoteId)}` : `/notes/${encodeURIComponent(recoveredNoteId)}`}>Open saved record in another tab</a>}
             {["conflict", "error", "offline"].includes(saveStatus) && <button type="button" className="btn-outline" onClick={() => {
-              const blob = new Blob([JSON.stringify({ title, content: latestHTML.current, folderId, mood, tags }, null, 2)], { type: "application/json" });
+              const blob = new Blob([JSON.stringify({ title, content: latestHTML.current, folderId, mood, tags, kind, ...(kind === "JOURNAL" && { entryDate }) }, null, 2)], { type: "application/json" });
               const url = URL.createObjectURL(blob); const a = document.createElement("a");
-              a.href = url; a.download = "veynote-unsaved-note.json"; a.click();
+              a.href = url; a.download = kind === "JOURNAL" ? "veynote-unsaved-journal-entry.json" : "veynote-unsaved-note.json"; a.click();
               setTimeout(() => URL.revokeObjectURL(url), 1000);
             }}>Download my unsaved note</button>}
           </div>
@@ -513,12 +567,13 @@ export default function NoteEditor() {
             <option value="stressed">😣 Stressed</option>
             <option value="grateful">🙏 Grateful</option>
           </select>
+          {kind === "JOURNAL" && <label className="chip bg-app-panel2 journal-date-chip">Entry date <input type="date" value={entryDate} onChange={(event) => setEntryDate(event.target.value)} /></label>}
           <TagInput tags={tags} setTags={setTags} />
         </div>
 
         <input
           aria-label="Record title" className="note-editor-title page-title"
-          placeholder="Untitled (title is optional — just start writing)"
+          placeholder={kind === "JOURNAL" ? "Give this day a title…" : "Untitled (title is optional — just start writing)"}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
@@ -534,7 +589,7 @@ export default function NoteEditor() {
           <PaginatedEditor
             ref={editorRef}
             initialHTML={initialHTML}
-            placeholder="Start writing, or type / for commands…"
+            placeholder={kind === "JOURNAL" ? "What happened, what mattered, and what do you want to remember?" : "Start writing, or type / for commands…"}
             fontSize={editorFontSize}
             onChange={(html) => {
               latestHTML.current = html;
@@ -558,7 +613,7 @@ export default function NoteEditor() {
             <p className="text-[11px] font-bold text-ink-muted mb-2 tracking-wide">LINKED FROM</p>
             <div className="flex flex-col gap-1">
               {backlinks.map((b) => (
-                <Link key={b.id} to={`/notes/${b.id}`} className="text-[12px] text-accent-notes hover:underline">
+                <Link key={b.id} to={b.kind === "JOURNAL" ? `/journal/entries/${b.id}` : `/notes/${b.id}`} className="text-[12px] text-accent-notes hover:underline">
                   {b.title || "Untitled"}
                 </Link>
               ))}
@@ -583,6 +638,7 @@ export default function NoteEditor() {
         {historyOpen && (
           <VersionHistory noteId={routeId} expectedUpdatedAt={historyBase} onClose={() => setHistoryOpen(false)} onRestored={loadNote} />
         )}
+        <ConfirmDialog open={trashOpen} title="Move this record to Trash?" description="You can restore it from Trash later. Any public share link will be revoked." confirmLabel="Move to Trash" busy={trashBusy} onClose={() => setTrashOpen(false)} onConfirm={moveToTrash} />
       </div>
     </div>
   );

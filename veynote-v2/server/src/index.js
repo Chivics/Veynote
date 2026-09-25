@@ -26,6 +26,7 @@ const securityRoutes = require("./routes/security.routes");
 const webauthnRoutes = require("./routes/webauthn.routes");
 const publicRoutes = require("./routes/public.routes");
 const willRoutes = require("./routes/will.routes");
+const businessRoutes = require("./routes/business.routes");
 
 const app = express();
 // Configure only known proxy networks; never trust arbitrary forwarded headers.
@@ -99,6 +100,7 @@ app.use("/api/webauthn", webauthnRoutes);
 app.use("/api/public", publicRoutes);
 
 app.use("/api/will", willRoutes);
+app.use("/api/business", businessRoutes);
 
 /*
  * Global error handler

@@ -33,6 +33,26 @@ test("a failed update can be retried without advancing its version", async () =>
   assert.equal(calls, 2);
 });
 
+test("metadata actions stay ordered with writing and preserve the next save version", async () => {
+  const calls = [];
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const writer = createNoteWriter({ async patch(_path, body) {
+    calls.push(body);
+    if (calls.length === 1) await gate;
+    return { note: { id: "note", content: body.content || "changed", isFavorite: body.isFavorite || false, updatedAt: `v${calls.length + 1}` } };
+  } }, { id: "note", updatedAt: "v1", content: "original" });
+  const writing = writer.save({ content: "changed" });
+  const favorite = writer.patchMetadata({ isFavorite: true });
+  const laterWriting = writer.save({ content: "changed again" });
+  await Promise.resolve(); assert.equal(calls.length, 1);
+  release(); await Promise.all([writing, favorite, laterWriting]);
+  assert.equal(calls.length, 3);
+  assert.equal(calls[1].isFavorite, true);
+  assert.equal(calls[2].expectedUpdatedAt, "v3");
+  assert.equal(writer.updatedAt, "v4");
+});
+
 test("opening unchanged writing does not save or invalidate navigation caches", async () => {
   const initial = { id: "note", updatedAt: "v1", title: "Title", content: "<p>Text</p>", tags: ["one", "two"] };
   const writer = createNoteWriter({ async patch() { throw Error("unnecessary write"); } }, initial);

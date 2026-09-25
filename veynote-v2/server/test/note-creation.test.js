@@ -15,7 +15,7 @@ function fixture() {
       },
       async update({ where, data }) { Object.assign(requests.get(where.id), data); },
     },
-    note: { async findFirst({ where }) {
+    note: { async findMany({ where }) { return [...notes.values()].filter(note => note.userId === where.userId && (!where.kind || note.kind === where.kind)).map(note => structuredClone(note)); }, async findFirst({ where }) {
       const note = notes.get(where.id);
       return note?.userId === where.userId ? structuredClone(note) : null;
     } },
@@ -73,7 +73,10 @@ test("creation validation canonicalizes retry hashes and rejects malformed data"
   const a = noteCreationInput({ title: " Note ", tags: ["A", "b", "a"], clientRequestId: key });
   const b = noteCreationInput({ title: "Note", tags: ["b", "a"], clientRequestId: key });
   assert.equal(a.hash, b.hash); assert.equal(a.key, key);
-  for (const body of [{ title: {} }, { tags: "tag" }, { mood: [] }, { clientRequestId: "bad" }, { entryDate: "yesterday" }, { draftForAttachment: "yes" }]) {
+  assert.equal(noteCreationInput({ title: "An ordinary note" }).payload.kind, "NOTE");
+  assert.equal(noteCreationInput({ title: "A reflection", kind: "JOURNAL" }).payload.kind, "JOURNAL");
+  assert.notEqual(noteCreationInput({ title: "One record", kind: "NOTE" }).hash, noteCreationInput({ title: "One record", kind: "JOURNAL" }).hash);
+  for (const body of [{ title: {} }, { tags: "tag" }, { mood: [] }, { kind: "WILL" }, { clientRequestId: "bad" }, { entryDate: "yesterday" }, { draftForAttachment: "yes" }]) {
     assert.throws(() => noteCreationInput(body), { status: 400, code: "NOTE_CREATE_INVALID" });
   }
 });
@@ -106,6 +109,17 @@ test("HTTP creation returns one persisted note on retry and rejects malformed re
     const recovered = await retry.json();
     assert.equal(created.note.id, recovered.note.id); assert.equal(recovered.replayed, true);
     assert.equal((await post({ ...body, content: "different" })).status, 409);
-    assert.equal(f.notes().size, 1);
+    const journal = await post({ title: "A journal day", content: "What happened", kind: "JOURNAL" });
+    assert.equal(journal.status, 201);
+    const fetchList = kind => fetch(`http://127.0.0.1:${server.address().port}/notes?scope=all&kind=${kind}`, { headers: { Authorization: `Bearer ${signToken("alice")}` } });
+    const ordinary = await (await fetchList("NOTE")).json();
+    const journalEntries = await (await fetchList("JOURNAL")).json();
+    const everyRecord = await (await fetchList("ALL")).json();
+    assert.equal(ordinary.notes.length, 1);
+    assert.equal(journalEntries.notes.length, 1);
+    assert.equal(everyRecord.notes.length, 2);
+    assert.equal(journalEntries.notes[0].kind, "JOURNAL");
+    assert.equal((await fetchList("UNKNOWN")).status, 400);
+    assert.equal(f.notes().size, 2);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });

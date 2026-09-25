@@ -25,6 +25,16 @@ function Breakdown({ title, rows, empty }) {
   );
 }
 
+function AccountCalendar({ days = [] }) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const firstOffset = new Date(year, month, 1).getDay();
+  const count = new Date(year, month + 1, 0).getDate();
+  const indexed = Object.fromEntries(days.map((day) => [day.date, day]));
+  return <section className="card account-calendar-panel"><div className="section-heading"><div><span className="eyebrow">TRADING CALENDAR</span><h2>{now.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</h2></div><Link to="/trading/calendar">Full calendar →</Link></div><div className="account-calendar-weekdays">{["S", "M", "T", "W", "T", "F", "S"].map((day, index) => <span key={`${day}-${index}`}>{day}</span>)}</div><div className="account-calendar-grid">{Array.from({ length: firstOffset }).map((_, index) => <span key={`blank-${index}`} />)}{Array.from({ length: count }).map((_, index) => { const dayNumber = index + 1; const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNumber).padStart(2, "0")}`; const activity = indexed[key]; return <div key={key} className={activity ? activity.totalR > 0 ? "positive" : activity.totalR < 0 ? "negative" : "neutral" : ""}><b>{dayNumber}</b>{activity && <small>{activity.totalR > 0 ? "+" : ""}{activity.totalR}R</small>}</div>; })}</div></section>;
+}
+
 export default function AccountDetail() {
   const { id } = useParams();
   const accountPath = `/accounts/${id}`;
@@ -32,6 +42,9 @@ export default function AccountDetail() {
   const [payload, setPayload] = useState(() => api.peek(accountPath) ?? null);
   const [analytics, setAnalytics] = useState(() => api.peek(analyticsPath) ?? null);
   const [error, setError] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -48,6 +61,21 @@ export default function AccountDetail() {
     return account.currentBalance - account.startingBalance;
   }, [account]);
 
+  function openSettings() {
+    setDraft({ name: account.name, broker: account.broker || "", accountType: account.accountType || "", currency, startingBalance: account.startingBalance ?? "", currentBalance: account.currentBalance ?? "", equity: account.equity ?? "", dailyLossLimit: account.dailyLossLimit ?? "", drawdownLimit: account.drawdownLimit ?? "", profitTarget: account.profitTarget ?? "", notes: account.notes || "" });
+    setEditing(true);
+  }
+
+  async function saveSettings(event) {
+    event.preventDefault(); setSaving(true); setError("");
+    try {
+      const { account: updated } = await api.patch(accountPath, draft);
+      setPayload((current) => ({ ...current, account: { ...current.account, ...updated } }));
+      setEditing(false);
+    } catch (requestError) { setError(requestError.message || "Account settings could not be saved."); }
+    finally { setSaving(false); }
+  }
+
   if (error && !account) return <EmptyState icon="!" title="Account unavailable" description={error} action={<Link className="btn-outline" to="/trading/accounts">Back to accounts</Link>} />;
   if (!account || !analytics) return <PageSkeleton title="Trading account" />;
 
@@ -60,12 +88,31 @@ export default function AccountDetail() {
           <h1 className="page-title">{account.name}</h1>
           <p>{[account.broker, `${account.stats.entryCount} journal entries`].filter(Boolean).join(" · ")}</p>
         </div>
-        <div className="account-hero-actions"><Link to={`/trading/entries/new?accountId=${id}`} className="btn-primary">+ Log trade</Link><Link to={`/trading/entries?accountId=${id}`} className="btn-outline">Trade history</Link></div>
+        <div className="account-hero-actions"><Link to={`/trading/entries/new?accountId=${id}`} className="btn-primary">+ Log trade</Link><Link to={`/trading/entries?accountId=${id}`} className="btn-outline">Trade history</Link><button className="btn-outline" onClick={openSettings}>Settings</button></div>
         <div className="account-balance-panel">
           <span>Current balance</span><strong>{money(account.currentBalance ?? account.startingBalance, currency)}</strong>
           <small className={balanceChange == null ? "" : balanceChange >= 0 ? "text-success" : "text-danger"}>{balanceChange == null ? "Add balances in account settings" : `${balanceChange >= 0 ? "+" : ""}${money(balanceChange, currency)} from start`}</small>
         </div>
       </header>
+
+      {editing && <form className="card account-settings-panel" onSubmit={saveSettings}>
+        <div className="section-heading"><div><span className="eyebrow">ACCOUNT CONFIGURATION</span><h2>Balances, risk limits & targets</h2></div><button type="button" className="text-action" onClick={() => setEditing(false)}>Close</button></div>
+        <div className="account-settings-grid">
+          <AccountInput label="Account name" value={draft.name} onChange={(value) => setDraft({ ...draft, name: value })} />
+          <AccountInput label="Broker / prop firm" value={draft.broker} onChange={(value) => setDraft({ ...draft, broker: value })} />
+          <AccountInput label="Account type" value={draft.accountType} onChange={(value) => setDraft({ ...draft, accountType: value })} />
+          <label><span>Currency</span><select value={draft.currency} onChange={(event) => setDraft({ ...draft, currency: event.target.value })}><option>USD</option><option>GBP</option><option>EUR</option><option>NGN</option><option>CAD</option><option>AUD</option></select></label>
+          <AccountInput type="number" label="Starting balance" value={draft.startingBalance} onChange={(value) => setDraft({ ...draft, startingBalance: value })} />
+          <AccountInput type="number" label="Current balance" value={draft.currentBalance} onChange={(value) => setDraft({ ...draft, currentBalance: value })} />
+          <AccountInput type="number" label="Current equity" value={draft.equity} onChange={(value) => setDraft({ ...draft, equity: value })} />
+          <AccountInput type="number" label="Daily loss limit" value={draft.dailyLossLimit} onChange={(value) => setDraft({ ...draft, dailyLossLimit: value })} />
+          <AccountInput type="number" label="Overall drawdown limit" value={draft.drawdownLimit} onChange={(value) => setDraft({ ...draft, drawdownLimit: value })} />
+          <AccountInput type="number" label="Profit target" value={draft.profitTarget} onChange={(value) => setDraft({ ...draft, profitTarget: value })} />
+          <label className="wide"><span>Account notes</span><textarea value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} placeholder="Challenge terms, payout conditions, milestones or operating context…" /></label>
+        </div>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <div className="flex justify-end gap-2"><button type="button" className="btn-outline" onClick={() => setEditing(false)}>Cancel</button><button className="btn-primary" disabled={saving}>{saving ? "Saving…" : "Save account"}</button></div>
+      </form>}
 
       <div className="account-metrics-grid">
         <StatCard label="Win rate" value={analytics.hasData ? `${analytics.winRate}%` : "—"} hint={analytics.hasData ? `${analytics.wins}W · ${analytics.losses}L · ${analytics.breakEven}BE` : "No closed trades"} />
@@ -91,10 +138,16 @@ export default function AccountDetail() {
 
       <div className="account-breakdown-grid"><Breakdown title="Setups" rows={analytics.setupBreakdown} empty="Setup performance appears after closed trades." /><Breakdown title="Instruments" rows={analytics.instrumentBreakdown} empty="Instrument performance appears here." /><Breakdown title="Long vs short" rows={analytics.directionBreakdown} empty="Direction performance appears here." /></div>
 
+      <AccountCalendar days={analytics.calendarDays} />
+
       <section className="account-recent-section">
         <div className="section-heading"><div><span className="eyebrow">ACCOUNT HISTORY</span><h2>Recent trades</h2></div><Link to={`/trading/entries?accountId=${id}`}>View all →</Link></div>
         {!payload.recentTrades?.length ? <EmptyState icon="↗" title="No trades in this account" description="Log the first trade and choose this account to begin its independent history." action={<Link className="btn-primary" to={`/trading/entries/new?accountId=${id}`}>Log a trade</Link>} /> : <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{payload.recentTrades.slice(0, 4).map((trade) => <EntryCard key={trade.id} entry={trade} />)}</div>}
       </section>
     </div>
   );
+}
+
+function AccountInput({ label, value, onChange, type = "text" }) {
+  return <label><span>{label}</span><input type={type} min={type === "number" ? "0" : undefined} step={type === "number" ? "any" : undefined} value={value} onChange={(event) => onChange(event.target.value)} /></label>;
 }

@@ -2,7 +2,8 @@
 // acknowledgement, including the first create and attachment-triggered saves.
 function payloadKey(payload) {
   return JSON.stringify({ title: (payload.title || "").trim(), content: payload.content || "", folderId: payload.folderId || null,
-    mood: payload.mood || null, tags: [...new Set((payload.tags || []).map(tag => tag.trim().toLowerCase()).filter(Boolean))].sort() });
+    mood: payload.mood || null, kind: payload.kind || "NOTE", entryDate: payload.kind === "JOURNAL" ? payload.entryDate?.slice(0, 10) || null : null,
+    tags: [...new Set((payload.tags || []).map(tag => tag.trim().toLowerCase()).filter(Boolean))].sort() });
 }
 
 export function createNoteWriter(api, initial = {}) {
@@ -48,6 +49,19 @@ export function createNoteWriter(api, initial = {}) {
           if ([409, 410, 428].includes(error.status)) conflict = error;
           throw error;
         }
+      }).finally(() => { pending--; });
+      chain = operation.catch(() => {});
+      return operation;
+    },
+    patchMetadata(fields) {
+      pending++;
+      const operation = chain.then(async () => {
+        if (conflict) throw conflict;
+        if (!id) throw new Error("Save this record before changing its status.");
+        const result = await api.patch(`/notes/${id}`, fields);
+        updatedAt = result.note.updatedAt;
+        lastNote = result.note;
+        return result.note;
       }).finally(() => { pending--; });
       chain = operation.catch(() => {});
       return operation;

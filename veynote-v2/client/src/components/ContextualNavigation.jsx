@@ -13,7 +13,7 @@ function NavigationSheet({ navigation, onClose }) {
     <h2 id="navigation-sheet-title" className="font-bold text-base mb-4">Navigate</h2>
     <div className="flex flex-col gap-1">
       <button className="context-sheet-action bg-app-panel2" disabled={navigation.busy} onClick={() => act(navigation.back)}><Arrow /><span>Back to {navigation.destination.label}<small className="block text-ink-muted font-normal mt-1">Return to your previous context</small></span></button>
-      <button className="context-sheet-action" disabled={navigation.busy} onClick={() => act(() => navigation.go(navigation.route.workspace))}>Go to {navigation.route.workspace === "/trading" ? "Trading" : "Notes"} dashboard</button>
+      <button className="context-sheet-action" disabled={navigation.busy} onClick={() => act(() => navigation.go(navigation.route.workspace))}>Go to {navigation.route.workspace === "/trading" ? "Trading" : navigation.route.workspace === "/journal" ? "Journal" : "Notes"} dashboard</button>
       {navigation.route.parent !== navigation.destination.to && <button className="context-sheet-action" disabled={navigation.busy} onClick={() => act(() => navigation.go(navigation.route.parent))}>Open parent section</button>}
       <button className="context-sheet-action" onClick={async () => { try { await navigator.clipboard.writeText(window.location.href); setFeedback("Link copied. Access permissions are unchanged."); } catch { setFeedback("Copy the address from your browser to use this link."); } }}>Copy page link</button>
     </div>

@@ -46,7 +46,7 @@ router.get("/trading", async (req, res) => {
 // GET /api/analytics/notes — lightweight stats for the Notes dashboard/analytics.
 router.get("/notes", async (req, res) => {
   const notes = await prisma.note.findMany({
-    where: { userId: req.userId, isTrashed: false },
+    where: { userId: req.userId, kind: "NOTE", isTrashed: false, isLocked: false, isWill: false },
     select: { createdAt: true },
   });
 

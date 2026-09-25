@@ -15,6 +15,11 @@ export default function NoteOptionsMenu({
   onOpenHistory,
   onDuplicate,
   onToggleLock,
+  isFavorite,
+  isArchived,
+  onToggleFavorite,
+  onToggleArchive,
+  onMoveToTrash,
   focusMode,
   onToggleFocusMode,
 }) {
@@ -53,12 +58,20 @@ export default function NoteOptionsMenu({
             {isOwner && routeId && !isWill && (
               <>
                 <div className="h-px bg-app-border my-1" />
+                <button type="button" onClick={() => pick(onToggleFavorite)} className="block w-full text-left px-3 py-2 text-ink hover:bg-app-panel2">
+                  {isFavorite ? "♡ Remove from favorites" : "♡ Add to favorites"}
+                </button>
+                <button type="button" onClick={() => pick(onToggleArchive)} className="block w-full text-left px-3 py-2 text-ink hover:bg-app-panel2">
+                  {isArchived ? "↥ Restore from archive" : "▤ Move to archive"}
+                </button>
                 <button type="button" onClick={() => pick(onDuplicate)} className="block w-full text-left px-3 py-2 text-ink hover:bg-app-panel2">
                   ⧉ Duplicate
                 </button>
                 <button type="button" onClick={() => pick(onToggleLock)} className="block w-full text-left px-3 py-2 text-ink hover:bg-app-panel2">
                   {isLocked ? "🔓 Unlock note" : "🔒 Lock note"}
                 </button>
+                <div className="h-px bg-app-border my-1" />
+                <button type="button" onClick={() => pick(onMoveToTrash)} className="block w-full text-left px-3 py-2 text-danger hover:bg-app-panel2">Move to Trash</button>
               </>
             )}
           </div>

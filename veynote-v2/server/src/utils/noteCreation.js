@@ -5,17 +5,18 @@ function creationError(status, code, message, noteId) {
 }
 
 function noteCreationInput(body = {}) {
-  const { title = "", content = "", mood = null, folderId = null, tags = [], entryDate, draftForAttachment = false, clientRequestId } = body;
+  const { title = "", content = "", mood = null, folderId = null, tags = [], entryDate, kind = "NOTE", draftForAttachment = false, clientRequestId } = body;
   if (typeof title !== "string" || title.length > 1000 || typeof content !== "string" ||
       (mood !== null && (typeof mood !== "string" || mood.length > 100)) ||
       (folderId !== null && (typeof folderId !== "string" || folderId.length > 191)) ||
       !Array.isArray(tags) || tags.length > 100 || tags.some(tag => typeof tag !== "string" || tag.trim().length > 100) ||
+      !["NOTE", "JOURNAL"].includes(kind) ||
       typeof draftForAttachment !== "boolean" ||
       (entryDate !== undefined && (typeof entryDate !== "string" || !Number.isFinite(Date.parse(entryDate)))) ||
       (clientRequestId !== undefined && (typeof clientRequestId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clientRequestId)))) {
     throw creationError(400, "NOTE_CREATE_INVALID", "Check the note title, tags, date and save request before trying again.");
   }
-  const payload = { title: title.trim(), content, mood: mood || null, folderId: folderId || null,
+  const payload = { title: title.trim(), content, mood: mood || null, folderId: folderId || null, kind,
     tags: [...new Set(tags.map(tag => tag.trim().toLowerCase()).filter(Boolean))].sort(),
     entryDate: entryDate ? new Date(entryDate).toISOString() : null, draftForAttachment };
   return { payload, key: clientRequestId?.toLowerCase(), hash: createHash("sha256").update(JSON.stringify(payload)).digest("hex") };

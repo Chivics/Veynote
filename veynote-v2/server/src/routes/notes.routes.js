@@ -54,9 +54,11 @@ function hasMeaningfulContent({ title, content, mood, tags }) {
   return Boolean(title?.trim()) || plainText.length > 0 || Boolean(mood?.trim()) || (tags && tags.length > 0);
 }
 
-// GET /api/notes?scope=all|favorites|archive|trash|locked&folderId=&tag=&q=
+// GET /api/notes?scope=all|favorites|archive|trash|locked&folderId=&tag=&q=&kind=NOTE|JOURNAL|ALL
 router.get("/", asyncHandler(async (req, res) => {
-  const { scope = "all", folderId, tag, q } = req.query;
+  const { scope = "all", folderId, tag, q, kind = "NOTE" } = req.query;
+
+  if (!["NOTE", "JOURNAL", "ALL"].includes(kind)) return res.status(400).json({ error: "Unknown record type." });
 
   if (scope === "locked") {
     if (!hasValidVaultAccess(req, "vault")) {
@@ -64,15 +66,15 @@ router.get("/", asyncHandler(async (req, res) => {
     }
     const notes = await prisma.note.findMany({
       where: { userId: req.userId, isLocked: true, isWill: false, isTrashed: false },
-      select: { id: true },
+      select: { id: true, kind: true },
       orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }],
     });
-    return res.json({ notes: notes.map((note) => ({ id: note.id, title: "Locked note", isLocked: true })) });
+    return res.json({ notes: notes.map((note) => ({ id: note.id, kind: note.kind, title: "Locked note", isLocked: true })) });
   }
 
   // Locked and will notes never appear in ordinary browsing/search — they
   // only surface through their own dedicated, vault-gated views above.
-  const where = { userId: req.userId, isTrashed: scope === "trash", isLocked: false, isWill: false };
+  const where = { userId: req.userId, ...(kind !== "ALL" && { kind }), isTrashed: scope === "trash", isLocked: false, isWill: false };
   if (scope === "favorites") where.isFavorite = true;
   if (scope === "archive") where.isArchived = true;
   if (scope === "all") where.isArchived = false;
@@ -174,7 +176,7 @@ async function syncNoteLinks(sourceNoteId, content, db = prisma) {
     // a stale/tampered data-note-id shouldn't silently create a dangling
     // or cross-account row.
     const validTargets = await db.note.findMany({
-      where: { id: { in: toAdd }, userId: (await db.note.findUnique({ where: { id: sourceNoteId } })).userId, isLocked: false, isWill: false, isTrashed: false },
+      where: { id: { in: toAdd }, userId: (await db.note.findUnique({ where: { id: sourceNoteId } })).userId, kind: "NOTE", isLocked: false, isWill: false, isTrashed: false },
       select: { id: true },
     });
     await db.noteLink.createMany({
@@ -205,7 +207,7 @@ async function maybeSnapshotVersion(note, db = prisma) {
 
 router.post("/", ownedReference(prisma.folder, "folderId"), asyncHandler(async (req, res) => {
   const input = noteCreationInput(req.body);
-  const { title, content, folderId, mood, tags, entryDate, draftForAttachment } = input.payload;
+  const { title, content, folderId, mood, tags, entryDate, kind, draftForAttachment } = input.payload;
 
   // `draftForAttachment` is set only by the "Add File"/"Add Image" flow,
   // when a user attaches something before typing a single word — an
@@ -225,6 +227,7 @@ router.post("/", ownedReference(prisma.folder, "folderId"), asyncHandler(async (
       content: content || "",
       folderId: folderId || null,
       mood: mood || null,
+      kind,
       entryDate: entryDate ? new Date(entryDate) : new Date(),
       tags: { create: tagRecords.map((t) => ({ tagId: t.id })) },
     },
@@ -255,6 +258,9 @@ router.patch("/:id", ownedReference(prisma.folder, "folderId"), asyncHandler(asy
   }
   if (tags !== undefined && (!Array.isArray(tags) || tags.some((tag) => typeof tag !== "string"))) {
     return res.status(400).json({ error: "Tags must be a list of names." });
+  }
+  if (entryDate !== undefined && (typeof entryDate !== "string" || !Number.isFinite(Date.parse(entryDate)))) {
+    return res.status(400).json({ error: "Choose a valid entry date." });
   }
   const note = await prisma.$transaction(async (db) => {
     await compareAndUpdateNote(db, existing, {
@@ -343,7 +349,7 @@ router.get("/:id/backlinks", asyncHandler(async (req, res) => {
 
   const links = await prisma.noteLink.findMany({
     where: { targetNoteId: note.id, sourceNote: { userId: req.userId, isLocked: false, isWill: false, isTrashed: false } },
-    include: { sourceNote: { select: { id: true, title: true } } },
+    include: { sourceNote: { select: { id: true, title: true, kind: true } } },
   });
   const backlinks = links.map((l) => l.sourceNote);
   res.json({ backlinks });
@@ -368,6 +374,7 @@ router.post("/:id/duplicate", asyncHandler(async (req, res) => {
       isLocked: existing.isLocked,
       folderId: existing.folderId,
       mood: existing.mood,
+      kind: existing.kind,
       tags: { create: existing.tags.map((t) => ({ tagId: t.tagId })) },
     },
     include: { tags: { include: { tag: true } }, folder: true, attachments: true },
@@ -439,7 +446,7 @@ router.delete("/:id", asyncHandler(async (req, res) => {
 
   await prisma.note.update({
     where: { id: existing.id },
-    data: { isTrashed: true, trashedAt: new Date() },
+    data: { isTrashed: true, trashedAt: new Date(), shareEnabled: false, shareToken: null },
   });
   res.json({ ok: true, permanentlyDeleted: false });
 }));
@@ -460,9 +467,10 @@ router.post("/:id/restore", asyncHandler(async (req, res) => {
 }));
 
 router.get("/meta/tags", asyncHandler(async (req, res) => {
+  const visibleNote = { userId: req.userId, isLocked: false, isWill: false, isTrashed: false };
   const tags = await prisma.tag.findMany({
-    where: { userId: req.userId },
-    include: { _count: { select: { notes: true } } },
+    where: { userId: req.userId, notes: { some: { note: visibleNote } } },
+    include: { _count: { select: { notes: { where: { note: visibleNote } } } } },
   });
   res.json({ tags: tags.map((t) => ({ id: t.id, name: t.name, count: t._count.notes })) });
 }));
@@ -512,6 +520,7 @@ router.get("/meta/search", asyncHandler(async (req, res) => {
       isTrashed: false,
       isLocked: false,
       isWill: false,
+      kind: "NOTE",
       ...(q ? { title: { contains: q } } : {}),
     },
     select: { id: true, title: true },

@@ -58,6 +58,17 @@ function calculateTradingAnalytics(entries = []) {
   const setupBreakdown = summarizeGroup(ordered, (trade) => (trade.setupTypes || "").split(",").map((item) => item.trim()));
   const instrumentBreakdown = summarizeGroup(ordered, (trade) => [trade.asset]);
   const directionBreakdown = summarizeGroup(ordered, (trade) => [trade.direction]);
+  const calendarMap = new Map();
+  for (const trade of ordered) {
+    const date = new Date(trade.entryDate).toISOString().slice(0, 10);
+    const day = calendarMap.get(date) || { date, count: 0, totalR: 0, wins: 0, losses: 0 };
+    day.count += 1;
+    day.totalR += trade.achievedR || 0;
+    day.wins += trade.result === "WIN" ? 1 : 0;
+    day.losses += trade.result === "LOSS" ? 1 : 0;
+    calendarMap.set(date, day);
+  }
+  const calendarDays = [...calendarMap.values()].map((day) => ({ ...day, totalR: rounded(day.totalR) }));
 
   return {
     hasData: true,
@@ -78,6 +89,7 @@ function calculateTradingAnalytics(entries = []) {
     setupBreakdown,
     instrumentBreakdown,
     directionBreakdown,
+    calendarDays,
   };
 }
 

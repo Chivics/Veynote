@@ -10,6 +10,7 @@ export default function TradeDetail() {
   const { id } = useParams();
   const [entry, setEntry] = useState(null);
   const [images, setImages] = useState([]);
+  const [analysisBlocks, setAnalysisBlocks] = useState([]);
   const [lightboxIndex, setLightboxIndex] = useState(null);
 
   function openLightbox(image) {
@@ -19,6 +20,7 @@ export default function TradeDetail() {
   useEffect(() => {
     api.get(`/trading/entries/${id}`).then((d) => setEntry(d.entry));
     api.get(`/trading/entries/${id}/images`).then((d) => setImages(d.images));
+    api.get(`/trading/entries/${id}/analysis`).then((d) => setAnalysisBlocks(d.blocks || [])).catch(() => setAnalysisBlocks([]));
   }, [id]);
 
   if (!entry) return <PageSkeleton title="Trade" />;
@@ -28,7 +30,7 @@ export default function TradeDetail() {
   const byStage = (stage) => images.filter((i) => i.stage === stage);
   const hasSetupImages = byStage("SETUP").length > 0;
   const hasAnyDocumentation =
-    hasSetupImages || byStage("ENTRY").length > 0 || byStage("DURING_TRADE").length > 0 || byStage("POST_TRADE").length > 0;
+    analysisBlocks.length > 0 || hasSetupImages || byStage("ENTRY").length > 0 || byStage("DURING_TRADE").length > 0 || byStage("POST_TRADE").length > 0;
   const hasPostTradeReview =
     entry.postTradeWhatHappened || entry.postTradeWentRight || entry.postTradeWentWrong || entry.postTradeLesson;
 
@@ -61,11 +63,15 @@ export default function TradeDetail() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 border-t border-app-border">
+          <div className="trade-detail-metrics">
             <TradeField label="ENTRY" value={entry.entryPrice} />
             <TradeField label="STOP LOSS" value={entry.stopLoss} />
             <TradeField label="TAKE PROFIT" value={entry.takeProfit} />
             <TradeField label="RISK / REWARD" value={entry.riskReward ? `${entry.riskReward}R` : "—"} accent />
+            <TradeField label="POSITION SIZE" value={entry.positionSize} />
+            <TradeField label="RISK AMOUNT" value={entry.riskAmount} />
+            <TradeField label="REALIZED P&L" value={entry.profitLoss} accent />
+            <TradeField label="SESSION" value={entry.session?.replaceAll("_", " ")} />
           </div>
 
           {setupTypes.length > 0 && (
@@ -100,16 +106,18 @@ export default function TradeDetail() {
         <>
           <h2 className="text-[15.5px] mb-3">Trade documentation</h2>
           <div className="flex flex-col gap-6 mb-8">
-            {hasSetupImages && (
+            {(hasSetupImages || analysisBlocks.length > 0) && (
               <section>
-                <h3 className="text-[12.5px] font-bold mb-2.5">Pre-trade / Setup</h3>
-                <div className="flex flex-col gap-3">
-                  {[...new Set(byStage("SETUP").map((i) => i.timeframe).filter(Boolean))].map((tf) => (
-                    <div key={tf} className="overview-timeframe">
-                      <div className="overview-timeframe-head"><span>{tf}</span><small>{byStage("SETUP").filter((i) => i.timeframe === tf).length} charts</small></div>
-                      <ImageGrid images={byStage("SETUP").filter((i) => i.timeframe === tf)} onOpen={openLightbox} />
-                    </div>
-                  ))}
+                <h3 className="text-[12.5px] font-bold mb-2.5">Top-down analysis</h3>
+                <div className="trade-analysis-review">
+                  {[...new Set([[...analysisBlocks].sort((a, b) => a.position - b.position).map((block) => block.timeframe), byStage("SETUP").map((image) => image.timeframe).filter(Boolean)].flat())].map((tf, index) => {
+                    const block = analysisBlocks.find((item) => item.timeframe === tf);
+                    const timeframeImages = byStage("SETUP").filter((image) => image.timeframe === tf);
+                    return <article key={tf} className="overview-timeframe"><div className="overview-timeframe-head"><div><span className="analysis-sequence">{String(index + 1).padStart(2, "0")}</span><span>{tf}</span></div><small>{timeframeImages.length} chart{timeframeImages.length === 1 ? "" : "s"}</small></div>
+                      {timeframeImages.length > 0 && <ImageGrid images={timeframeImages} onOpen={openLightbox} />}
+                      {block && <div className="analysis-review-notes">{ANALYSIS_LABELS.filter(([field]) => block[field]).map(([field, label]) => <div key={field}><span>{label}</span><p>{block[field]}</p></div>)}</div>}
+                    </article>;
+                  })}
                 </div>
               </section>
             )}
@@ -153,6 +161,8 @@ export default function TradeDetail() {
     </div>
   );
 }
+
+const ANALYSIS_LABELS = [["marketStructure", "Market structure"], ["keyLevels", "Key levels"], ["liquidity", "Liquidity"], ["bias", "Bias"], ["setupReasoning", "Setup reasoning"], ["confirmation", "Confirmation"], ["notes", "Notes"]];
 
 function ImageGrid({ images, onOpen }) {
   return (

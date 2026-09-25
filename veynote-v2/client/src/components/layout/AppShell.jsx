@@ -13,17 +13,19 @@ function prefetchPage(path) {
     "/notes": ["/notes"], "/notes/all": ["/notes"], "/notes/folders": ["/folders"],
     "/notes/files": ["/files/root"], "/notes/tasks": ["/tasks"], "/notes/today": ["/notes"],
     "/notes/tags": ["/notes/meta/tags"], "/notes/library": ["/library/summary"],
+    "/journal": ["/notes"], "/journal/timeline": ["/notes"], "/journal/insights": ["/notes"],
+    "/business": ["/business/workspaces"], "/business/customers": ["/business/workspaces"],
     "/trading": ["/trading/entries", "/accounts", "/analytics/trading"],
     "/trading/entries": ["/trading/entries"], "/trading/accounts": ["/accounts"],
     "/trading/analytics": ["/analytics/trading"], "/trading/rules": ["/trading-rules"],
   };
-  for (const query of queries[path] || []) api.prefetch(query, query === "/notes" ? { scope: "all" } : undefined);
+  for (const query of queries[path] || []) api.prefetch(query, query === "/notes" ? { scope: "all", ...(path.startsWith("/journal") && { kind: "JOURNAL" }) } : undefined);
   if (path.endsWith("/calendar")) {
     const now = new Date();
     api.prefetch("/calendar", { mode: path.startsWith("/notes") ? "NOTES" : "TRADING", year: now.getFullYear(), month: now.getMonth() + 1 });
   }
   const scope = { "/notes/favorites": "favorites", "/notes/archive": "archive", "/notes/trash": "trash" }[path];
-  if (scope) api.prefetch("/notes", { scope });
+  if (scope) api.prefetch("/notes", { scope, kind: "ALL" });
 }
 
 function initials(user) {
@@ -91,8 +93,8 @@ function DesktopSidebar({ workspace }) {
   return <aside className="desktop-sidebar print:hidden">
     <Brand />
     <SectionPicker active={workspace} selected={workspace} onSelect={selectWorkspace} compact />
-    <NavLink to={workspace === "Trading" ? "/trading/entries/new" : "/notes/new"} className="sidebar-create">
-      <NavigationIcon name="plus" size={17} /><span>{workspace === "Trading" ? "Log trade" : "New note"}</span><kbd>⌘ N</kbd>
+    <NavLink to={WORKSPACES[workspace].create} className="sidebar-create">
+      <NavigationIcon name="plus" size={17} /><span>{WORKSPACES[workspace].createLabel}</span><kbd>⌘ N</kbd>
     </NavLink>
     <SectionLinks workspace={workspace} />
     <GlobalControls />
@@ -133,7 +135,8 @@ export default function AppShell() {
   const { user } = useAuth();
   const workspace = useMemo(() => currentWorkspace(location.pathname, mode), [location.pathname, mode]);
   const noteSegment = location.pathname.match(/^\/notes\/([^/]+)$/)?.[1];
-  const immersiveEditor = Boolean(noteSegment && !new Set(["today", "all", "favorites", "folders", "files", "tasks", "calendar", "search", "tags", "archive", "trash", "locked", "library", "will"]).has(noteSegment));
+  const journalEditor = /^\/journal\/(new|entries\/[^/]+)$/.test(location.pathname);
+  const immersiveEditor = journalEditor || Boolean(noteSegment && !new Set(["today", "all", "favorites", "folders", "files", "tasks", "calendar", "search", "tags", "archive", "trash", "locked", "library", "will"]).has(noteSegment));
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerClosing, setDrawerClosing] = useState(false);
   const [drawerWorkspace, setDrawerWorkspace] = useState(workspace);
@@ -170,12 +173,12 @@ export default function AppShell() {
 
   useEffect(() => {
     function onKeyDown(event) {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); navigate(mode === "NOTES" ? "/notes/search" : "/trading/search"); }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") { event.preventDefault(); navigate(mode === "NOTES" ? "/notes/new" : "/trading/entries/new"); }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); navigate(WORKSPACES[workspace].search); }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") { event.preventDefault(); navigate(WORKSPACES[workspace].create); }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [mode, navigate]);
+  }, [workspace, navigate]);
 
   return <div className={`app-shell workspace-${workspace.toLowerCase()} ${immersiveEditor ? "is-immersive-editor" : ""}`}>
     <DesktopSidebar workspace={workspace} />
@@ -190,7 +193,7 @@ export default function AppShell() {
         <button type="button" className="mobile-avatar" onClick={() => navigate("/settings")} aria-label="Open account settings">{initials(user)}</button>
       </header>
       <div className="desktop-topbar print:hidden">
-        <button type="button" onClick={() => navigate(mode === "NOTES" ? "/notes/search" : "/trading/search")}><NavigationIcon name="search" size={17} /><span>Search Veynote</span><kbd>⌘ K</kbd></button>
+        <button type="button" onClick={() => navigate(WORKSPACES[workspace].search)}><NavigationIcon name="search" size={17} /><span>Search {workspace}</span><kbd>⌘ K</kbd></button>
         <div><span className="sync-indicator"><i /> Synced</span><button type="button" className="desktop-avatar" onClick={() => navigate("/settings")}>{initials(user)}</button></div>
       </div>
       <div className="app-content"><ContextualNavigation /><Outlet /></div>

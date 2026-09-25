@@ -11,7 +11,7 @@ const SCOPE_COPY = {
   all: { title: "All notes", eyebrow: "YOUR RECORDS", description: "Every thought, document, and entry in one calm, searchable workspace.", empty: "No notes yet", emptyDesc: "Your written records will appear here." },
   favorites: { title: "Favorites", eyebrow: "WITHIN REACH", description: "The notes and records you marked as important.", empty: "No favorites yet", emptyDesc: "Mark a note as a favorite to keep it within easy reach." },
   archive: { title: "Archive", eyebrow: "PRESERVED", description: "Content removed from active work while keeping its history intact.", empty: "Nothing archived", emptyDesc: "Archived notes remain safe here until you restore or delete them." },
-  trash: { title: "Trash", eyebrow: "RECENTLY DELETED", description: "Deleted notes remain recoverable for 30 days before permanent removal.", empty: "Trash is empty", emptyDesc: "Deleted notes will appear here with their original context." },
+  trash: { title: "Trash", eyebrow: "RECENTLY DELETED", description: "Deleted records remain recoverable until you permanently remove them.", empty: "Trash is empty", emptyDesc: "Deleted records will appear here with their original context." },
   folder: { title: "Folder", eyebrow: "COLLECTION", description: "Everything organized inside this folder.", empty: "This folder is empty", emptyDesc: "Create a note here or move an existing record into this folder." },
   tag: { title: "Tag", eyebrow: "CONNECTED RECORDS", description: "Notes connected by a shared tag.", empty: "No tagged notes", emptyDesc: "Records carrying this tag will appear here." },
   search: { title: "Search", eyebrow: "FIND ANYTHING", description: "Search titles, writing, and tags across your accessible notes.", empty: "No matching records", emptyDesc: "Try another phrase or a broader keyword." },
@@ -20,16 +20,16 @@ const SCOPE_COPY = {
 function stripHtml(value) { return value?.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() || ""; }
 function noteDate(note) { return new Date(note.updatedAt || note.entryDate); }
 
-function RecordCard({ note, scope, view, onFavorite, onRestore, onDelete }) {
+function RecordCard({ note, scope, view, onFavorite, onRestore, onUnarchive, onDelete }) {
   const body = stripHtml(note.content);
   return <article className={`note-record ${view === "list" ? "is-list" : ""}`}>
-    <Link to={scope === "trash" ? "#" : `/notes/${note.id}`} onClick={event => scope === "trash" && event.preventDefault()}>
-      <div className="note-record-top"><span className="type-pill">{note.isPinned ? "Pinned note" : "Note"}</span><time>{noteDate(note).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</time></div>
+    <Link to={scope === "trash" ? "#" : note.kind === "JOURNAL" ? `/journal/entries/${note.id}` : `/notes/${note.id}`} onClick={event => scope === "trash" && event.preventDefault()}>
+      <div className="note-record-top"><span className="type-pill">{note.kind === "JOURNAL" ? "Journal" : note.isPinned ? "Pinned note" : "Note"}</span><time>{noteDate(note).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</time></div>
       <h2>{note.title || "Untitled note"}</h2><p>{body.slice(0, 190) || "No writing has been added yet."}</p>
     </Link>
     <footer>
       <div>{note.folder && <span><NavigationIcon name="folder" size={13} />{note.folder.name}</span>}{note.tags?.slice(0, 3).map(tag => <i key={tag}>#{tag}</i>)}</div>
-      {scope === "trash" ? <div className="note-record-actions"><button type="button" onClick={() => onRestore(note)}>Restore</button><button type="button" className="is-danger" onClick={() => onDelete(note)}>Delete permanently</button></div> : <button type="button" className={`favorite-control ${note.isFavorite ? "is-active" : ""}`} onClick={() => onFavorite(note)} aria-label={note.isFavorite ? "Remove from favorites" : "Add to favorites"}><NavigationIcon name="heart" size={17} /></button>}
+      {scope === "trash" ? <div className="note-record-actions"><button type="button" onClick={() => onRestore(note)}>Restore</button><button type="button" className="is-danger" onClick={() => onDelete(note)}>Delete permanently</button></div> : scope === "archive" ? <div className="note-record-actions"><button type="button" onClick={() => onUnarchive(note)}>Restore from archive</button></div> : <button type="button" className={`favorite-control ${note.isFavorite ? "is-active" : ""}`} onClick={() => onFavorite(note)} aria-label={note.isFavorite ? "Remove from favorites" : "Add to favorites"}><NavigationIcon name="heart" size={17} /></button>}
     </footer>
   </article>;
 }
@@ -51,6 +51,7 @@ export default function NoteListPage({ scope }) {
 
   useEffect(() => { const timer = setTimeout(() => setSearchQuery(q), 200); return () => clearTimeout(timer); }, [q]);
   const query = { scope: ["favorites", "archive", "trash"].includes(scope) ? scope : "all" };
+  if (["favorites", "archive", "trash", "tag", "search"].includes(scope)) query.kind = "ALL";
   if (scope === "folder") query.folderId = folderId;
   if (scope === "tag") query.tag = tag;
   if (scope === "search") query.q = searchQuery;
@@ -78,6 +79,7 @@ export default function NoteListPage({ scope }) {
 
   async function toggleFavorite(note) { await api.patch(`/notes/${note.id}`, { isFavorite: !note.isFavorite }); await result.refresh(); }
   async function restoreNote(note) { await api.post(`/notes/${note.id}/restore`); await result.refresh(); }
+  async function unarchiveNote(note) { await api.patch(`/notes/${note.id}`, { isArchived: false }); await result.refresh(); }
   async function deleteForever() {
     if (!pendingDelete) return;
     setDeleting(true);
@@ -97,7 +99,7 @@ export default function NoteListPage({ scope }) {
       <Link to="/notes/new" className="btn-primary"><NavigationIcon name="plus" size={16} /> New note</Link>
     </header>
 
-    {scope === "trash" && <div className="retention-notice"><NavigationIcon name="clock" size={18} /><div><strong>30-day recovery window</strong><span>Restore anything you still need. Permanent deletion cannot be undone.</span></div></div>}
+    {scope === "trash" && <div className="retention-notice"><NavigationIcon name="clock" size={18} /><div><strong>Recoverable until you delete permanently</strong><span>Restore anything you still need. Permanent deletion cannot be undone.</span></div></div>}
     {result.error && <div className="inline-error" role="alert"><span>{result.error.message}</span><button type="button" onClick={() => result.refresh().catch(() => {})}>Retry</button></div>}
 
     <div className="collection-toolbar">
@@ -108,7 +110,7 @@ export default function NoteListPage({ scope }) {
 
     <div className="collection-summary"><span>{notes ? `${visibleNotes.length} ${visibleNotes.length === 1 ? "record" : "records"}` : "Preparing records"}</span>{filterText && notes && <small>{notes.length - visibleNotes.length} hidden by filter</small>}</div>
 
-    {notes === null ? <PageSkeleton compact /> : visibleNotes.length === 0 ? <EmptyState icon={scope === "trash" ? "⌫" : "✦"} title={filterText ? "No matching records" : copy.empty} description={filterText ? "Clear the filter or try a different phrase." : copy.emptyDesc} action={filterText ? <button className="btn-outline" onClick={() => setFilterText("")}>Clear filter</button> : undefined} /> : <div className={`note-records ${view === "list" ? "is-list" : ""}`}>{visibleNotes.map(note => <RecordCard key={note.id} note={note} scope={scope} view={view} onFavorite={toggleFavorite} onRestore={restoreNote} onDelete={setPendingDelete} />)}</div>}
+    {notes === null ? <PageSkeleton compact /> : visibleNotes.length === 0 ? <EmptyState icon={scope === "trash" ? "⌫" : "✦"} title={filterText ? "No matching records" : copy.empty} description={filterText ? "Clear the filter or try a different phrase." : copy.emptyDesc} action={filterText ? <button className="btn-outline" onClick={() => setFilterText("")}>Clear filter</button> : undefined} /> : <div className={`note-records ${view === "list" ? "is-list" : ""}`}>{visibleNotes.map(note => <RecordCard key={note.id} note={note} scope={scope} view={view} onFavorite={toggleFavorite} onRestore={restoreNote} onUnarchive={unarchiveNote} onDelete={setPendingDelete} />)}</div>}
 
     <ConfirmDialog open={Boolean(pendingDelete)} title="Delete this note permanently?" description={`“${pendingDelete?.title || "Untitled note"}” will be removed immediately and cannot be restored.`} confirmLabel="Delete permanently" busy={deleting} onClose={() => !deleting && setPendingDelete(null)} onConfirm={deleteForever} />
   </div>;

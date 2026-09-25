@@ -27,3 +27,17 @@ test("unknown browser history never uses an invented back delta", () => {
   assert.equal(backDestination(location, trail).delta, null);
   assert.equal(describeRoute("/notes/secret-id").label, "Note");
 });
+test("journal entries return to journal context on desktop and mobile", () => {
+  const direct = route("entry", "/journal/entries/record-1");
+  assert.deepEqual(backDestination(direct, []), { label: "Timeline", to: "/journal/timeline", delta: null });
+  const timeline = route("timeline", "/journal/timeline", "?mood=focused");
+  assert.deepEqual(backDestination(direct, [timeline, direct]), { label: "Timeline", to: "/journal/timeline?mood=focused", delta: -1 });
+  assert.equal(backDestination(route("home", "/journal"), []), null);
+});
+test("business customer details return to their filtered directory", () => {
+  const source = route("customers", "/business/customers", "?stage=LEAD");
+  const detail = route("customer", "/business/customers/customer-1");
+  assert.deepEqual(backDestination(detail, [source, detail]), { label: "Customers", to: "/business/customers?stage=LEAD", delta: -1 });
+  assert.deepEqual(backDestination(detail, []), { label: "Customers", to: "/business/customers", delta: null });
+  assert.equal(backDestination(route("home", "/business"), []), null);
+});
