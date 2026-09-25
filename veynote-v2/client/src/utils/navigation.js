@@ -23,6 +23,7 @@ export function describeRoute(pathname) {
   if (parts[0] === "journal" && parts[1] === "entries") return { label: "Journal entry", parent: "/journal/timeline", workspace };
   if (parts[0] === "journal" && parts[1] === "new") return { label: "New entry", parent: "/journal", workspace };
   if (parts[0] === "business" && parts[1] === "customers") return { label: "Customer", parent: "/business/customers", workspace };
+  if (parts[0] === "business" && parts[1] === "opportunities") return { label: "Opportunity", parent: "/business/pipeline", workspace };
   if (parts[0] === "notes" && parts.length === 2) return { label: parts[1] === "new" ? "New note" : "Note", parent: "/notes/all", workspace };
   return { label: "Veynote", parent: workspace, workspace };
 }

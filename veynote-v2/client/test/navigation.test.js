@@ -41,3 +41,6 @@ test("business customer details return to their filtered directory", () => {
   assert.deepEqual(backDestination(detail, []), { label: "Customers", to: "/business/customers", delta: null });
   assert.equal(backDestination(route("home", "/business"), []), null);
 });
+test("business opportunity details return to the pipeline", () => {
+  assert.deepEqual(backDestination(route("deal", "/business/opportunities/deal-1"), []), { label: "Pipeline", to: "/business/pipeline", delta: null });
+});

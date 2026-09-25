@@ -28,5 +28,5 @@ test("cache is bounded and failed requests can recover", async () => {
 
 test("sensitive content and authorization endpoints bypass navigation cache", () => {
   for (const path of ["/notes?scope=locked", "/notes/secret", "/notes/secret/versions", "/will", "/security", "/sessions", "/auth/me", "/media/file", "/shares/token"]) assert.equal(cacheablePath(path), false, path);
-  for (const path of ["/notes?scope=all", "/files/root", "/files/folder-id", "/library/reading", "/trading/entries?q=EUR"]) assert.equal(cacheablePath(path), true, path);
+  for (const path of ["/notes?scope=all", "/files/root", "/files/folder-id", "/library/reading", "/trading/entries?q=EUR", "/business/workspace-1/customers/customer-1/interactions?page=2", "/business/workspace-1/customers/customer-1/opportunities?page=2"]) assert.equal(cacheablePath(path), true, path);
 });

@@ -131,7 +131,7 @@ export const api = {
   peek(path, params) { const key = queryPath(path, params); return cacheablePath(key) ? scopedCache().peek(key) : undefined; },
   get(path, params, options = {}) {
     const key = queryPath(path, params);
-    return cacheablePath(key) ? scopedCache().get(key, () => request(key), options.force) : request(key);
+    return cacheablePath(key) ? scopedCache().get(key, () => request(key), options.force) : request(key, { signal: options.signal });
   },
   prefetch(path, params) { if (cacheablePath(queryPath(path, params))) return api.get(path, params).catch(() => {}); },
 

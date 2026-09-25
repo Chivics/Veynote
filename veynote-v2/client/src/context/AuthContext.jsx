@@ -19,16 +19,18 @@ export function AuthProvider({ children }) {
     return () => media.removeEventListener("change", apply);
   }, [user?.theme]);
 
-  async function loadMe() {
-    setLoading(true);
+  async function loadMe({ block = !user } = {}) {
+    if (block) setLoading(true);
     setSessionError("");
     const token = localStorage.getItem("veynote_token");
     if (!token) {
-      setLoading(false);
+      if (block) setLoading(false);
       return;
     }
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 10000);
     try {
-      const { user } = await api.get("/auth/me");
+      const { user } = await api.get("/auth/me", undefined, { signal: controller.signal });
       if (localStorage.getItem("veynote_token") !== token) return;
       setUser(user);
     } catch (err) {
@@ -43,15 +45,16 @@ export function AuthProvider({ children }) {
           : "We couldn’t reach Veynote to check your session. Your sign-in has been kept on this device. Check your connection and retry.");
       }
     } finally {
-      setLoading(false);
+      window.clearTimeout(timeout);
+      if (block) setLoading(false);
     }
   }
 
   useEffect(() => {
-    loadMe();
+    loadMe({ block: true });
     const syncSession = event => {
       if (event.key !== "veynote_token" && event.key !== null) return;
-      clearNoteGrant(); api.clearCache(); setUser(null); loadMe();
+      clearNoteGrant(); api.clearCache(); setUser(null); loadMe({ block: true });
     };
     window.addEventListener("storage", syncSession);
     return () => window.removeEventListener("storage", syncSession);

@@ -38,7 +38,7 @@ import JournalDashboard from "./pages/journal/JournalDashboard";
 import JournalTimeline from "./pages/journal/Timeline";
 import JournalCalendar from "./pages/journal/JournalCalendar";
 import JournalInsights from "./pages/journal/Insights";
-import BusinessWorkspace, { BusinessDashboard, BusinessCustomers, BusinessCustomerDetail, BusinessPipeline, BusinessFollowUps } from "./pages/business/BusinessWorkspace";
+import BusinessWorkspace, { BusinessDashboard, BusinessCustomers, BusinessCustomerDetail, BusinessPipeline, BusinessFollowUps, BusinessOpportunityDetail } from "./pages/business/BusinessWorkspace";
 
 import TradingDashboard from "./pages/trading/Dashboard";
 import EntryListPage from "./pages/trading/EntryListPage";
@@ -53,15 +53,18 @@ import TradingRuleDetail from "./pages/trading/TradingRuleDetail";
 
 import Settings from "./pages/Settings";
 import ConnectionStatus from "./components/ConnectionStatus";
+import StartupSplash from "./components/StartupSplash";
 
 function RootRedirect() {
   const { user } = useAuth();
   return <Navigate to={user?.defaultMode === "TRADING" ? "/trading" : "/notes"} replace />;
 }
 
-export default function App() {
+function AppContent() {
+  const { loading } = useAuth();
+  if (loading) return <StartupSplash />;
   return (
-    <AuthProvider>
+    <>
       <ConnectionStatus />
       <Routes>
         {/* -- Public / auth -- */}
@@ -183,6 +186,7 @@ export default function App() {
             <Route path="customers/:id" element={<BusinessCustomerDetail />} />
             <Route path="pipeline" element={<BusinessPipeline />} />
             <Route path="follow-ups" element={<BusinessFollowUps />} />
+            <Route path="opportunities/:id" element={<BusinessOpportunityDetail />} />
           </Route>
 
           {/* Trading Journal mode */}
@@ -202,6 +206,10 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </AuthProvider>
+    </>
   );
+}
+
+export default function App() {
+  return <AuthProvider><AppContent /></AuthProvider>;
 }

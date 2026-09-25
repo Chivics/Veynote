@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import InstallApp from "../../components/InstallApp";
 import { API_BASE } from "../../api/client";
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,6 +30,7 @@ export default function Login() {
   window.location.href = `${API_BASE}/auth/google`;
 }
 
+  if (user) return <Navigate to="/" replace />;
   return (
     <div className="min-h-screen flex items-center justify-center bg-app-bg px-4">
       <div className="w-full max-w-[340px] flex flex-col items-center gap-[18px]">
