@@ -1,5 +1,3 @@
-import PageSkeleton from "../../components/PageSkeleton.jsx";
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import VaultGate from "../../components/VaultGate";
@@ -207,7 +205,19 @@ export default function WillInheritance() {
   const estimatedEstateValue = useMemo(() => assets.reduce((sum, asset) => { const value = Number(String(asset.estimatedValue || "").replace(/[^0-9.-]/g, "")); return sum + (Number.isFinite(value) ? value : 0); }, 0), [assets]);
 
   if (!unlocked) return <div className="max-w-[620px] mx-auto"><div className="mb-7"><span className="eyebrow">PRIVATE & SENSITIVE</span><h1 className="page-title text-[30px] font-bold mt-1.5">Will & Inheritance</h1><p className="text-[13px] text-ink-muted mt-1.5">A protected workspace for your wishes, assets, beneficiaries and estate instructions.</p></div><VaultGate vault="will" onUnlock={() => setUnlocked(true)} /></div>;
-  if (loading && !will) return <div className="max-w-[980px] mx-auto py-8"><PageSkeleton compact /></div>;
+  if (!will) return (
+    <div className="max-w-[980px] mx-auto py-8">
+      <span className="eyebrow">PRIVATE & SENSITIVE</span>
+      <h1 className="page-title text-[28px] sm:text-[30px] font-bold tracking-tight mt-1.5">Will & Inheritance</h1>
+      <p className="text-[13px] text-ink-muted mt-1.5">Your protected estate workspace.</p>
+      {error ? (
+        <div className="inline-error mt-5" role="alert">
+          <span>{error} Your estate records have not been changed.</span>
+          <button type="button" onClick={load} disabled={loading}>Retry</button>
+        </div>
+      ) : <p className="collection-inline-status mt-5" role="status">Opening your protected estate records…</p>}
+    </div>
+  );
 
   return (
     <div className="max-w-[1120px] mx-auto pb-10">

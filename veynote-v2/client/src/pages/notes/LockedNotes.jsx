@@ -1,4 +1,3 @@
-import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/browser";
@@ -12,14 +11,20 @@ function SecurityPanel() {
   const [credentials, setCredentials] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [credentialsError, setCredentialsError] = useState("");
   const [changing, setChanging] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const supported = browserSupportsWebAuthn();
 
-  useEffect(() => {
-    if (open) api.get("/webauthn/credentials").then((d) => setCredentials(d.credentials));
-  }, [open]);
+  function loadCredentials() {
+    setCredentialsError("");
+    api.get("/webauthn/credentials", undefined, { force: true })
+      .then((data) => setCredentials(data.credentials))
+      .catch((err) => setCredentialsError(err.message || "Passkeys could not be loaded."));
+  }
+
+  useEffect(() => { if (open) loadCredentials(); }, [open]);
 
   async function addPasskey() {
     setError("");
@@ -38,8 +43,16 @@ function SecurityPanel() {
   }
 
   async function removePasskey(id) {
-    await api.delete(`/webauthn/credentials/${id}`);
-    setCredentials((prev) => prev.filter((c) => c.id !== id));
+    setBusy(true);
+    setError("");
+    try {
+      await api.delete(`/webauthn/credentials/${id}`);
+      setCredentials((prev) => prev.filter((credential) => credential.id !== id));
+    } catch (err) {
+      setError(err.message || "This passkey could not be removed.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function changePassword(e) {
@@ -73,7 +86,7 @@ function SecurityPanel() {
             {supported && (
               <>
                 {credentials === null ? (
-                  <PageSkeleton compact />
+                  !credentialsError && <p className="text-[11px] text-ink-muted mb-2" role="status">Checking registered passkeys…</p>
                 ) : credentials.length === 0 ? (
                   <p className="text-[11px] text-ink-muted mb-2">No passkey set up yet — add one for a faster unlock with your fingerprint, face, or device PIN.</p>
                 ) : (
@@ -81,7 +94,7 @@ function SecurityPanel() {
                     {credentials.map((c) => (
                       <div key={c.id} className="flex items-center justify-between text-[11.5px]">
                         <span>{c.deviceLabel || "Unnamed device"}</span>
-                        <button type="button" onClick={() => removePasskey(c.id)} className="text-danger font-semibold">Remove</button>
+                        <button type="button" disabled={busy} onClick={() => removePasskey(c.id)} className="text-danger font-semibold">Remove</button>
                       </div>
                     ))}
                   </div>
@@ -104,7 +117,8 @@ function SecurityPanel() {
             )}
           </div>
 
-          {error && <p className="text-danger text-[11px]">{error}</p>}
+          {credentialsError && <p className="text-danger text-[11px]" role="alert">{credentialsError} <button type="button" onClick={loadCredentials} className="font-semibold underline">Retry passkeys</button></p>}
+          {error && <p className="text-danger text-[11px]" role="alert">{error}</p>}
         </div>
       )}
     </div>
@@ -114,7 +128,7 @@ function SecurityPanel() {
 export default function LockedNotes() {
   const [unlocked, setUnlocked] = useState(Boolean(getVaultToken("locked-notes")));
   const [notes, setNotes] = useState(null);
-  const [loadError, setLoadError] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   function load() {
     api
@@ -122,14 +136,15 @@ export default function LockedNotes() {
       .then((d) => {
         setNotes(d.notes);
         setUnlocked(true);
-        setLoadError(false);
+        setLoadError("");
       })
       .catch((err) => {
         if (err.requiresVault) {
           clearVaultToken("locked-notes"); // stale/expired token — force a fresh unlock
           setUnlocked(false);
+          setNotes(null);
         } else {
-          setLoadError(true);
+          setLoadError(err.message || "Locked Notes could not be loaded.");
         }
       });
   }
@@ -149,11 +164,10 @@ export default function LockedNotes() {
       </div>
 
       <SecurityPanel />
+      {loadError && <div className="inline-error" role="alert"><span>{loadError}</span><button type="button" onClick={load}>Retry</button></div>}
 
       {notes === null ? (
-        <PageSkeleton compact />
-      ) : loadError ? (
-        <p className="text-danger text-[12px]">Couldn't load Locked Notes.</p>
+        !loadError && <p className="collection-inline-status" role="status">Checking protected note references…</p>
       ) : notes.length === 0 ? (
         <EmptyState icon="🔒" title="No locked notes yet" description={'Open any note and choose "Lock note" to move it here.'} />
       ) : (
