@@ -1,4 +1,3 @@
-import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
@@ -17,7 +16,7 @@ export default function ItemDetail({ configKey }) {
   const navigate = useNavigate();
   const { registerGuard } = useContextualNavigation();
 
-  const [item, setItem] = useState(null);
+  const [item, setItem] = useState(() => api.peek(`/library/${apiSlug}/${id}`)?.item ?? null);
   const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved | error
   const [saveError, setSaveError] = useState("");
   const dirtyRef = useRef(false);
@@ -44,7 +43,7 @@ export default function ItemDetail({ configKey }) {
     api.get(`/library/${apiSlug}/${id}`).then((d) => { if (sequence === resourceSequence.current) setItem(d.item); }).catch(error => { if (sequence === resourceSequence.current) setLoadError(error.message); });
   }
   useEffect(() => {
-    setItem(null); draftFields.current = {}; dirtyRef.current = false;
+    setItem(api.peek(`/library/${apiSlug}/${id}`)?.item ?? null); draftFields.current = {}; dirtyRef.current = false;
     editRevision.current++; setSaveStatus("idle"); setSaveError("");
     load();
     return () => { resourceSequence.current++; };
@@ -126,7 +125,11 @@ export default function ItemDetail({ configKey }) {
     finally { setCoverUploading(false); }
   }
 
-  if (!item) return loadError ? <section><h1 className="page-title">Library record unavailable</h1><p role="alert" className="text-danger my-4">{loadError}</p><button className="btn-primary" onClick={load}>Retry</button></section> : <PageSkeleton title="Library record" />;
+  if (!item) return <section className="library-detail library-detail-pending">
+    <span className="eyebrow">{config.eyebrow}</span>
+    <h1 className="page-title">{config.titleLabel || config.label}</h1>
+    {loadError ? <div className="inline-error" role="alert"><span>{loadError}</span><button type="button" onClick={load}>Retry</button></div> : <p role="status">Opening your {config.label.toLowerCase()} record…</p>}
+  </section>;
 
   return (
     <div className="library-detail">

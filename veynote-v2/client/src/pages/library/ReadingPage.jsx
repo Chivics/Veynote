@@ -1,6 +1,5 @@
-import PageSkeleton from "../../components/PageSkeleton.jsx";
-import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useRef, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { LIBRARY_CONFIG, statusColorClass } from "../../data/libraryConfig";
@@ -21,20 +20,35 @@ export default function ReadingPage() {
   const setView = value => setSearchParams(previous => { const next = new URLSearchParams(previous); next.set("view", value); return next; }, { replace: true });
   const setParam = (key, value) => setSearchParams(previous => { const next = new URLSearchParams(previous); if (value) next.set(key, value); else next.delete(key); return next; }, { replace: true });
   const [templateOpen, setTemplateOpen] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [creating, setCreating] = useState(false);
+  const createInFlight = useRef(false);
 
 
   async function createFromTemplate(template) {
-    const { item } = await api.post("/library/reading", {
-      title: `Untitled ${template ? template.label.replace("New ", "") : "item"}`,
-      ...(template?.defaults || {}),
-    });
-    setTemplateOpen(false);
-    navigate(`/notes/library/reading/${item.id}`);
+    if (createInFlight.current) return;
+    createInFlight.current = true;
+    setCreating(true);
+    setCreateError("");
+    try {
+      const { item } = await api.post("/library/reading", {
+        title: `Untitled ${template ? template.label.replace("New ", "") : "item"}`,
+        ...(template?.defaults || {}),
+      });
+      setTemplateOpen(false);
+      navigate(`/notes/library/reading/${item.id}`);
+    } catch (error) {
+      setCreateError(error.message || "The reading record could not be created.");
+    } finally {
+      createInFlight.current = false;
+      setCreating(false);
+    }
   }
 
   const filtered = (() => {
     if (!items) return null;
-    let next = items.filter(item => !query || `${item.title} ${item.properties?.author || ""}`.toLowerCase().includes(query.toLowerCase()));
+    const needle = query.trim().toLowerCase();
+    let next = items.filter(item => !needle || `${item.title || ""} ${item.properties?.author || ""}`.toLowerCase().includes(needle));
     if (view === "Books") next = next.filter((i) => i.category === "Book");
     if (view === "Articles") next = next.filter((i) => i.category === "Article");
     if (view === "Finished") next = next.filter((i) => i.status === "Done");
@@ -64,7 +78,7 @@ export default function ReadingPage() {
         <div className="flex items-center gap-2 mb-4 relative library-collection-tools">
           <input className="input" type="search" value={query} onChange={event => setParam("q", event.target.value)} placeholder="Search titles or authors…" aria-label="Search reading list" />
           <select className="input library-filter-select" value={sort} onChange={event => setParam("sort", event.target.value)} aria-label="Sort reading list"><option value="updated">Recently updated</option><option value="title">Title</option><option value="rating">Highest rated</option></select>
-          <button onClick={() => setTemplateOpen((o) => !o)} className="btn-primary ml-auto">+ New</button>
+          <button type="button" onClick={() => setTemplateOpen((o) => !o)} className="btn-primary ml-auto" aria-expanded={templateOpen} disabled={creating}>{creating ? "Creating…" : "+ New"}</button>
 
           {templateOpen && (
             <div className="absolute top-full right-0 mt-1.5 w-[220px] bg-app-panel border border-app-border rounded-xl overflow-hidden shadow-xl z-10">
@@ -73,13 +87,14 @@ export default function ReadingPage() {
                 <button
                   key={t.label}
                   onClick={() => createFromTemplate(t)}
+                  disabled={creating}
                   className="w-full text-left px-3.5 py-2.5 text-[12px] border-b border-app-border last:border-0 hover:bg-app-panel2 flex justify-between"
                 >
                   <span>{t.icon} {t.label}</span>
                   <span className="text-ink-muted text-[10px]">Type → {t.defaults.category}</span>
                 </button>
               ))}
-              <button onClick={() => createFromTemplate(null)} className="w-full text-left px-3.5 py-2.5 text-[12px] hover:bg-app-panel2 text-ink-muted">
+              <button onClick={() => createFromTemplate(null)} disabled={creating} className="w-full text-left px-3.5 py-2.5 text-[12px] hover:bg-app-panel2 text-ink-muted">
                 Start blank
               </button>
             </div>
@@ -87,23 +102,24 @@ export default function ReadingPage() {
         </div>
 
         {result.error && <p role="alert" className="text-danger">{result.error.message} <button className="btn-outline" onClick={() => result.refresh().catch(() => {})}>Retry</button></p>}
+        {createError && <div className="inline-error" role="alert"><span>{createError}</span><button type="button" onClick={() => setCreateError("")}>Dismiss</button></div>}
         {filtered === null ? (
-          <PageSkeleton compact />
+          !result.error && <p className="collection-inline-status" role="status">Checking your reading list…</p>
         ) : filtered.length === 0 ? (
           <EmptyState icon="📖" title="No reading yet" description="Add the first book, article, essay, or research paper you want to track." />
         ) : view === "Grouped by Status" ? (
-          <BoardView items={filtered} navigate={navigate} />
+          <BoardView items={filtered} />
         ) : view === "All" || view === "Finished" ? (
-          <TableView items={filtered} navigate={navigate} />
+          <TableView items={filtered} />
         ) : (
-          <GalleryView items={filtered} navigate={navigate} />
+          <GalleryView items={filtered} />
         )}
       </div>
     </div>
   );
 }
 
-function TableView({ items, navigate }) {
+function TableView({ items }) {
   return (
     <div className="overflow-x-auto -mx-1 px-1">
 <table className="w-full text-[12px] border-collapse">
@@ -116,8 +132,8 @@ function TableView({ items, navigate }) {
       </thead>
       <tbody>
         {items.map((i) => (
-          <tr key={i.id} onClick={() => navigate(`/notes/library/reading/${i.id}`)} className="hover:bg-app-panel2/40 cursor-pointer">
-            <td className="py-3 px-3 border-b border-app-border text-ink font-medium"><span className="inline-flex items-center gap-2"><LibraryCover item={i} config={config} configKey="reading" compact className="library-cover-thumb" />{i.title}</span></td>
+          <tr key={i.id} className="hover:bg-app-panel2/40">
+            <td className="py-3 px-3 border-b border-app-border text-ink font-medium"><Link to={`/notes/library/reading/${i.id}`} className="inline-flex items-center gap-2 library-table-link"><LibraryCover item={i} config={config} configKey="reading" compact className="library-cover-thumb" />{i.title}</Link></td>
             <td className="py-3 px-3 border-b border-app-border text-ink-soft">{i.category || "—"}</td>
             <td className="py-3 px-3 border-b border-app-border">
               {i.status ? <span className={`text-[9.5px] font-bold px-2.5 py-0.5 rounded-full ${statusColorClass(i.status)}`}>{i.status}</span> : "—"}
@@ -133,7 +149,7 @@ function TableView({ items, navigate }) {
   );
 }
 
-function BoardView({ items, navigate }) {
+function BoardView({ items }) {
   const cols = [
     { status: "Not started", color: "bg-danger" },
     { status: "In progress", color: "bg-[#5fa8ff]" },
@@ -148,9 +164,9 @@ function BoardView({ items, navigate }) {
             {c.status} · {items.filter((i) => i.status === c.status).length}
           </div>
           {items.filter((i) => i.status === c.status).map((i) => (
-            <div key={i.id} onClick={() => navigate(`/notes/library/reading/${i.id}`)} className="card p-2.5 mb-2 text-[12px] cursor-pointer">
+            <Link key={i.id} to={`/notes/library/reading/${i.id}`} className="card p-2.5 mb-2 text-[12px] block hover:border-accent-notes">
               {i.title}
-            </div>
+            </Link>
           ))}
         </div>
       ))}
@@ -176,16 +192,16 @@ const COVER_STYLES = {
   },
 };
 
-function GalleryView({ items, navigate }) {
+function GalleryView({ items }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
       {items.map((i) => {
         const style = COVER_STYLES[i.category] || COVER_STYLES.Book;
         const score = i.properties?.score;
         return (
-          <div
+          <Link
             key={i.id}
-            onClick={() => navigate(`/notes/library/reading/${i.id}`)}
+            to={`/notes/library/reading/${i.id}`}
             className="card overflow-hidden cursor-pointer flex flex-col hover:border-ink-muted hover:-translate-y-0.5 transition"
           >
             <div className="relative w-full h-[168px] flex items-center justify-center overflow-hidden" style={{ backgroundImage: style.gradient }}>
@@ -206,7 +222,7 @@ function GalleryView({ items, navigate }) {
                 <span className={`self-start text-[9px] font-bold px-2 py-0.5 rounded-full mt-1 ${statusColorClass(i.status)}`}>{i.status}</span>
               )}
             </div>
-          </div>
+          </Link>
         );
       })}
     </div>
