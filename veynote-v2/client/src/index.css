@@ -1487,6 +1487,42 @@ body {
   .empty-state { min-height: 220px; padding: 34px 18px; }
 }
 
+/* Purpose-built task board */
+.task-workspace { max-width: 1380px; margin: 0 auto; padding-bottom: 52px; }
+.task-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 23px; }
+.task-overview > div { display: grid; gap: 5px; padding: 18px 21px; border: 1px solid rgb(var(--app-border)); border-radius: 15px; background: rgb(var(--app-panel)); }
+.task-overview span { color: rgb(var(--ink-muted)); font: 700 10px "IBM Plex Mono", monospace; letter-spacing: .13em; }
+.task-overview strong { font-family: "Fraunces", Georgia, serif; font-size: 29px; font-weight: 600; line-height: 1; }
+.task-overview small { color: rgb(var(--ink-muted)); font-size: 10px; }
+.task-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 13px; }
+.task-column { min-width: 0; min-height: 320px; overflow: hidden; border: 1px solid rgb(var(--app-border)); border-radius: 17px; background: rgb(var(--app-panel2)); transition: border-color .18s ease, background .18s ease; }
+.task-column.is-drag-target { border-color: rgb(var(--accent-notes) / .65); background: rgb(var(--accent-notes) / .07); }
+.task-column-heading { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 18px; border-bottom: 1px solid rgb(var(--app-border)); }
+.task-column-index { color: rgb(var(--accent-notes)); font: 600 11px "IBM Plex Mono", monospace; }
+.task-column-heading h2 { margin: 0; font-family: "Fraunces", Georgia, serif; font-size: 18px; font-weight: 600; }
+.task-column-heading p { margin: 2px 0 0; color: rgb(var(--ink-muted)); font-size: 10px; }
+.task-column-heading b { display: grid; place-items: center; min-width: 24px; height: 24px; padding: 0 5px; border: 1px solid rgb(var(--app-border)); border-radius: 7px; color: rgb(var(--ink-soft)); font: 700 10px "IBM Plex Mono", monospace; }
+.task-column-content { padding: 11px; }
+.task-board-card { margin-bottom: 9px; overflow: hidden; border: 1px solid rgb(var(--app-border)); border-radius: 12px; background: rgb(var(--app-panel)); box-shadow: 0 8px 24px rgb(0 0 0 / .05); transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease; }
+.task-board-card:hover { border-color: rgb(var(--accent-notes) / .4); transform: translateY(-1px); box-shadow: 0 13px 30px rgb(0 0 0 / .09); }
+.task-board-card-link { display: grid; gap: 8px; padding: 16px 16px 11px; color: rgb(var(--ink)); }
+.task-board-card-link:focus-visible { outline: 2px solid rgb(var(--accent-notes)); outline-offset: -3px; }
+.task-board-card-kicker { color: rgb(var(--accent-notes)); font: 700 9px "IBM Plex Mono", monospace; letter-spacing: .1em; text-transform: uppercase; }
+.task-board-card-link strong { font-size: 13px; font-weight: 700; line-height: 1.45; overflow-wrap: anywhere; }
+.task-board-card-meta { display: flex; flex-wrap: wrap; gap: 9px; min-height: 13px; color: rgb(var(--ink-muted)); font-size: 10px; }
+.task-board-card select { width: calc(100% - 32px); margin: 0 16px 13px; padding: 5px 8px; border: 1px solid rgb(var(--app-border)); border-radius: 7px; color: rgb(var(--ink-soft)); background: rgb(var(--app-panel2)); font-size: 10px; }
+.task-board-card select:focus-visible { outline: 2px solid rgb(var(--accent-notes)); }
+.task-compose { display: grid; gap: 10px; padding: 15px; border: 1px solid rgb(var(--accent-notes) / .4); border-radius: 12px; background: rgb(var(--app-panel)); }
+.task-compose label { font-size: 11px; font-weight: 750; }
+.task-compose .input { width: 100%; }
+.task-compose > div { display: flex; flex-wrap: wrap; gap: 7px; }
+.task-compose button { font-size: 10px; }
+.task-column-add { display: flex; align-items: center; gap: 7px; width: 100%; padding: 12px 13px; border: 1px dashed rgb(var(--app-border)); border-radius: 10px; color: rgb(var(--ink-soft)); text-align: left; font-size: 11px; font-weight: 700; transition: border-color .18s ease, background .18s ease; }
+.task-column-add:hover,.task-column-add:focus-visible { border-color: rgb(var(--accent-notes) / .5); background: rgb(var(--accent-notes) / .07); }
+.task-column-empty { margin: 14px 2px; color: rgb(var(--ink-muted)); font-size: 10px; }
+@media (max-width: 950px) { .task-board { grid-template-columns: repeat(2, minmax(0, 1fr)); } .task-column:last-child { grid-column: 1 / -1; } }
+@media (max-width: 680px) { .task-workspace { padding-bottom: 95px; } .task-overview { gap: 7px; } .task-overview > div { padding: 13px 11px; } .task-overview strong { font-size: 24px; } .task-overview small { font-size: 9px; } .task-board { grid-template-columns: 1fr; } .task-column:last-child { grid-column: auto; } .task-column { min-height: 0; } }
+
 /* Journal: one calm visual language for personal history across themes. */
 .journal-page { max-width: 1200px; margin: 0 auto; padding-bottom: 48px; }
 .journal-page .product-page-header { margin-bottom: 25px; }
