@@ -1,4 +1,3 @@
-import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
@@ -385,49 +384,19 @@ export default function WillRecordDetail({ kind }) {
   }
 
 
-  /*
-   * Loading.
-   */
-  if (loading && !record) {
-    return (
-      <div className="max-w-[900px] mx-auto py-8">
-        <div className="card p-5">
-          <PageSkeleton title="Inheritance record" />
-        </div>
-      </div>
-    );
-  }
-
-
-  /*
-   * Invalid configuration / missing record.
-   */
-  if (!record) {
+  /* Keep a previous route's protected record out of view while the next one opens. */
+  if (!record || String(record.id) !== String(id)) {
     return (
       <div className="max-w-[900px] mx-auto">
-        <div className="card p-5">
-          <span className="eyebrow">
-            WILL & INHERITANCE
-          </span>
-
-          <h1 className="page-title text-xl font-bold mt-2">
-            Unable to load this record
-          </h1>
-
-          <p className="text-[12px] text-danger mt-2">
-            {error ||
-              `We couldn't find this ${
-                config?.singular || "record"
-              }.`}
-          </p>
-
-          <Link
-            to="/will"
-            className="btn-outline inline-block mt-5"
-          >
-            ← Back to Will
-          </Link>
-        </div>
+        <span className="eyebrow">PRIVATE & SENSITIVE</span>
+        <h1 className="page-title text-[26px] sm:text-[30px] font-bold mt-1.5">{config?.label || "Will record"}</h1>
+        {error ? (
+          <div className="inline-error mt-5" role="alert">
+            <span>{error} This record has not been changed.</span>
+            {config && id && <button type="button" onClick={load} disabled={loading}>Retry</button>}
+          </div>
+        ) : <p className="collection-inline-status mt-5" role="status">Opening this protected record…</p>}
+        <Link to="/will" className="btn-outline inline-block mt-5">← Back to Will</Link>
       </div>
     );
   }
