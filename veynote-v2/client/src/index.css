@@ -1389,6 +1389,7 @@ body {
 .desktop-topbar > div { display: flex; align-items: center; gap: 14px; margin-left: 16px; }
 .sync-indicator { display: inline-flex; align-items: center; gap: 6px; color: rgb(var(--ink-muted)); font-size: 9.5px; }
 .sync-indicator i { width: 5px; height: 5px; border-radius: 50%; background: rgb(var(--success)); box-shadow: 0 0 0 4px rgb(var(--success) / .1); }
+.sync-indicator.is-offline i { background: rgb(var(--danger)); box-shadow: 0 0 0 4px rgb(var(--danger) / .1); }
 .desktop-avatar,.mobile-avatar { display: grid; place-items: center; border: 1px solid rgb(var(--app-border)); border-radius: 50%; background: linear-gradient(145deg, rgb(var(--app-panel2)), rgb(var(--app-panel))); color: rgb(var(--ink)); font-weight: 750; }
 .desktop-avatar { width: 34px; height: 34px; font-size: 10px; }
 .app-content { width: min(100%, 1290px); margin: 0 auto; padding: 28px 24px 110px; }

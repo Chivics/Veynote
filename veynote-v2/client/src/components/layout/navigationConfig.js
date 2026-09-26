@@ -26,7 +26,7 @@ export const WORKSPACES = {
     ["Analytics", "/trading/analytics", "chart"], ["Accounts", "/trading/accounts", "brief"],
     ["Trading Rules", "/trading/rules", "shield"], ["Search", "/trading/search", "search"],
   ] },
-  Vault: { icon: "shield", home: "/notes/locked", create: "/notes/new", createLabel: "New protected note", search: "/notes/search", pages: [
+  Vault: { icon: "shield", home: "/notes/locked", create: "/notes/new", createLabel: "New note", search: "/notes/search", pages: [
     ["Locked Notes", "/notes/locked", "lock"], ["Will & Inheritance", "/will", "shield"],
   ] },
 };
