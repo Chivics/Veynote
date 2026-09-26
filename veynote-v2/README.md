@@ -46,9 +46,8 @@ Edit `.env`:
   Google sign-in — email/password still works fully without it.
 
 For an existing deployment, `npm start` runs `prisma migrate deploy` before
-launching the API. A Hostinger start command such as `node src/index.js` uses
-the API entrypoint's Prisma bootstrap: it regenerates a stale Prisma Client
-before importing routes. If Hostinger uses this direct command, run
+launching the API. The install step runs `prisma generate` for the hosting
+platform. If Hostinger uses a direct command such as `node src/index.js`, run
 `npm run prisma:deploy` separately when new migrations are added. The
 account-passkey migration adds a credential scope column: passkeys created
 during signup can sign in, while Locked Notes remains separately protected.
