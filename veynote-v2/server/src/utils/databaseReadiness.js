@@ -4,5 +4,6 @@ async function checkDatabaseReadiness(db) {
   await db.user.findMany({ select: { sessionGeneration: true }, take: 1 });
   await db.authSession.findMany({ select: { id: true }, take: 1 });
   await db.noteCreationRequest.findMany({ select: { id: true }, take: 1 });
+  await db.webAuthnCredential.findMany({ select: { vaultEnabled: true }, take: 1 });
 }
 module.exports = { checkDatabaseReadiness };
