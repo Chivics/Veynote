@@ -6,7 +6,7 @@ const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const prisma = require("../lib/prisma");
 const { signToken, verifyToken } = require("../utils/jwt");
 const { authorizeSession } = require("../utils/sessions");
-const { requireAuth } = require("../middleware/auth");
+const { requireAuth, requireSession } = require("../middleware/auth");
 const { userPublic } = require("../utils/userPublic");
 const { asyncHandler } = require("../middleware/asyncHandler");
 const { createAuthLimiter } = require("../middleware/authRateLimit");
@@ -371,10 +371,10 @@ router.get(
 );
 
 // -- Current user -------------------------------------------------------------
-router.get("/me", requireAuth, asyncHandler(async (req, res) => {
+router.get("/me", requireSession, asyncHandler(async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.userId } });
   if (!user) return res.status(404).json({ error: "User not found." });
-  res.json({ user: userPublic(user) });
+  res.json({ user: userPublic(user), session: require("../utils/sessions").sessionPublic(req.authSession) });
 }));
 
 // -- Set default/last-active mode + remembered path (§2 of the board) ------
@@ -435,6 +435,9 @@ router.post("/change-password", requireAuth, createAuthLimiter({ authenticated: 
   // If passwordHash is null, this account was created via Google SSO —
   // there's no existing password to verify, so this call sets one for
   // the first time (lets a Google-only account add email/password login).
+  if (!user.passwordHash && Date.now() - (req.authSession.reauthenticatedAt || req.authSession.createdAt) > 5 * 60000) {
+    return res.status(403).json({ code: "REAUTH_REQUIRED", error: "Verify yourself with device sign-in or sign in again with Google before adding a password." });
+  }
 
   const newHash = await bcrypt.hash(newPassword, 10);
   const updated = await prisma.$transaction(async db => {
@@ -443,7 +446,9 @@ router.post("/change-password", requireAuth, createAuthLimiter({ authenticated: 
     return value;
   });
   const token = signToken(user.id, updated.sessionGeneration);
-  await authorizeSession(prisma, token, verifyToken(token), req.headers["user-agent"]);
+  const replacement = await authorizeSession(prisma, token, verifyToken(token), req.headers["user-agent"]);
+  if (!replacement) return res.status(401).json({ error: "Your account session changed during this request. Sign in again." });
+  await prisma.authSession.updateMany({ where: { id: replacement.id, revokedAt: null }, data: { inactivityMinutes: req.authSession.inactivityMinutes || 0 } });
   res.json({ ok: true, token, message: "Password updated. Other sessions have been signed out." });
 }));
 

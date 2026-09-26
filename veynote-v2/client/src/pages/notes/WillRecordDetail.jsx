@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import VaultGate from "../../components/VaultGate";
+import ProtectedContentBoundary from "../../components/ProtectedContentBoundary";
 import {
   clearVaultToken,
   getVaultToken,
@@ -457,7 +458,7 @@ export default function WillRecordDetail({ kind }) {
 
 
   return (
-    <div className="max-w-[900px] mx-auto pb-10">
+    <ProtectedContentBoundary vault="will"><div className="max-w-[900px] mx-auto pb-10">
 
       {/* Breadcrumb / actions */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
@@ -881,7 +882,7 @@ export default function WillRecordDetail({ kind }) {
         onConfirm={remove}
       />
 
-    </div>
+    </div></ProtectedContentBoundary>
   );
 }
 

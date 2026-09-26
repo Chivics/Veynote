@@ -69,6 +69,7 @@ app.get("/api/ready", asyncHandler(async (_req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/auth", require("./routes/accountEmail.routes").createAccountEmailRoutes({ db: prisma, config: authMailConfig }));
+app.use("/api/sessions", require("./routes/sessionProtection.routes").createSessionProtectionRoutes({ db: prisma }));
 app.use("/api/sessions", require("./routes/sessions.routes"));
 
 app.use("/api/folders", folderRoutes);

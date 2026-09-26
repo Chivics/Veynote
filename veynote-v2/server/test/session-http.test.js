@@ -35,10 +35,15 @@ test("session list and revocation enforce owner boundaries", async () => {
 
 test("sign out other devices rotates current credentials and rejects unseen old tokens", async () => {
   const current = signToken("alice"), unseen = signToken("alice");
+  await call(current);
+  const proofAt = new Date(Date.now() - 20 * 60000);
+  await db.authSession.updateMany({ where: { id: require("../src/utils/sessions").sessionId(current) }, data: { inactivityMinutes: 15, reauthenticatedAt: proofAt } });
   const response = await call(current, "/revoke-others", "POST");
   assert.equal(response.status, 200);
   const { token } = await response.json();
   assert.equal((await call(current)).status, 401);
   assert.equal((await call(unseen)).status, 401);
   assert.equal((await call(token)).status, 200);
+  const replacement = await db.authSession.findUnique({ where: { id: require("../src/utils/sessions").sessionId(token) } });
+  assert.equal(replacement.inactivityMinutes, 15); assert.equal(Number(replacement.reauthenticatedAt), Number(proofAt));
 });

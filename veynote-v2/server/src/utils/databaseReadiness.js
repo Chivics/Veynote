@@ -3,7 +3,7 @@ async function checkDatabaseReadiness(db) {
   // These probes return at most one non-content field and work on empty DBs.
   const probes = [
     ["account", "user", { sessionGeneration: true, defaultWorkspace: true, emailVerifiedAt: true }],
-    ["sessions", "authSession", { id: true }],
+    ["sessions", "authSession", { id: true, inactivityMinutes: true, lastActivityAt: true, lockedAt: true, reauthenticatedAt: true, reauthChallengeExpiresAt: true }],
     ["note_saves", "noteCreationRequest", { id: true }],
     ["device_access", "webAuthnCredential", { vaultEnabled: true }],
     ["device_signin", "webAuthnLoginChallenge", { id: true }],

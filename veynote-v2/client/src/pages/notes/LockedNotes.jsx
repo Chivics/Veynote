@@ -4,6 +4,7 @@ import { browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/brow
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
 import VaultGate from "../../components/VaultGate";
+import ProtectedContentBoundary from "../../components/ProtectedContentBoundary";
 import { getVaultToken, clearVaultToken } from "../../utils/vault";
 
 function SecurityPanel() {
@@ -183,7 +184,7 @@ export default function LockedNotes() {
   if (!unlocked) return <VaultGate vault="locked-notes" onUnlock={load} />;
 
   return (
-    <div>
+    <ProtectedContentBoundary vault="locked-notes"><div>
       <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
         <div className="min-w-0">
           <span className="eyebrow">PROTECTED</span>
@@ -214,6 +215,6 @@ export default function LockedNotes() {
           ))}
         </div>
       )}
-    </div>
+    </div></ProtectedContentBoundary>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export default function WillModal({
   open,
@@ -7,6 +7,7 @@ export default function WillModal({
   onClose,
   wide = false,
 }) {
+  const modalRef = useRef(null);
   useEffect(() => {
     if (!open) return;
 
@@ -15,7 +16,7 @@ export default function WillModal({
     document.body.style.overflow = "hidden";
 
     function handleKeyDown(event) {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !modalRef.current?.closest("[hidden]")) {
         onClose?.();
       }
     }
@@ -34,7 +35,7 @@ export default function WillModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
+    <div ref={modalRef} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
       <button
         type="button"
         aria-label="Close modal"

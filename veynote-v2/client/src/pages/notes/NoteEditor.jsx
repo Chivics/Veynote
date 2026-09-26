@@ -12,6 +12,7 @@ import FindReplaceBar from "../../components/FindReplaceBar";
 import TableToolbar from "../../components/TableToolbar";
 import MediaToolbar from "../../components/MediaToolbar";
 import VaultGate from "../../components/VaultGate";
+import ProtectedContentBoundary from "../../components/ProtectedContentBoundary";
 import VersionHistory from "../../components/VersionHistory";
 import ExportMenu from "../../components/ExportMenu";
 import ShareMenu from "../../components/ShareMenu";
@@ -498,7 +499,7 @@ export default function NoteEditor({ kind = "NOTE" }) {
   }
 
   return (
-    <div className={`note-editor-shell ${focusMode ? "fixed inset-0 z-50 bg-app-bg overflow-y-auto px-4 sm:px-6 md:px-10 py-6 is-focus" : ""}`}>
+    <ProtectedContentBoundary enabled={isLocked || isWill} vault={isWill ? "will" : "locked-notes"} resourceNoteId={noteId} noteId={isLocked && !isWill ? noteId : undefined}><div className={`note-editor-shell ${focusMode ? "fixed inset-0 z-50 bg-app-bg overflow-y-auto px-4 sm:px-6 md:px-10 py-6 is-focus" : ""}`}>
       <div onClick={handleContentClick} className="note-editor-document max-sm:pb-16 max-w-[820px] mx-auto">
         <div className="note-editor-topline">
           <span className="eyebrow">
@@ -639,7 +640,7 @@ export default function NoteEditor({ kind = "NOTE" }) {
         )}
         <ConfirmDialog open={trashOpen} title="Move this record to Trash?" description="You can restore it from Trash later. Any public share link will be revoked." confirmLabel="Move to Trash" busy={trashBusy} onClose={() => setTrashOpen(false)} onConfirm={moveToTrash} />
       </div>
-    </div>
+    </div></ProtectedContentBoundary>
   );
 }
 

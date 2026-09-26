@@ -22,7 +22,9 @@ router.post("/revoke-others", asyncHandler(async (req, res) => {
     return updated;
   });
   const token = signToken(req.userId, user.sessionGeneration);
-  await authorizeSession(prisma, token, verifyToken(token), req.headers["user-agent"]);
+  const replacement = await authorizeSession(prisma, token, verifyToken(token), req.headers["user-agent"]);
+  if (!replacement) return res.status(401).json({ error: "Your account session changed during this request. Sign in again." });
+  await prisma.authSession.updateMany({ where: { id: replacement.id, revokedAt: null }, data: { inactivityMinutes: req.authSession.inactivityMinutes || 0, reauthenticatedAt: req.authSession.reauthenticatedAt || req.authSession.createdAt } });
   res.json({ token });
 }));
 router.delete("/:id", asyncHandler(async (req, res) => {

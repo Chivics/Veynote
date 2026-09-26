@@ -1,5 +1,13 @@
 const { createHash } = require("crypto");
 function sessionId(token) { return createHash("sha256").update(token).digest("hex"); }
+const IDLE_MINUTES = [0, 5, 15, 60, 300, 720, 1440];
+function idleExpired(session, now = new Date()) {
+  return session.inactivityMinutes > 0 && now - (session.lastActivityAt || session.createdAt) >= session.inactivityMinutes * 60000;
+}
+function sessionPublic(session) {
+  return { id: session.id, inactivityMinutes: session.inactivityMinutes || 0, lastActivityAt: session.lastActivityAt || session.createdAt,
+    locked: Boolean(session.lockedAt), expiresAt: session.expiresAt, reauthenticatedAt: session.reauthenticatedAt || session.createdAt };
+}
 function deviceLabel(agent = "") {
   const browser = /Edg\//.test(agent) ? "Edge" : /Firefox\//.test(agent) ? "Firefox" : /Chrome\//.test(agent) ? "Chrome" : /Safari\//.test(agent) ? "Safari" : "Browser";
   const platform = /Android/.test(agent) ? "Android" : /iPhone|iPad/.test(agent) ? "iOS" : /Windows/.test(agent) ? "Windows" : /Macintosh/.test(agent) ? "macOS" : /Linux/.test(agent) ? "Linux" : "Unknown device";
@@ -14,10 +22,18 @@ async function authorizeSession(db, token, payload, agent) {
   if (!session) {
     session = await db.authSession.upsert({ where: { id }, update: {}, create: {
       id, userId: payload.sub, deviceLabel: deviceLabel(agent), expiresAt: new Date(payload.exp * 1000),
+      reauthenticatedAt: new Date(payload.iat * 1000),
     } });
   }
   if (session.userId !== payload.sub || session.revokedAt || session.expiresAt <= now) return null;
+  if (!session.lockedAt && idleExpired(session, now)) {
+    await db.authSession.updateMany({ where: { id, revokedAt: null, lockedAt: null, lastActivityAt: session.lastActivityAt }, data: { lockedAt: now } });
+    // Re-read after compare-and-set: another request may have just verified
+    // this session. Background API polling never counts as human activity.
+    session = await db.authSession.findUnique({ where: { id } });
+    if (!session || session.revokedAt || session.expiresAt <= now) return null;
+  }
   if (now - session.lastSeenAt > 60000) await db.authSession.updateMany({ where: { id, revokedAt: null }, data: { lastSeenAt: now } });
   return session;
 }
-module.exports = { authorizeSession, sessionId, deviceLabel };
+module.exports = { authorizeSession, sessionId, deviceLabel, idleExpired, sessionPublic, IDLE_MINUTES };

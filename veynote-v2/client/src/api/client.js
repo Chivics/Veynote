@@ -2,6 +2,7 @@ import { uploadForm } from "../utils/uploadForm";
 import { queryPath } from "../utils/queryPath";
 import { getNoteGrant } from "../utils/noteGrant";
 import { createQueryCache, cacheablePath } from "../utils/queryCache";
+import { protectedAccess } from "../utils/protectedAccess";
 
 const cache = createQueryCache();
 let cacheOwner = null;
@@ -95,11 +96,14 @@ async function parseResponse(response) {
   error.status = response.status;
   error.data = data;
   error.requiresVault = data?.requiresVault || null;
+  if (data?.code === "SESSION_LOCKED" || data?.code === "REAUTH_REQUIRED") window.dispatchEvent(new Event("veynote:session-locked"));
   throw error;
 }
 
 async function request(path, options = {}) {
-  if (options.method && options.method !== "GET" && path !== "/auth/me") clearCache();
+  protectedAccess.assert(path);
+  const affectsRecords = options.method && options.method !== "GET" && !path.startsWith("/auth/") && !path.startsWith("/sessions/");
+  if (affectsRecords) clearCache();
   const headers = {
     ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers || {}),
@@ -119,9 +123,14 @@ async function request(path, options = {}) {
     headers,
   });
 
-  const data = await parseResponse(response);
+  let data;
+  try { data = await parseResponse(response); }
+  catch (error) { protectedAccess.assert(path); throw error; }
+  // A response that started before locking must not clear a private draft or
+  // repopulate its UI while the independent access boundary is paused.
+  protectedAccess.assert(path);
   // Invalidate again after persistence: a read during a write must not remain fresh.
-  if (options.method && options.method !== "GET" && path !== "/auth/me") clearCache();
+  if (affectsRecords) clearCache();
   return data;
 }
 
@@ -167,6 +176,7 @@ export const api = {
   upload(path, input, onProgress, fields, method = "POST") {
     clearCache();
     return new Promise((resolve, reject) => {
+      protectedAccess.assert(path);
       const formData = uploadForm(input, fields);
       const xhr = new XMLHttpRequest();
       xhr.open(method, `${BASE}${path}`);
@@ -188,6 +198,7 @@ export const api = {
       };
 
       xhr.onload = () => {
+        try { protectedAccess.assert(path); } catch (error) { reject(error); return; }
         let data = {};
         try {
           data = JSON.parse(xhr.responseText || "{}");
@@ -203,6 +214,7 @@ export const api = {
         error.status = xhr.status;
         error.data = data;
         error.requiresVault = data?.requiresVault || null;
+        if (data?.code === "SESSION_LOCKED" || data?.code === "REAUTH_REQUIRED") window.dispatchEvent(new Event("veynote:session-locked"));
         reject(error);
       };
 

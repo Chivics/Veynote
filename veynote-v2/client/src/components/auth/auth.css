@@ -51,6 +51,23 @@
 .auth-back-link:hover { color:rgb(var(--accent-notes)); }
 .auth-link-button { display:flex; align-items:center; justify-content:center; text-align:center; padding:12px 18px; }
 .auth-inline-feedback { font-size:12px; line-height:1.6; color:rgb(var(--ink-soft)); margin:16px 0; }
+.workspace-lock { position:fixed; inset:0; width:100%; height:100dvh; max-width:none; max-height:none; margin:0; padding:max(24px,env(safe-area-inset-top)) 24px max(24px,env(safe-area-inset-bottom)); border:0; background:rgb(var(--app-bg)); color:rgb(var(--ink)); overflow-y:auto; }
+.workspace-lock::backdrop { background:rgb(var(--app-bg)); }
+.workspace-lock[open] { display:flex; flex-direction:column; }
+.workspace-lock-brand { display:flex; align-items:center; gap:10px; font-family:var(--font-display); font-size:22px; font-weight:750; }
+.workspace-lock-brand img { width:35px; height:35px; }
+.workspace-lock-card { width:min(100%,420px); margin:auto; padding:44px 0; text-align:center; animation:veynote-app-arrive .2s ease-out; }
+.workspace-lock-symbol { display:grid; place-items:center; width:64px; height:64px; margin:0 auto 22px; border:1px solid rgb(var(--accent-gold) / .32); border-radius:20px; background:radial-gradient(circle at top left,rgb(var(--accent-gold) / .18),rgb(var(--app-panel))); }
+.workspace-lock-symbol svg { width:31px; height:31px; }
+.workspace-lock-card>.eyebrow { color:rgb(var(--accent-gold)); }
+.workspace-lock-card h1 { margin:12px 0; font-family:var(--font-display); font-size:clamp(30px,4vw,40px); font-weight:650; line-height:1.15; letter-spacing:-.04em; }
+.workspace-lock-card>p:not(.auth-form-error):not(.auth-session-note) { color:rgb(var(--ink-muted)); font-size:13px; line-height:1.7; }
+.workspace-lock-identity { display:flex; gap:11px; align-items:center; padding:15px; margin:24px 0 18px; border:1px solid rgb(var(--app-border)); border-radius:14px; background:rgb(var(--app-panel)); text-align:left; }
+.workspace-lock-identity>span { display:grid; place-items:center; width:37px; height:37px; flex:none; border-radius:12px; background:rgb(var(--accent-notes) / .14); color:rgb(var(--accent-notes)); font-weight:800; }
+.workspace-lock-identity>div { min-width:0; }.workspace-lock-identity strong { display:block; font-size:12px; }.workspace-lock-identity small { display:block; margin-top:3px; color:rgb(var(--ink-muted)); font-size:11px; overflow-wrap:anywhere; }
+.workspace-lock .auth-form { text-align:left; }
+@media(max-width:700px) { .workspace-lock { padding-inline:20px; }.workspace-lock-card { padding:28px 0 8px; }.workspace-lock .auth-divider { margin:16px 0; } }
+@media(prefers-reduced-motion:reduce) { .workspace-lock-card { animation:none; } }
 .auth-session-note { max-width:370px; margin:17px auto 0; color:rgb(var(--ink-muted)); font-size:10px; line-height:1.6; text-align:center; }
 .auth-passkey-icon { flex:none; color:rgb(var(--accent-gold)); }
 .auth-enrollment-card { display:flex; align-items:flex-start; gap:14px; margin-bottom:18px; padding:18px; border:1px solid rgb(var(--accent-gold) / .35); border-radius:15px; background:rgb(var(--accent-gold) / .08); }

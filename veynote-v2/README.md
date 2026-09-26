@@ -143,6 +143,32 @@ empty states.
   Calendar (per-day P&L), Trading Rules
 - Settings shared across both modes (profile, theme, editor font size)
 
+## Session inactivity protection
+
+Settings → Security → Protect this device supports an optional 5-minute to
+24-hour inactivity lock, plus Lock now. The setting belongs to the current
+signed-in session, not every device. The additive
+`20260926180000_session_idle_protection` migration preserves existing sessions
+and leaves idle locking disabled until the user chooses it.
+
+Only actual input extends activity; API polling and background synchronization
+never do. The API returns `423 SESSION_LOCKED` for protected requests after the
+deadline, including when the browser was suspended. Device reauthentication
+uses an expiring, single-use challenge bound to the current session, requires
+user verification, and checks the configured origin/RP and account credential.
+Password reauthentication resumes the same unexpired, unrevoked session.
+
+The opaque native modal keeps the existing page mounted and prevents background
+interaction. In-memory drafts remain in place; it does not claim to save them
+to disk. Locking clears local Vault, estate and per-note access grants. Unlocking
+the account does not issue any of those separate grants. Already-open private
+content stays hidden, with its drafts and dialogs retained in memory, until its
+own note/estate unlock succeeds. Background private requests pause at that gate.
+A Google-only account without a registered device credential must configure an
+unlock method before enabling idle locking or Lock now. Session policy
+changes and adding a password to a Google-only account require recent proof.
+All sessions still expire within 30 days and remain independently revocable.
+
 ## Known simplifications (flagged, not hidden)
 
 - **Library data model:** one `LibraryItem` table with a `properties`

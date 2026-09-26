@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import VaultGate from "../../components/VaultGate";
+import ProtectedContentBoundary from "../../components/ProtectedContentBoundary";
 import { clearVaultToken, getVaultToken } from "../../utils/vault";
 import { willApi } from "../../api/will";
 import WillModal from "../../components/will/WillModal";
@@ -220,7 +221,7 @@ export default function WillInheritance() {
   );
 
   return (
-    <div className="max-w-[1120px] mx-auto pb-10">
+    <ProtectedContentBoundary vault="will"><div className="max-w-[1120px] mx-auto pb-10">
       <header className="mb-5">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div className="min-w-0"><span className="eyebrow">PRIVATE & SENSITIVE</span><div className="flex items-center gap-2 mt-1.5"><h1 className="page-title text-[28px] sm:text-[30px] font-bold tracking-tight truncate">{will?.title || "My Will & Inheritance"}</h1><span className="chip shrink-0">🔐 Protected</span></div><p className="text-[11.5px] text-ink-muted mt-1">Last updated {date(will?.updatedAt)}</p></div>
@@ -281,6 +282,6 @@ export default function WillInheritance() {
       <WillModal open={modal?.type === "contact"} title={modal?.id ? "Edit Contact" : "Add Important Contact"} onClose={closeModal}><ContactForm initial={modal?.initial || EMPTY_CONTACT} onSubmit={saveContact} onCancel={closeModal} busy={busy} /></WillModal>
       <WillModal open={modal?.type === "executor"} title={modal?.id ? "Edit Executor" : "Add Executor"} description="You can add more than one personal representative." wide onClose={closeModal}><ExecutorForm initial={modal?.initial || EMPTY_EXECUTOR} onSubmit={saveExecutor} onCancel={closeModal} busy={busy} /></WillModal>
       <DeleteConfirmation open={Boolean(deleteTarget)} title={`Delete ${deleteTarget?.label || "record"}?`} message={`Are you sure you want to remove ${deleteTarget?.name ? `“${deleteTarget.name}”` : "this record"}? This action cannot be undone.`} busy={busy} onCancel={() => !busy && setDeleteTarget(null)} onConfirm={deleteRecord} />
-    </div>
+    </div></ProtectedContentBoundary>
   );
 }

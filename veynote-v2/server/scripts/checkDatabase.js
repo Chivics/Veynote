@@ -2,6 +2,12 @@ require("dotenv").config();
 const { PrismaClient } = require("@prisma/client");
 const { checkDatabaseReadiness } = require("../src/utils/databaseReadiness");
 const db = new PrismaClient();
+// A stalled database/engine must not leave deployment diagnostics hanging.
+const deadline = setTimeout(() => {
+  console.error(JSON.stringify({ check: "database", code: "DATABASE_CHECK_TIMEOUT" }));
+  const stop = setTimeout(() => process.exit(1), 2000);
+  db.$disconnect().catch(() => {}).finally(() => { clearTimeout(stop); process.exit(1); });
+}, 30000);
 
 async function main() {
   const tables = await db.$queryRawUnsafe("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND LOWER(TABLE_NAME) IN ('user', 'authsession', 'notecreationrequest', 'webauthncredential', 'webauthnloginchallenge', 'authemailchallenge', 'authemailjob', '_prisma_migrations')");
@@ -19,4 +25,4 @@ async function main() {
 main().catch(error => {
   console.error(JSON.stringify({ check: "database", errorType: error.name, code: error.code || null }));
   process.exitCode = 1;
-}).finally(() => db.$disconnect());
+}).finally(() => { clearTimeout(deadline); return db.$disconnect(); });

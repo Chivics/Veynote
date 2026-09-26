@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { api } from "../api/client";
 import { clearNoteGrant } from "../utils/noteGrant";
 import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
@@ -9,6 +9,26 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sessionError, setSessionError] = useState("");
+  const [session, setSession] = useState(null);
+  const [sessionLocked, setSessionLocked] = useState(false);
+  const lockedRef = useRef(false);
+  const sessionRef = useRef(null);
+  function clearProtectedAccess() {
+    clearNoteGrant(); api.clearCache();
+    sessionStorage.removeItem("veynote_vault_token");
+    sessionStorage.removeItem("veynote_will_token");
+  }
+  const acceptSession = useCallback(value => {
+    sessionRef.current = value; setSession(value);
+    lockedRef.current = Boolean(value?.locked); setSessionLocked(Boolean(value?.locked));
+    if (value?.locked) clearProtectedAccess();
+  }, []);
+  const lockWorkspace = useCallback(() => {
+    if (lockedRef.current || !localStorage.getItem("veynote_token")) return;
+    lockedRef.current = true; setSessionLocked(true); clearProtectedAccess();
+    api.post("/sessions/lock", {}).catch(() => {});
+    window.dispatchEvent(new CustomEvent("veynote:workspace-locked", { detail: { id: sessionRef.current?.id } }));
+  }, []);
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = () => {
@@ -25,21 +45,25 @@ export function AuthProvider({ children }) {
     setSessionError("");
     const token = localStorage.getItem("veynote_token");
     if (!token) {
+      acceptSession(null);
       if (block) setLoading(false);
       return;
     }
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 10000);
     try {
-      const { user } = await api.get("/auth/me", undefined, { signal: controller.signal });
+      const { user, session } = await api.get("/auth/me", undefined, { signal: controller.signal });
       if (localStorage.getItem("veynote_token") !== token) return;
       setUser(user);
+      // A refresh started before a local privacy lock cannot dismiss its guard.
+      acceptSession(lockedRef.current && !session?.locked ? { ...session, locked: true } : session);
     } catch (err) {
       if (localStorage.getItem("veynote_token") !== token) return;
       if (err.status === 401) {
-        clearNoteGrant(); api.clearCache();
+        clearProtectedAccess();
         localStorage.removeItem("veynote_token");
         setUser(null);
+        acceptSession(null);
       } else {
         setSessionError(err.status >= 500
           ? "Veynote’s server couldn’t check your session. Your sign-in has been kept on this device. Please retry shortly."
@@ -55,20 +79,56 @@ export function AuthProvider({ children }) {
     loadMe({ block: true });
     const syncSession = event => {
       if (event.key !== "veynote_token" && event.key !== null) return;
-      clearNoteGrant(); api.clearCache(); setUser(null); loadMe({ block: true });
+      clearProtectedAccess(); acceptSession(null); setUser(null); loadMe({ block: true });
     };
     window.addEventListener("storage", syncSession);
     return () => window.removeEventListener("storage", syncSession);
   }, []);
 
+  useEffect(() => {
+    const lock = () => lockWorkspace();
+    window.addEventListener("veynote:session-locked", lock);
+    // A token is shared by tabs on this device. Lock/unlock follows the same
+    // server session, never another account or independently signed-in device.
+    const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("veynote-session-protection") : null;
+    const publish = event => { if (event.detail?.id) channel?.postMessage({ id: event.detail.id, ...(event.type === "veynote:workspace-locked" ? { locked: true } : { at: event.detail.at }) }); };
+    channel?.addEventListener("message", event => {
+      if (event.data?.id !== sessionRef.current?.id) return;
+      if (event.data.locked) lockWorkspace();
+      else if (Number.isFinite(event.data.at)) window.dispatchEvent(new CustomEvent("veynote:remote-activity", { detail: event.data }));
+    });
+    window.addEventListener("veynote:workspace-locked", publish);
+    window.addEventListener("veynote:workspace-active", publish);
+    return () => { window.removeEventListener("veynote:session-locked", lock); window.removeEventListener("veynote:workspace-locked", publish); window.removeEventListener("veynote:workspace-active", publish); channel?.close(); };
+  }, [lockWorkspace]);
+
+  async function loadSession() {
+    const token = localStorage.getItem("veynote_token");
+    const result = await api.get("/sessions/current");
+    if (localStorage.getItem("veynote_token") === token && !lockedRef.current) acceptSession(result.session);
+    return result;
+  }
+  async function reauthenticate(method, password) {
+    const token = localStorage.getItem("veynote_token");
+    let result;
+    if (method === "device") {
+      const options = await api.post("/sessions/reauth/device/options", {});
+      const response = await startAuthentication({ optionsJSON: options });
+      result = await api.post("/sessions/reauth/device/verify", { response });
+    } else result = await api.post("/sessions/reauth/password", { password });
+    if (localStorage.getItem("veynote_token") !== token) throw new Error("Your sign-in changed. Use the currently signed-in account.");
+    acceptSession(result.session); return result.session;
+  }
+
   function applySession(token, user) {
-    api.clearCache();
-    clearNoteGrant();
+    clearProtectedAccess();
     setSessionError("");
     localStorage.setItem("veynote_token", token);
     setUser(user);
+    acceptSession(null);
+    loadSession().catch(() => {});
   }
-  function replaceSessionToken(token) { clearNoteGrant(); api.clearCache(); localStorage.setItem("veynote_token", token); }
+  function replaceSessionToken(token) { clearProtectedAccess(); localStorage.setItem("veynote_token", token); loadSession().catch(() => {}); }
 
   async function login(email, password) {
     const { token, user } = await api.post("/auth/login", { email, password });
@@ -107,6 +167,7 @@ export function AuthProvider({ children }) {
     sessionStorage.removeItem("veynote_vault_token");
     sessionStorage.removeItem("veynote_will_token");
     setUser(null);
+    acceptSession(null);
   }
 
   async function updateUser(patch) {
@@ -117,7 +178,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, sessionError, login, loginWithPasskey, register, registerAccountPasskey, logout, applySession, replaceSessionToken, updateUser, refresh: loadMe }}
+      value={{ user, loading, sessionError, session, sessionLocked, lockWorkspace, loadSession, acceptSession, reauthenticate, login, loginWithPasskey, register, registerAccountPasskey, logout, applySession, replaceSessionToken, updateUser, refresh: loadMe }}
     >
       {children}
     </AuthContext.Provider>

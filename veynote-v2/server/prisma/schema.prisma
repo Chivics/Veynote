@@ -969,6 +969,12 @@ model AuthSession {
   deviceLabel String
   createdAt DateTime @default(now())
   lastSeenAt DateTime @default(now())
+  lastActivityAt DateTime @default(now())
+  inactivityMinutes Int @default(0) // 0 disables the optional idle lock
+  lockedAt DateTime?
+  reauthenticatedAt DateTime @default(now())
+  reauthChallenge String?
+  reauthChallengeExpiresAt DateTime?
   expiresAt DateTime
   revokedAt DateTime?
 

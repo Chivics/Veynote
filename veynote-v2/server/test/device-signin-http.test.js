@@ -32,6 +32,7 @@ const db = require("../test-support/sessionDb").withSessions({
     },
   },
   webAuthnCredential: {
+    async findMany({ where }) { return where.userId === user.id && credential.accountEnabledAt ? [{ ...credential }] : []; },
     async findFirst({ where }) { return where.credentialId === credential.credentialId && credential.accountEnabledAt ? { ...credential } : null; },
     async updateMany({ where, data }) {
       if (where.id !== credential.id || where.counter !== credential.counter || !credential.accountEnabledAt) return { count: 0 };
@@ -39,11 +40,13 @@ const db = require("../test-support/sessionDb").withSessions({
     },
   },
 });
+db.$transaction = callback => callback(db);
 const prismaPath = require.resolve("../src/lib/prisma");
 require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: db };
 const app = express();
 app.use(express.json());
 app.use("/auth", require("../src/routes/auth.routes").router);
+app.use("/sessions", require("../src/routes/sessionProtection.routes").createSessionProtectionRoutes({ db }));
 app.use(require("../src/middleware/errorHandler").errorHandler);
 let server, base;
 test.before(async () => {
@@ -81,6 +84,23 @@ test("device sign-in discovers the account, verifies a real assertion, and canno
   const replay = await post("/passkey/verify", body);
   assert.equal(replay.status, 400);
   assert.equal((await replay.json()).token, undefined);
+});
+
+test("locked sessions resume only after a genuine signature, origin and device-verification check", async () => {
+  const token = require("../src/utils/jwt").signToken(user.id);
+  const sessionPost = (path, body = {}) => fetch(base.replace(/\/auth$/, "") + "/sessions" + path, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  await sessionPost("/lock");
+  for (const attempt of [{ origin: "https://wrong.example" }, { verified: false }]) {
+    const options = await (await sessionPost("/reauth/device/options")).json();
+    assert.equal((await sessionPost("/reauth/device/verify", { response: assertion(options, attempt) })).status, 400);
+  }
+  const options = await (await sessionPost("/reauth/device/options")).json();
+  const response = assertion(options);
+  const accepted = await sessionPost("/reauth/device/verify", { response });
+  assert.equal(accepted.status, 200);
+  const result = await accepted.json(); assert.equal(result.session.locked, false); assert.equal(result.token, undefined);
+  assert.equal(result.session.id, require("../src/utils/sessions").sessionId(token));
+  assert.equal((await sessionPost("/reauth/device/verify", { response })).status, 400);
 });
 
 test("an assertion cannot sign in as another credential owner's account", async () => {
