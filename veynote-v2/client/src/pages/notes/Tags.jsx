@@ -18,6 +18,7 @@ export default function Tags() {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [feedbackError, setFeedbackError] = useState(false);
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -29,35 +30,47 @@ export default function Tags() {
   async function renameTag(event) {
     event.preventDefault();
     if (!editing || !name.trim()) return;
-    setBusy(true); setFeedback("");
-    try { await api.patch(`/notes/meta/tags/${editing.id}`, { name }); setEditing(null); await result.refresh(); }
-    catch (error) { setFeedback(error.message); }
+    setBusy(true); setFeedback(""); setFeedbackError(false);
+    try {
+      const previous = editing.name;
+      await api.patch(`/notes/meta/tags/${editing.id}`, { name });
+      setEditing(null); setFeedback(`Renamed #${previous} to #${name.trim()}.`);
+      result.refresh().catch(error => { setFeedbackError(true); setFeedback(`Tag renamed, but the list could not refresh: ${error.message}`); });
+    } catch (error) { setFeedbackError(true); setFeedback(error.message); }
     finally { setBusy(false); }
   }
 
   async function mergeTag(event) {
     event.preventDefault();
     if (!merging || !mergeTarget) return;
-    setBusy(true); setFeedback("");
-    try { const response = await api.post(`/notes/meta/tags/${merging.id}/merge`, { targetTagId: mergeTarget }); setFeedback(`Merged #${merging.name} into #${response.target.name}.`); setMerging(null); setMergeTarget(""); await result.refresh(); }
-    catch (error) { setFeedback(error.message); }
+    setBusy(true); setFeedback(""); setFeedbackError(false);
+    try {
+      const response = await api.post(`/notes/meta/tags/${merging.id}/merge`, { targetTagId: mergeTarget });
+      setFeedback(`Merged #${merging.name} into #${response.target.name}.`); setMerging(null); setMergeTarget("");
+      result.refresh().catch(error => { setFeedbackError(true); setFeedback(`Tags merged, but the list could not refresh: ${error.message}`); });
+    } catch (error) { setFeedbackError(true); setFeedback(error.message); }
     finally { setBusy(false); }
   }
 
   async function removeTag() {
     if (!pendingDelete) return;
     setBusy(true);
-    try { await api.delete(`/notes/meta/tags/${pendingDelete.id}`); setPendingDelete(null); setFeedback(""); await result.refresh(); }
-    catch (error) { setFeedback(error.message || "The tag could not be removed."); }
+    setFeedbackError(false);
+    try {
+      const removed = pendingDelete.name;
+      await api.delete(`/notes/meta/tags/${pendingDelete.id}`);
+      setPendingDelete(null); setFeedback(`Removed #${removed} from connected records.`);
+      result.refresh().catch(error => { setFeedbackError(true); setFeedback(`Tag removed, but the list could not refresh: ${error.message}`); });
+    } catch (error) { setFeedbackError(true); setFeedback(error.message || "The tag could not be removed."); }
     finally { setBusy(false); }
   }
 
   return <div className="tags-workspace">
     <header className="product-page-header"><div><span className="eyebrow">CONNECTED ORGANIZATION</span><h1 className="page-title">Tags</h1><p>Understand how your records connect, clean up duplicate labels, and return to a subject instantly.</p></div></header>
 
-    <section className="tag-overview" aria-label="Tag overview"><div><span>Tags</span><strong>{tags === null ? "—" : tags.length}</strong><small>Distinct subjects</small></div><div><span>Connections</span><strong>{tags === null ? "—" : totalConnections}</strong><small>Tagged notes</small></div><div className="tag-overview-feature"><span>Most used</span><strong>{tags?.length ? `#${[...tags].sort((a, b) => b.count - a.count)[0].name}` : "—"}</strong><small>{tags === null ? "Checking subjects…" : tags.length ? `${[...tags].sort((a, b) => b.count - a.count)[0].count} records` : "No tags yet"}</small></div></section>
+    <section className="tag-overview" aria-label="Tag overview"><div><span>Tags</span><strong>{tags === null ? "—" : tags.length}</strong><small>Distinct subjects</small></div><div><span>Connections</span><strong>{tags === null ? "—" : totalConnections}</strong><small>Tagged notes</small></div><div className="tag-overview-feature"><span>Most used</span><strong>{tags?.length ? `#${[...tags].sort((a, b) => b.count - a.count)[0].name}` : "—"}</strong><small>{tags?.length ? `${[...tags].sort((a, b) => b.count - a.count)[0].count} records` : "No tags yet"}</small></div></section>
 
-    {feedback && <div className="inline-error tag-feedback" role="status"><span>{feedback}</span><button onClick={() => setFeedback("")}>Dismiss</button></div>}
+    {feedback && <div className={`${feedbackError ? "inline-error" : "collection-feedback"} tag-feedback`} role={feedbackError ? "alert" : "status"}><span>{feedback}</span><button onClick={() => setFeedback("")}>Dismiss</button></div>}
     {(editing || merging) && <form className="tag-action-panel" onSubmit={editing ? renameTag : mergeTag}>
       <div><span className="eyebrow">{editing ? "Rename tag" : "Merge duplicate"}</span><h2>{editing ? `Change #${editing.name}` : `Merge #${merging.name}`}</h2><p>{editing ? "Every connected note will use the new name." : "All connected notes will be moved to the destination tag. The source tag will be removed."}</p></div>
       {editing ? <input className="input" autoFocus value={name} onChange={event => setName(event.target.value)} placeholder="Tag name" /> : <select value={mergeTarget} onChange={event => setMergeTarget(event.target.value)}><option value="">Choose destination tag…</option>{tags.filter(tag => tag.id !== merging.id).map(tag => <option key={tag.id} value={tag.id}>#{tag.name} · {tag.count} notes</option>)}</select>}
@@ -66,8 +79,8 @@ export default function Tags() {
 
     <div className="collection-toolbar tag-toolbar"><label><NavigationIcon name="search" size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search tags…" /></label><select value={sort} onChange={event => setSort(event.target.value)}><option value="usage">Most used</option><option value="name">Name A–Z</option></select></div>
 
-    {result.error && <div className="inline-error"><span>{result.error.message}</span><button onClick={() => result.refresh().catch(() => {})}>Retry</button></div>}
-    {tags === null ? !result.error && <p className="collection-inline-status" role="status">Checking your tags…</p> : visible.length === 0 ? <EmptyState icon="#" title={search ? "No matching tags" : "No tags yet"} description={search ? "Try another tag name." : "Add a tag to any note and its relationships will appear here."} action={search && <button className="btn-outline" onClick={() => setSearch("")}>Clear search</button>} /> : <div className="tag-grid">{visible.map((tag, index) => <article key={tag.id} className="tag-card" style={{ "--tag-strength": `${Math.max(8, Math.round(tag.count / maxUsage * 100))}%` }}>
+    {result.error && <div className="inline-error" role="alert"><span>{result.error.message}</span><button onClick={() => result.refresh().catch(() => {})}>Retry</button></div>}
+    {tags === null ? null : visible.length === 0 ? <EmptyState icon="#" title={search ? "No matching tags" : "No tags yet"} description={search ? "Try another tag name." : "Add a tag to any note and its relationships will appear here."} action={search && <button className="btn-outline" onClick={() => setSearch("")}>Clear search</button>} /> : <div className="tag-grid">{visible.map((tag, index) => <article key={tag.id} className="tag-card" style={{ "--tag-strength": `${Math.max(8, Math.round(tag.count / maxUsage * 100))}%` }}>
       <Link to={`/notes/tags/${encodeURIComponent(tag.name)}`}><div className="tag-card-index">{String(index + 1).padStart(2, "0")}</div><h2>#{tag.name}</h2><p>{tag.count} connected {tag.count === 1 ? "record" : "records"}</p><div className="tag-usage"><i /></div><span>Open records <NavigationIcon name="chevron" size={13} /></span></Link>
       <div className="tag-card-actions"><button onClick={() => { setEditing(tag); setName(tag.name); setMerging(null); }}>Rename</button><button disabled={tags.length < 2} onClick={() => { setMerging(tag); setMergeTarget(""); setEditing(null); }}>Merge</button><button className="is-danger" onClick={() => setPendingDelete(tag)}>Remove</button></div>
     </article>)}</div>}

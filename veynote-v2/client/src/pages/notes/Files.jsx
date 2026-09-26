@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
@@ -31,6 +31,19 @@ function iconFor(node) {
   return "📎";
 }
 
+function fileKind(node) {
+  if (node.isDirectory) return "Folder";
+  const mime = node.mimeType || "";
+  if (mime.includes("pdf")) return "PDF";
+  if (mime.startsWith("image/")) return "Image";
+  if (mime.startsWith("audio/")) return "Audio";
+  if (mime.startsWith("video/")) return "Video";
+  if (/sheet|excel|spreadsheet|csv/.test(mime)) return "Spreadsheet";
+  if (/presentation|powerpoint/.test(mime)) return "Presentation";
+  if (/document|word|text/.test(mime)) return "Document";
+  return "File";
+}
+
 // Real, structure-preserving device-folder uploads. This is intentionally
 // separate from Notes → Folders' "Import from device" button, which
 // creates one note per file and doesn't keep any folder hierarchy — two
@@ -55,12 +68,16 @@ export default function Files() {
   const [sort, setSort] = useState("name");
   const [pendingDelete, setPendingDelete] = useState(null);
   const [uploadError, setUploadError] = useState("");
+  const [preview, setPreview] = useState(null);
+  const previewRef = useRef(null);
   const folderInputRef = useRef(null);
   const fileInputRef = useRef(null);
   const skipRenameBlur = useRef(false);
 
+  useEffect(() => { if (preview && !previewRef.current?.open) previewRef.current?.showModal(); }, [preview]);
+
   function load() {
-    return result.refresh().catch(() => {});
+    return result.refresh().catch(error => setUploadError(`The files changed, but this location could not refresh: ${error.message}`));
   }
 
   const images = children.filter((c) => !c.isDirectory && c.mimeType?.startsWith("image/"));
@@ -139,6 +156,12 @@ export default function Files() {
     } else {
       try {
         const url = await resolveMediaUrl(node.url);
+        if (node.mimeType === "application/pdf") {
+          const previewUrl = new URL(url, window.location.href);
+          previewUrl.searchParams.set("preview", "1");
+          setPreview({ name: node.name, url: previewUrl.href, originalUrl: node.url });
+          return;
+        }
         const link = document.createElement("a");
         link.href = url; link.download = node.name; link.rel = "noreferrer";
         link.click();
@@ -154,7 +177,9 @@ export default function Files() {
       if (kind === "folders") return node.isDirectory;
       if (node.isDirectory) return false;
       if (kind === "images") return node.mimeType?.startsWith("image/");
-      if (kind === "documents") return /pdf|document|word|text|sheet|excel|presentation/.test(node.mimeType || "");
+      if (kind === "documents") return /pdf|document|word|text|sheet|excel|spreadsheet|csv|presentation|powerpoint/.test(node.mimeType || "");
+      if (kind === "audio") return node.mimeType?.startsWith("audio/");
+      if (kind === "video") return node.mimeType?.startsWith("video/");
       return true;
     }).sort((a, b) => {
       if (sort === "size") return (b.sizeBytes || 0) - (a.sizeBytes || 0);
@@ -167,9 +192,9 @@ export default function Files() {
     <div>
       <div className="product-page-header">
         <div>
-          <span className="eyebrow">ORGANIZE</span>
-          <h1 className="page-title">Files</h1>
-          <p>A secure overview of documents and media imported into your Veynote workspace.</p>
+          <span className="eyebrow">{id ? "FILES / FOLDER" : "ORGANIZE"}</span>
+          <h1 className="page-title">{folder?.name || "Files"}</h1>
+          <p>{id ? "Browse, preview, and manage the files in this location." : "A secure overview of documents and media imported into your Veynote workspace."}</p>
         </div>
         <div className="product-page-actions">
           <button onClick={() => fileInputRef.current?.click()} className="btn-outline"><NavigationIcon name="files" size={16} /> Upload files</button>
@@ -253,14 +278,12 @@ export default function Files() {
 
       <div className="collection-toolbar file-toolbar">
         <label><NavigationIcon name="search" size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search files in this location…" /></label>
-        <select value={kind} onChange={event => setKind(event.target.value)} aria-label="File type"><option value="all">All types</option><option value="folders">Folders</option><option value="images">Images</option><option value="documents">Documents</option></select>
+        <select value={kind} onChange={event => setKind(event.target.value)} aria-label="File type"><option value="all">All types</option><option value="folders">Folders</option><option value="images">Images</option><option value="documents">Documents</option><option value="audio">Audio</option><option value="video">Video</option></select>
         <select value={sort} onChange={event => setSort(event.target.value)} aria-label="Sort files"><option value="name">Name</option><option value="recent">Recently updated</option><option value="size">Largest first</option></select>
       </div>
 
       {result.error && <p role="alert" className="text-danger">{result.error.message} <button className="btn-outline" onClick={load}>Retry</button></p>}
-      {!loaded ? (
-        !result.error && <p className="file-inline-status" role="status">Checking this location…</p>
-      ) : children.length === 0 && uploadBatches.length === 0 ? (
+      {!loaded ? null : children.length === 0 && uploadBatches.length === 0 ? (
         <EmptyState
           icon="🗂️"
           title={id ? "This folder is empty" : "No files yet"}
@@ -271,7 +294,7 @@ export default function Files() {
         <div className="file-grid">
           {visibleChildren.map((node) => (
             <div key={node.id} className="file-card group">
-              <button type="button" onClick={() => openNode(node)} className="w-full flex flex-col items-center gap-2 text-center">
+              <button type="button" onClick={() => openNode(node)} aria-label={`${node.isDirectory ? "Open" : node.mimeType?.startsWith("image/") || node.mimeType === "application/pdf" ? "Preview" : "Download"} ${node.name}`} className="w-full flex flex-col items-center gap-2 text-center">
                 {!node.isDirectory && node.mimeType?.startsWith("image/") ? (
                   <AuthImage src={node.url} alt={node.name} className="w-full aspect-square object-cover rounded-lg border border-app-border" />
                 ) : (
@@ -281,7 +304,7 @@ export default function Files() {
                 )}
                 {renamingId !== node.id && <p className="file-card-name">{node.name}</p>}
                 <p className="file-card-meta">
-                  {node.isDirectory ? "Folder" : formatSize(node.sizeBytes)}
+                  {fileKind(node)}{!node.isDirectory && node.sizeBytes != null ? ` · ${formatSize(node.sizeBytes)}` : ""}
                 </p>
               </button>
               {renamingId === node.id && (
@@ -341,6 +364,10 @@ export default function Files() {
       {lightboxIndex !== null && (
         <ImageLightbox images={images} startIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
       )}
+      {preview && <dialog ref={previewRef} className="file-preview-dialog" aria-label={`Preview ${preview.name}`} onCancel={event => { event.preventDefault(); setPreview(null); }} onClose={() => setPreview(null)}>
+        <header><div><span className="eyebrow">DOCUMENT PREVIEW</span><h2>{preview.name}</h2></div><div><FileDownload url={preview.originalUrl} name={preview.name} className="btn-outline">Download</FileDownload><button type="button" className="btn-outline" onClick={() => setPreview(null)}>Close</button></div></header>
+        <iframe title={`Preview of ${preview.name}`} src={preview.url} />
+      </dialog>}
       <ConfirmDialog open={Boolean(pendingDelete)} title={`Delete “${pendingDelete?.name || "item"}”?`} description={pendingDelete?.isDirectory ? "This folder and everything stored inside it will be permanently deleted. This action cannot be undone." : "This file will be permanently deleted. This action cannot be undone."} confirmLabel="Delete permanently" onClose={() => setPendingDelete(null)} onConfirm={remove} />
     </div>
   );

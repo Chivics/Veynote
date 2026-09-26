@@ -2137,6 +2137,13 @@ body {
 .file-card-placeholder { width: 100%; aspect-ratio: 1; display: grid; place-items: center; border: 1px solid rgb(var(--app-border-soft)); border-radius: 10px; background: radial-gradient(circle at 50% 30%, rgb(var(--accent-notes) / .09), transparent 55%), rgb(var(--app-panel2)); font-size: 30px; }
 .file-card-name { width: 100%; margin: 2px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--ink)); font-size: 10.5px; font-weight: 650; }
 .file-card-meta { margin: 0; color: rgb(var(--ink-muted)); font: 8.5px "IBM Plex Mono", monospace; }
+.file-preview-dialog { width: min(1060px, calc(100vw - 24px)); height: min(92dvh, 900px); max-width: none; max-height: none; margin: auto; padding: 0; overflow: hidden; color: rgb(var(--ink)); border: 1px solid rgb(var(--app-border)); border-radius: 18px; background: rgb(var(--app-panel)); box-shadow: 0 30px 100px rgb(0 0 0 / .36); }
+.file-preview-dialog::backdrop { background: rgb(2 4 9 / .68); backdrop-filter: blur(7px); }
+.file-preview-dialog header { min-height: 76px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 18px; border-bottom: 1px solid rgb(var(--app-border)); }
+.file-preview-dialog header h2 { max-width: 60vw; margin: 4px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 750; }
+.file-preview-dialog header > div:last-child { display: flex; align-items: center; gap: 8px; }
+.file-preview-dialog iframe { width: 100%; height: calc(100% - 76px); border: 0; background: white; }
+@media (max-width: 640px) { .file-preview-dialog { width: 100vw; height: 100dvh; border: 0; border-radius: 0; } .file-preview-dialog header { padding: max(12px, env(safe-area-inset-top)) 13px 12px; } .file-preview-dialog header h2 { max-width: 38vw; font-size: 13px; } .file-preview-dialog iframe { height: calc(100% - 76px - env(safe-area-inset-top)); } }
 .file-card-menu-trigger { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid rgb(var(--app-border)); background: rgb(var(--app-panel) / .92); font-size: 18px; opacity: 0; transition: opacity .18s ease, background .18s ease; }
 .file-card:hover .file-card-menu-trigger,.file-card:focus-within .file-card-menu-trigger,.file-card-menu-trigger[aria-expanded="true"] { opacity: 1; }
 .file-card-menu-trigger:focus-visible { outline: 2px solid rgb(var(--accent-notes)); outline-offset: 2px; }

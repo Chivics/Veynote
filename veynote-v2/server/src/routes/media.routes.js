@@ -57,18 +57,20 @@ function createMediaRoutes({ db, root = path.join(__dirname, "..", "..", "upload
     }
     const file = await ownedFile(req.params.storedName, grant.sub);
     if (!file || grant.scope !== scopeFor(file)) return res.status(404).json({ error: "File access is no longer available." });
-    return sendMedia(res, file, root);
+    return sendMedia(res, file, root, { preview: req.query.preview === "1" });
   }));
 
   return { access, files };
 }
 
-function sendMedia(res, file, root) {
+function sendMedia(res, file, root, { preview = false } = {}) {
   if (!validName(file.storedName)) return res.status(404).json({ error: "File not found." });
   const raster = ["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"].includes(file.mimeType);
+  const inlinePdf = preview && file.mimeType === "application/pdf";
   res.set({ "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "Content-Security-Policy": "default-src 'none'; sandbox" });
-  if (!raster) res.attachment(file.originalName || file.name || "download");
-  res.type(raster ? file.mimeType : "application/octet-stream");
+  if (inlinePdf) res.setHeader("Content-Disposition", `inline; filename*=UTF-8''${encodeURIComponent(file.originalName || file.name || "document.pdf")}`);
+  else if (!raster) res.attachment(file.originalName || file.name || "download");
+  res.type(raster || inlinePdf ? file.mimeType : "application/octet-stream");
   return res.sendFile(file.storedName, { root: path.resolve(root), dotfiles: "deny" }, (error) => {
     if (error && !res.headersSent) res.status(404).json({ error: "The stored file is unavailable." });
   });
