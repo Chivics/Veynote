@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../api/client";
 import SessionPanel from "../components/SessionPanel";
@@ -11,7 +11,9 @@ const TABS = ["Profile", "Preferences", "Security"];
 
 export default function Settings() {
   const { user, updateUser } = useAuth();
-  const [tab, setTab] = useState("Profile");
+  const [params, setParams] = useSearchParams();
+  const tab = TABS.includes(params.get("tab")) ? params.get("tab") : "Profile";
+  const setTab = next => setParams(current => { const updated = new URLSearchParams(current); updated.set("tab", next); return updated; }, { replace: true });
   const [name, setName] = useState(user?.name || "");
   const [theme, setTheme] = useState(user?.theme || "dark");
   const [fontSize, setFontSize] = useState(user?.editorFontSize || "medium");

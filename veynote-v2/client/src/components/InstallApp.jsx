@@ -24,9 +24,11 @@ export default function InstallApp() {
   useEffect(() => {
     const ready = () => setPrompt(window.__veynoteInstallPrompt || null);
     const done = () => { setInstalled(true); setPrompt(null); };
+    const request = () => { if (!isInstalled() && window.__veynoteInstallPrompt) { setPrompt(window.__veynoteInstallPrompt); setDismissed(false); setReady(true); } };
     window.addEventListener("veynote:install-available", ready);
     window.addEventListener("veynote:installed", done);
-    return () => { window.removeEventListener("veynote:install-available", ready); window.removeEventListener("veynote:installed", done); };
+    window.addEventListener("veynote:request-install", request);
+    return () => { window.removeEventListener("veynote:install-available", ready); window.removeEventListener("veynote:installed", done); window.removeEventListener("veynote:request-install", request); };
   }, []);
 
   if (installed || dismissed || !prompt || !ready || pathname.startsWith("/shared/") || pathname === "/auth/callback") return null;

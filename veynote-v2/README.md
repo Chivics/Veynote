@@ -143,6 +143,24 @@ empty states.
   Calendar (per-day P&L), Trading Rules
 - Settings shared across both modes (profile, theme, editor font size)
 
+## Application shell and workspace loading
+
+Authentication loads separately from the workspace application. Returning
+sessions warm that application bundle while their session is checked. The
+logo splash remains until the actual application can render; there is no
+intermediate full-page skeleton. Internal workspace navigation reuses the
+loaded application and its existing save guards. Download failures offer an
+explicit reload because browsers can cache a failed module import.
+
+Phones and tablets use a native modal drawer with a workspace switcher,
+current-section pages, and global controls. The contextual bottom bar contains
+five destinations, without a More menu. Desktop keeps its sidebar. Drawer
+dismissal preserves the current page and supports outside tap, Escape, left
+swipe, and system Back. Reduced-motion preferences and safe areas are respected.
+Settings deep links preserve the originating workspace and select their real
+Profile or Security section. Install is offered only when a genuine browser
+installation event is available.
+
 ## Session inactivity protection
 
 Settings → Security → Protect this device supports an optional 5-minute to

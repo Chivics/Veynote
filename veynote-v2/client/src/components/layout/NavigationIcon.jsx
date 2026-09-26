@@ -23,6 +23,8 @@ const paths = {
   chevron: <path d="m9 5 7 7-7 7" />,
   close: <path d="m6 6 12 12 M6 18 18 6" />,
   logout: <path d="M10 3H4v18h6 M14 7l5 5-5 5 M8 12h11" />,
+  account: <><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></>,
+  download: <path d="M12 3v12 m-5-5 5 5 5-5 M4 17v4h16v-4" />,
 };
 
 export default function NavigationIcon({ name, size = 19, className = "" }) {

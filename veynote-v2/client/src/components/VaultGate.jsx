@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { browserSupportsWebAuthn, startAuthentication } from "@simplewebauthn/browser";
 import { api } from "../api/client";
 import { setVaultToken } from "../utils/vault";
 import { setNoteGrant } from "../utils/noteGrant";
+import NavigationIcon from "./layout/NavigationIcon";
 
 const VAULT_LABELS = {
   "locked-notes": "Locked Notes",
@@ -21,6 +22,8 @@ export default function VaultGate({ vault, noteId, onUnlock }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);
+  const fieldId = useId();
 
   const title = noteId ? "this note only" : VAULT_LABELS[vault] || "Protected";
   function storeToken(token) {
@@ -32,9 +35,11 @@ export default function VaultGate({ vault, noteId, onUnlock }) {
   useEffect(() => {
     let active = true;
     setError("");
+    setStatus(null);
+    setHasPasskey(false);
     api.get("/security/status").then((value) => { if (active) setStatus(value); }).catch((err) => { if (active) setError(err.message); });
     if (vault === "locked-notes" && browserSupportsWebAuthn()) {
-      api.get("/webauthn/credentials").then((d) => setHasPasskey(d.credentials.length > 0)).catch(() => {});
+      api.get("/webauthn/credentials").then((d) => { if (active) setHasPasskey(d.credentials.some(credential => credential.vaultEnabled === true)); }).catch(() => {});
     }
     return () => { active = false; };
   }, [vault, loadAttempt]);
@@ -43,6 +48,7 @@ export default function VaultGate({ vault, noteId, onUnlock }) {
     e.preventDefault();
     setError("");
     if (password.length < 6) return setError("Choose a password with at least 6 characters.");
+    if (new TextEncoder().encode(password).length > 72) return setError("This protection password is too long. Choose a shorter phrase.");
     if (password !== confirmPassword) return setError("Passwords don't match.");
     setBusy(true);
     try {
@@ -85,59 +91,68 @@ export default function VaultGate({ vault, noteId, onUnlock }) {
       // A cancelled/failed platform prompt throws a DOMException with its
       // own message ("The operation either timed out or was not allowed…")
       // — still worth showing, but let people fall back to the password.
-      setError(err.message || "Passkey unlock didn't go through — try your password instead.");
+      setError(err.name === "NotAllowedError" ? "Your device prompt was cancelled. Try again or use your protection password." : err.message || "Your device could not verify this request. Use your protection password.");
     } finally {
       setBusy(false);
     }
   }
 
-  if (!status) return <div className="text-center mt-16" role="status">{error ? <><p role="alert">{error}</p><button className="btn-outline mt-3" onClick={() => setLoadAttempt(value => value + 1)}>Retry security check</button></> : "Checking security…"}</div>;
-
-  const isConfigured = status[configuredKey];
+  const isConfigured = status?.[configuredKey];
+  const heading = noteId ? "Unlock this note" : vault === "will" ? "Your estate, kept private." : "Your protected collection.";
 
   return (
-    <div className="max-w-[320px] mx-auto mt-16 text-center">
-      <div className="w-14 h-14 rounded-2xl bg-app-panel2 border border-app-border flex items-center justify-center text-2xl mx-auto mb-4">
-        🔒
-      </div>
-      <h1 className="page-title mb-1">{noteId ? "Unlock this note" : "Veynote Protected"}</h1>
-      <p className="text-ink-muted text-[12px] mb-6">
-        {isConfigured ? `Enter your password to access ${title}.` : `Set up a password to start using ${title}.`}
+    <section className={`private-access-card ${vault === "will" ? "is-estate" : ""}`} aria-labelledby={`${fieldId}-title`} aria-busy={!status || busy}>
+      <span className="private-access-symbol"><NavigationIcon name="lock" size={23} /></span>
+      <span className="eyebrow">{vault === "will" ? "ESTATE SECURITY" : "INDEPENDENT PROTECTION"}</span>
+      <h2 id={`${fieldId}-title`} className="page-title">{heading}</h2>
+      <p className="private-access-description">
+        {!status ? `Checking the protection configured for ${title}.` : isConfigured ? `Verify yourself to access ${title}.` : `Create a separate protection password for ${title}.`}
       </p>
-
-      <form onSubmit={isConfigured ? handleUnlock : handleSetup} className="flex flex-col gap-2.5">
+      {!status ? <div className="private-access-status">{error ? <><p role="alert">{error}</p><button type="button" className="btn-outline" onClick={() => setLoadAttempt(value => value + 1)}>Retry security check</button></> : <p role="status">Checking protection…</p>}</div> : <>
+      {vault === "locked-notes" && isConfigured && hasPasskey && <button type="button" onClick={handlePasskey} disabled={busy} className="btn-primary private-access-device"><NavigationIcon name="shield" size={18} />{busy ? "Waiting for authentication…" : "Use device security"}</button>}
+      {vault === "locked-notes" && hasPasskey && isConfigured && <div className="private-access-divider">or use your protection password</div>}
+      <form onSubmit={isConfigured ? handleUnlock : handleSetup} className="private-access-form">
+        <label htmlFor={`${fieldId}-password`}>Protection password</label>
+        <div className="private-access-password">
         <input
-          type="password"
+          id={`${fieldId}-password`}
+          type={showPassword ? "text" : "password"}
           aria-label="Protection password"
           autoComplete={isConfigured ? "current-password" : "new-password"}
-          autoFocus
-          className="input text-center"
-          placeholder="Password"
+          autoFocus={!hasPasskey}
+          className="input"
+          required
+          disabled={busy}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
+        <button type="button" aria-label={showPassword ? "Hide protection password" : "Show protection password"} onClick={() => setShowPassword(value => !value)}>{showPassword ? "Hide" : "Show"}</button>
+        </div>
         {!isConfigured && (
+          <>
+          <p className="private-access-hint">Use a unique phrase. At least 6 characters are required; 12 or more is recommended.</p>
+          <label htmlFor={`${fieldId}-confirm`}>Confirm protection password</label>
           <input
+            id={`${fieldId}-confirm`}
             type="password"
             aria-label="Confirm protection password"
             autoComplete="new-password"
-            className="input text-center"
-            placeholder="Confirm password"
+            className="input"
+            required
+            disabled={busy}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
           />
+          </>
         )}
-        {error && <p role="alert" className="text-danger text-[11.5px]">{error}</p>}
+        {error && <p role="alert" className="private-access-error">{error}</p>}
         <button type="submit" disabled={busy} className="btn-primary mt-1">
-          {busy ? "Authenticating…" : isConfigured ? "Unlock" : "Set password"}
+          {busy ? "Verifying access…" : isConfigured ? "Unlock" : "Set protection password"}
         </button>
       </form>
 
-      {vault === "locked-notes" && isConfigured && hasPasskey && (
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={handlePasskey} disabled={busy} className="mt-3 text-[11.5px] font-semibold text-accent-notes">
-          Use passkey or device biometrics instead
-        </button>
-      )}
-    </div>
+      </>}
+      <p className="private-access-boundary"><NavigationIcon name="shield" size={15} /><span>{noteId ? "Access applies to this note only. Other locked notes remain protected." : vault === "will" ? "Account sign-in and estate access are separate security boundaries." : "Opening this collection does not unlock individual notes."}</span></p>
+    </section>
   );
 }

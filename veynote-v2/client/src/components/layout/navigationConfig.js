@@ -3,6 +3,7 @@ export const WORKSPACES = {
     ["Notes Home", "/notes", "home"], ["All Notes", "/notes/all", "note"],
     ["Favorites", "/notes/favorites", "heart"], ["Folders", "/notes/folders", "folder"], ["Files", "/notes/files", "files"],
     ["Tasks", "/notes/tasks", "tasks"], ["Calendar", "/notes/calendar", "calendar"], ["Search", "/notes/search", "search"],
+    ["Library", "/notes/library", "book"], ["Locked Notes", "/notes/locked", "lock"], ["Will & Inheritance", "/will", "shield"],
     ["Tags", "/notes/tags", "tag"], ["Archive", "/notes/archive", "archive"], ["Trash", "/notes/trash", "trash"],
   ] },
   Journal: { icon: "sun", home: "/journal", create: "/journal/new", createLabel: "New entry", search: "/journal/timeline", pages: [

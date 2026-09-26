@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
 import ContextualNavigation from "../ContextualNavigation";
 import { useContextualNavigation } from "../../context/NavigationContext";
@@ -7,6 +7,7 @@ import { useMode } from "../../context/ModeContext";
 import { useAuth } from "../../context/AuthContext";
 import NavigationIcon from "./NavigationIcon";
 import { currentWorkspace, QUICK_NAV, WORKSPACES } from "./navigationConfig";
+import { activeNavigationIndex } from "../../utils/activeNavigation";
 
 function prefetchPage(path) {
   const queries = {
@@ -20,7 +21,8 @@ function prefetchPage(path) {
     "/trading/analytics": ["/analytics/trading"], "/trading/rules": ["/trading-rules"],
   };
   for (const query of queries[path] || []) api.prefetch(query, query === "/notes" ? { scope: "all", ...(path.startsWith("/journal") && { kind: "JOURNAL" }) } : undefined);
-  if (path.endsWith("/calendar")) {
+  if (path === "/journal/calendar") api.prefetch("/notes", { scope: "all", kind: "JOURNAL" });
+  else if (path.endsWith("/calendar")) {
     const now = new Date();
     api.prefetch("/calendar", { mode: path.startsWith("/notes") ? "NOTES" : "TRADING", year: now.getFullYear(), month: now.getMonth() + 1 });
   }
@@ -39,7 +41,7 @@ function Brand() {
   </div>;
 }
 
-function SectionPicker({ active, selected, onSelect, compact = false }) {
+function SectionPicker({ active, selected, onSelect, compact = false, drawer = false }) {
   const [open, setOpen] = useState(false);
   const pickerRef = useRef(null);
   const workspace = WORKSPACES[selected];
@@ -47,7 +49,7 @@ function SectionPicker({ active, selected, onSelect, compact = false }) {
     if (!open) return undefined;
     const dismiss = event => { if (!pickerRef.current?.contains(event.target)) setOpen(false); };
     const onKeyDown = event => {
-      if (event.key === "Escape") { event.stopImmediatePropagation(); setOpen(false); pickerRef.current?.querySelector(".workspace-picker-trigger")?.focus(); }
+      if (event.key === "Escape") { event.preventDefault(); event.stopImmediatePropagation(); setOpen(false); pickerRef.current?.querySelector(".workspace-picker-trigger")?.focus(); }
     };
     document.addEventListener("pointerdown", dismiss);
     document.addEventListener("keydown", onKeyDown);
@@ -62,7 +64,7 @@ function SectionPicker({ active, selected, onSelect, compact = false }) {
     const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : event.key === "ArrowDown" ? (current + 1) % items.length : (current + items.length - 1) % items.length;
     items[next].focus();
   };
-  return <div className="workspace-picker" ref={pickerRef}>
+  return <div className={`workspace-picker ${drawer ? "is-drawer-picker" : ""}`} ref={pickerRef}>
     <button type="button" className={`workspace-picker-trigger ${compact ? "is-compact" : ""}`} onClick={() => setOpen(value => !value)} onKeyDown={event => {
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
       event.preventDefault();
@@ -73,10 +75,10 @@ function SectionPicker({ active, selected, onSelect, compact = false }) {
       <span className="min-w-0"><small>Workspace</small><strong>{selected}</strong></span>
       <NavigationIcon name="chevron" size={15} className={open ? "rotate-90" : ""} />
     </button>
-    {open && <div className="workspace-picker-menu" role="menu" onKeyDown={moveSelection}>
-      {Object.entries(WORKSPACES).map(([name, item]) => <button key={name} type="button" role="menuitem" className={name === selected ? "is-active" : ""} onClick={() => { onSelect(name); setOpen(false); }}>
+    {open && <div className="workspace-picker-menu" role="menu" aria-label="Choose workspace" onKeyDown={moveSelection}>
+      {Object.entries(WORKSPACES).map(([name, item]) => <button key={name} type="button" role="menuitem" className={name === selected ? "is-active" : ""} onClick={() => { onSelect(name); setOpen(false); pickerRef.current?.querySelector(".workspace-picker-trigger")?.focus({ preventScroll: true }); }}>
         <span><NavigationIcon name={item.icon} size={17} /></span>
-        <span><strong>{name}</strong><small>{name === active ? "Current workspace" : `${item.pages.length} pages`}</small></span>
+        <span><strong>{name}</strong>{!drawer && <small>{name === active ? "Current workspace" : `${item.pages.length} pages`}</small>}</span>
         {name === selected && <i aria-hidden="true" />}
       </button>)}
     </div>}
@@ -84,31 +86,50 @@ function SectionPicker({ active, selected, onSelect, compact = false }) {
 }
 
 function SectionLinks({ workspace, onNavigate }) {
-  return <nav aria-label={`${workspace} pages`} className="section-links">
-    {WORKSPACES[workspace].pages.map(([label, to, icon], index) => <NavLink
-      key={to} to={to} end={index === 0} onClick={event => onNavigate?.(event, to)}
+  const location = useLocation();
+  const selected = activeNavigationIndex(location.pathname, location.search, WORKSPACES[workspace].pages);
+  return <nav key={workspace} aria-label={`${workspace} pages`} className="section-links">
+    {WORKSPACES[workspace].pages.map(([label, to, icon], index) => <Link
+      key={to} to={to} aria-current={index === selected ? "page" : undefined} onClick={event => onNavigate?.(event, to)}
       onMouseEnter={() => prefetchPage(to)} onFocus={() => prefetchPage(to)}
-      className={({ isActive }) => `section-link ${isActive ? "is-active" : ""}`}
+      className={`section-link ${index === selected ? "is-active" : ""}`}
     >
       <NavigationIcon name={icon} size={18} /><span>{label}</span><span className="section-link-marker" aria-hidden="true" />
-    </NavLink>)}
+    </Link>)}
   </nav>;
 }
 
-function GlobalControls({ onNavigate }) {
+function GlobalControls({ onNavigate, onDismiss }) {
   const navigate = useNavigate();
   const { logout, updateUser, user } = useAuth();
   const { runProtectedAction, busy } = useContextualNavigation();
+  const [installable, setInstallable] = useState(() => Boolean(window.__veynoteInstallPrompt));
+  const [feedback, setFeedback] = useState("");
+  useEffect(() => {
+    const available = () => setInstallable(Boolean(window.__veynoteInstallPrompt));
+    const installed = () => setInstallable(false);
+    window.addEventListener("veynote:install-available", available); window.addEventListener("veynote:installed", installed);
+    return () => { window.removeEventListener("veynote:install-available", available); window.removeEventListener("veynote:installed", installed); };
+  }, []);
+  const go = (event, to) => { if (onNavigate) onNavigate(event, to); else navigate(to); };
   const changeTheme = async () => {
     const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
     document.documentElement.dataset.theme = next;
     document.documentElement.style.colorScheme = next;
-    try { await updateUser({ theme: next }); } catch { /* Keep the local theme available while offline. */ }
+    setFeedback("");
+    try { await updateUser({ theme: next }); } catch { setFeedback("Appearance changed here. Reconnect to save it to your account."); }
   };
-  return <div className="global-controls">
-    <button type="button" onClick={event => { if (onNavigate) onNavigate(event, "/settings"); else navigate("/settings"); }}><NavigationIcon name="settings" size={18} /><span>Settings</span></button>
+  return <div className={`global-controls ${onNavigate ? "is-drawer-global" : ""}`}>
+    {onNavigate && <span className="drawer-global-label">Your Veynote</span>}
+    <div className="global-controls-items">
+    {onNavigate && <button type="button" onClick={event => go(event, "/settings?tab=Profile")}><NavigationIcon name="account" size={18} /><span>Account</span></button>}
+    <button type="button" onClick={event => go(event, "/settings")}><NavigationIcon name="settings" size={18} /><span>Settings</span></button>
     <button type="button" onClick={changeTheme}><NavigationIcon name="sun" size={18} /><span>Appearance</span><small>{user?.theme || "System"}</small></button>
+    {onNavigate && <button type="button" onClick={event => go(event, "/settings?tab=Security")}><NavigationIcon name="shield" size={18} /><span>Security</span></button>}
+    {installable && <button type="button" onClick={() => { onDismiss?.(); window.dispatchEvent(new Event("veynote:request-install")); }}><NavigationIcon name="download" size={18} /><span>Install Veynote</span></button>}
     <button type="button" disabled={busy} onClick={() => runProtectedAction(logout)}><NavigationIcon name="logout" size={18} /><span>Log out</span></button>
+    </div>
+    {feedback && <p className="drawer-feedback" role="status">{feedback}</p>}
   </div>;
 }
 
@@ -130,41 +151,43 @@ function MobileDrawer({ open, closing, workspace, selectedWorkspace, onWorkspace
   const closeRef = useRef(null);
   const drawerRef = useRef(null);
   const touchStart = useRef(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return undefined;
-    const focusTimer = window.setTimeout(() => closeRef.current?.focus(), 40);
-    const containFocus = event => {
-      if (event.key !== "Tab") return;
-      const controls = [...(drawerRef.current?.querySelectorAll('a[href], button:not([disabled])') || [])].filter(element => element.getClientRects().length);
-      if (!controls.length) return;
-      const first = controls[0], last = controls.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-      else if (!drawerRef.current?.contains(document.activeElement)) { event.preventDefault(); first.focus(); }
-    };
-    document.addEventListener("keydown", containFocus);
-    return () => { window.clearTimeout(focusTimer); document.removeEventListener("keydown", containFocus); };
+    const dialog = drawerRef.current;
+    dialog.showModal(); closeRef.current?.focus({ preventScroll: true });
+    return () => dialog.close();
   }, [open]);
   if (!open) return null;
-  return <div className={`mobile-drawer-layer ${closing ? "is-closing" : ""}`}>
-    <button type="button" className="mobile-drawer-backdrop" aria-label="Close navigation" onClick={onDismiss} />
-    <aside ref={drawerRef} className="mobile-drawer" role="dialog" aria-modal="true" aria-label="Veynote navigation"
-      onTouchStart={event => { touchStart.current = event.touches[0]?.clientX; }}
-      onTouchEnd={event => { const end = event.changedTouches[0]?.clientX; if (touchStart.current != null && end - touchStart.current < -70) onDismiss(); }}>
+  return <dialog ref={drawerRef} className={`mobile-drawer-layer ${closing ? "is-closing" : ""}`} aria-label="Veynote navigation" onCancel={event => { event.preventDefault(); onDismiss(); }} onKeyDown={event => {
+    if (event.key !== "Tab") return;
+    // Native modality makes the underlying app inert. Explicitly wrap at the
+    // edges too, rather than moving keyboard focus to the browser chrome.
+    const controls = [...event.currentTarget.querySelectorAll("button:not([disabled]), a[href]")].filter(element => element.tabIndex >= 0 && element.getClientRects().length);
+    const first = controls[0], last = controls.at(-1);
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+  }}>
+    <button type="button" tabIndex={-1} className="mobile-drawer-backdrop" aria-label="Close navigation" onClick={onDismiss} />
+    <aside className={`mobile-drawer workspace-${selectedWorkspace.toLowerCase()}`}
+      onTouchStart={event => { const touch = event.touches[0]; touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null; }}
+      onTouchCancel={() => { touchStart.current = null; }}
+      onTouchEnd={event => { const end = event.changedTouches[0], start = touchStart.current; touchStart.current = null; if (start && end && end.clientX - start.x < -72 && Math.abs(end.clientX - start.x) > Math.abs(end.clientY - start.y) * 1.35) onDismiss(); }}>
       <div className="mobile-drawer-head"><Brand /><button ref={closeRef} type="button" aria-label="Close navigation" onClick={onDismiss}><NavigationIcon name="close" size={19} /></button></div>
-      <SectionPicker active={workspace} selected={selectedWorkspace} onSelect={onWorkspace} />
-      <div className="mobile-drawer-caption"><span>{selectedWorkspace}</span><small>{WORKSPACES[selectedWorkspace].pages.length} destinations</small></div>
+      <SectionPicker active={workspace} selected={selectedWorkspace} onSelect={onWorkspace} drawer />
+      <div className="mobile-drawer-caption"><span>{selectedWorkspace}</span></div>
       <SectionLinks workspace={selectedWorkspace} onNavigate={onNavigate} />
-      <GlobalControls onNavigate={onNavigate} />
+      <GlobalControls onNavigate={onNavigate} onDismiss={onDismiss} />
     </aside>
-  </div>;
+  </dialog>;
 }
 
 function MobileBottomNavigation({ workspace }) {
+  const location = useLocation();
+  const selected = activeNavigationIndex(location.pathname, location.search, QUICK_NAV[workspace]);
   return <nav aria-label={`${workspace} shortcuts`} className="mobile-bottom-nav print:hidden">
-    {QUICK_NAV[workspace].map(([label, to, icon], index) => <NavLink key={`${workspace}-${to}-${label}`} to={to} end={index === 0} onMouseEnter={() => prefetchPage(to)} className={({ isActive }) => `mobile-bottom-link ${isActive ? "is-active" : ""} ${index === 2 ? "is-create" : ""}`}>
+    {QUICK_NAV[workspace].map(([label, to, icon], index) => <Link key={`${workspace}-${to}-${label}`} to={to} aria-current={index === selected ? "page" : undefined} onMouseEnter={() => prefetchPage(to)} onFocus={() => prefetchPage(to)} className={`mobile-bottom-link ${index === selected ? "is-active" : ""} ${index === 2 ? "is-create" : ""}`}>
       <span><NavigationIcon name={icon} size={index === 2 ? 22 : 20} /></span><small>{label}</small>
-    </NavLink>)}
+    </Link>)}
   </nav>;
 }
 
@@ -172,8 +195,10 @@ export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const { mode } = useMode();
-  const { user } = useAuth();
-  const workspace = useMemo(() => currentWorkspace(location.pathname, mode), [location.pathname, mode]);
+  const { user, sessionLocked } = useAuth();
+  const lastWorkspace = useRef(currentWorkspace(location.pathname, mode));
+  const workspace = location.pathname === "/settings" ? lastWorkspace.current : currentWorkspace(location.pathname, mode);
+  useEffect(() => { lastWorkspace.current = workspace; }, [workspace]);
   const noteSegment = location.pathname.match(/^\/notes\/([^/]+)$/)?.[1];
   const journalEditor = /^\/journal\/(new|entries\/[^/]+)$/.test(location.pathname);
   const immersiveEditor = journalEditor || Boolean(noteSegment && !new Set(["today", "all", "favorites", "folders", "files", "tasks", "calendar", "search", "tags", "archive", "trash", "locked", "library", "will"]).has(noteSegment));
@@ -181,6 +206,9 @@ export default function AppShell() {
   const [drawerClosing, setDrawerClosing] = useState(false);
   const [drawerWorkspace, setDrawerWorkspace] = useState(workspace);
   const pendingRoute = useRef(null);
+  const drawerHistory = useRef(null);
+  const closeTimer = useRef(null);
+  const closingRef = useRef(false);
   const navTriggerRef = useRef(null);
   const [online, setOnline] = useState(() => navigator.onLine);
 
@@ -194,59 +222,80 @@ export default function AppShell() {
   const closeDrawer = useCallback((route = null) => {
     if (!drawerOpen || drawerClosing) return;
     pendingRoute.current = route;
+    closingRef.current = true;
     setDrawerClosing(true);
-    window.setTimeout(() => {
-      setDrawerOpen(false); setDrawerClosing(false);
-      window.requestAnimationFrame(() => navTriggerRef.current?.focus({ preventScroll: true }));
-      const destination = pendingRoute.current;
-      pendingRoute.current = null;
-      if (window.history.state?.veynoteDrawer) window.history.back();
-      if (destination) window.setTimeout(() => navigate(destination), 30);
-    }, 190);
+    closeTimer.current = window.setTimeout(() => {
+      if (drawerHistory.current && window.history.state?.veynoteDrawer === drawerHistory.current) window.history.back();
+      else { setDrawerOpen(false); setDrawerClosing(false); closingRef.current = false; drawerHistory.current = null; const to = pendingRoute.current; pendingRoute.current = null; if (to) navigate(to); }
+    }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 200);
   }, [drawerClosing, drawerOpen, navigate]);
 
   const openDrawer = () => {
+    if (drawerOpen || sessionLocked) return;
     setDrawerWorkspace(workspace); setDrawerOpen(true); setDrawerClosing(false);
-    window.history.pushState({ ...window.history.state, veynoteDrawer: true }, "");
+    closingRef.current = false;
+    drawerHistory.current = crypto.randomUUID();
+    window.history.pushState({ ...window.history.state, veynoteDrawer: drawerHistory.current }, "");
   };
+
+  useEffect(() => {
+    const onPopState = () => {
+      if (!drawerHistory.current) return;
+      window.clearTimeout(closeTimer.current); drawerHistory.current = null;
+      const to = pendingRoute.current; pendingRoute.current = null;
+      const finish = () => {
+        setDrawerOpen(false); setDrawerClosing(false); closingRef.current = false;
+        // Run after the router processes POP. Never race a fixed-delay history back.
+        if (to) window.setTimeout(() => navigate(to), 0);
+        else window.requestAnimationFrame(() => navTriggerRef.current?.focus({ preventScroll: true }));
+      };
+      if (closingRef.current) finish(); // Button/swipe dismissal already animated.
+      else {
+        // System Back dismisses the overlay with the same reverse motion.
+        closingRef.current = true; setDrawerClosing(true);
+        closeTimer.current = window.setTimeout(finish, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 200);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => { window.removeEventListener("popstate", onPopState); window.clearTimeout(closeTimer.current); };
+  }, [navigate]);
+
+  useEffect(() => {
+    if (sessionLocked && drawerOpen) closeDrawer();
+  }, [sessionLocked, drawerOpen, closeDrawer]);
+
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const resize = () => { if (desktop.matches && drawerOpen) closeDrawer(); };
+    desktop.addEventListener("change", resize);
+    return () => desktop.removeEventListener("change", resize);
+  }, [drawerOpen, closeDrawer]);
 
   useEffect(() => {
     if (!drawerOpen) return undefined;
     const previousOverflow = document.body.style.overflow;
-    const main = document.querySelector(".app-main");
-    const bottomNavigation = document.querySelector(".mobile-bottom-nav");
     document.body.style.overflow = "hidden";
-    if (main) main.inert = true;
-    if (bottomNavigation) bottomNavigation.inert = true;
-    const onKeyDown = event => { if (event.key === "Escape") closeDrawer(); };
-    const onPopState = () => { setDrawerOpen(false); setDrawerClosing(false); pendingRoute.current = null; window.requestAnimationFrame(() => navTriggerRef.current?.focus({ preventScroll: true })); };
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("popstate", onPopState);
     return () => {
       document.body.style.overflow = previousOverflow;
-      if (main) main.inert = false;
-      if (bottomNavigation) bottomNavigation.inert = false;
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("popstate", onPopState);
     };
-  }, [drawerOpen, closeDrawer]);
+  }, [drawerOpen]);
 
   useEffect(() => {
     function onKeyDown(event) {
-      if (drawerOpen) return;
+      if (drawerOpen || sessionLocked || event.defaultPrevented || document.querySelector("dialog[open]")) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); navigate(WORKSPACES[workspace].search); }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") { event.preventDefault(); navigate(WORKSPACES[workspace].create); }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [workspace, navigate, drawerOpen]);
+  }, [workspace, navigate, drawerOpen, sessionLocked]);
 
   return <div className={`app-shell workspace-${workspace.toLowerCase()} ${immersiveEditor ? "is-immersive-editor" : ""}`}>
     <DesktopSidebar workspace={workspace} />
     <MobileDrawer open={drawerOpen} closing={drawerClosing} workspace={workspace} selectedWorkspace={drawerWorkspace} onWorkspace={setDrawerWorkspace} onDismiss={() => closeDrawer()} onNavigate={(event, to) => { event.preventDefault(); closeDrawer(to); }} />
     <main className="app-main">
       <header className="mobile-topbar print:hidden">
-        <button ref={navTriggerRef} type="button" className="mobile-nav-trigger" onClick={openDrawer} aria-expanded={drawerOpen} aria-label="Open Veynote navigation">
+        <button ref={navTriggerRef} type="button" className="mobile-nav-trigger" onClick={openDrawer} aria-expanded={drawerOpen} aria-haspopup="dialog" aria-label="Open Veynote navigation">
           <span className="mobile-nav-mark"><img src="/logo.png" alt="" /></span>
           <span><small>Workspace</small><strong>{workspace}</strong></span>
           <span className="mobile-nav-lines" aria-hidden="true"><i /><i /></span>
@@ -255,7 +304,7 @@ export default function AppShell() {
       </header>
       <div className="desktop-topbar print:hidden">
         <button type="button" onClick={() => navigate(WORKSPACES[workspace].search)}><NavigationIcon name="search" size={17} /><span>Search {workspace}</span><kbd>⌘ K</kbd></button>
-        <div><span className={`sync-indicator ${online ? "" : "is-offline"}`} role="status"><i /> {online ? "Online" : "Offline"}</span><button type="button" className="desktop-avatar" onClick={() => navigate("/settings")}>{initials(user)}</button></div>
+        <div><span className={`sync-indicator ${online ? "" : "is-offline"}`} role="status"><i /> {online ? "Online" : "Offline"}</span><button type="button" className="desktop-avatar" aria-label="Open account settings" onClick={() => navigate("/settings")}>{initials(user)}</button></div>
       </div>
       <div className="app-content"><ContextualNavigation /><Outlet /></div>
     </main>
