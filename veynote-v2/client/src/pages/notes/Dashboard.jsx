@@ -7,11 +7,11 @@ import EmptyState from "../../components/EmptyState";
 import NavigationIcon from "../../components/layout/NavigationIcon.jsx";
 
 function stripHtml(html) { return html?.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() || ""; }
-function shortDate(value) { return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
+function shortDate(value) { return value ? new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : ""; }
 
 function NoteCard({ note, featured = false }) {
   return <Link to={`/notes/${note.id}`} className={`record-card ${featured ? "is-featured" : ""}`}>
-    <div className="record-card-meta"><span className="type-pill">{note.isPinned ? "Pinned note" : "Note"}</span><time>{shortDate(note.entryDate)}</time></div>
+    <div className="record-card-meta"><span className="type-pill">{note.isPinned ? "Pinned note" : "Note"}</span><time dateTime={note.updatedAt || note.entryDate}>{shortDate(note.updatedAt || note.entryDate)}</time></div>
     <h3>{note.title || "Untitled note"}</h3>
     <p>{stripHtml(note.content).slice(0, featured ? 230 : 145) || "Open this note and begin writing."}</p>
     <div className="record-card-footer">
@@ -41,9 +41,10 @@ export default function NotesDashboard() {
   }
   useEffect(() => { loadNotes(); loadStats(); }, []);
 
-  const pinned = notes?.filter(note => note.isPinned) ?? [];
-  const recent = (notes ?? []).slice(0, 6);
-  const continuation = pinned[0] || recent[0] || null;
+  const byActivity = [...(notes ?? [])].sort((a, b) => new Date(b.updatedAt || b.entryDate) - new Date(a.updatedAt || a.entryDate));
+  const pinned = byActivity.filter(note => note.isPinned);
+  const recent = byActivity.slice(0, 6);
+  const continuation = recent[0] || null;
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const firstName = user?.name?.split(" ")[0] || "there";
@@ -74,11 +75,11 @@ export default function NotesDashboard() {
       <div><span>Favorites</span><strong>{favoriteCount}</strong><small>Important records</small></div>
     </section>
 
-    {pinned.length > 1 && <section className="home-section"><div className="section-heading"><div><span className="eyebrow">Within reach</span><h2>Pinned notes</h2></div><Link to="/notes/favorites">View favorites <NavigationIcon name="chevron" size={13} /></Link></div><div className="record-grid">{pinned.slice(0, 2).map(note => <NoteCard key={note.id} note={note} />)}</div></section>}
+    {pinned.length > 0 && <section className="home-section"><div className="section-heading"><div><span className="eyebrow">Within reach</span><h2>Pinned notes</h2></div><Link to="/notes/all">View all notes <NavigationIcon name="chevron" size={13} /></Link></div><div className="record-grid">{pinned.slice(0, 2).map(note => <NoteCard key={note.id} note={note} />)}</div></section>}
 
     <section className="home-section">
       <div className="section-heading"><div><span className="eyebrow">Your latest context</span><h2>Recent notes</h2></div><Link to="/notes/all">View all <NavigationIcon name="chevron" size={13} /></Link></div>
-      {notes === null ? (!notesError && <p className="collection-inline-status" role="status">Opening recent notes…</p>) : recent.length === 0 ? <EmptyState icon="✦" title="Your first record is waiting" description="Capture an idea, reflection, meeting, or plan. It will stay connected to the rest of your Veynote history." action={<Link to="/notes/new" className="btn-primary">Write your first note</Link>} /> : <div className="record-grid">{recent.map((note, index) => <NoteCard key={note.id} note={note} featured={index === 0 && recent.length > 2} />)}</div>}
+      {notes !== null && (recent.length === 0 ? <EmptyState icon="✦" title="Your first record is waiting" description="Capture an idea, reflection, meeting, or plan. It will stay connected to the rest of your Veynote history." action={<Link to="/notes/new" className="btn-primary">Write your first note</Link>} /> : <div className="record-grid">{recent.map((note, index) => <NoteCard key={note.id} note={note} featured={index === 0 && recent.length > 2} />)}</div>)}
     </section>
   </div>;
 }

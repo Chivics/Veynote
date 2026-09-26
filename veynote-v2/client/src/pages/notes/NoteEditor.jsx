@@ -1,4 +1,3 @@
-import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
 import { api } from "../../api/client";
@@ -485,7 +484,7 @@ export default function NoteEditor({ kind = "NOTE" }) {
 
   if (vaultRequired) return <VaultGate vault={vaultRequired} noteId={vaultRequired === "locked-notes" && isLocked ? routeId : undefined} onUnlock={loadNote} />;
 
-  if (!loaded) return loadError ? <section><h1 className="page-title">Note unavailable</h1><p role="alert" className="my-4 text-danger">{loadError}</p><button className="btn-primary" onClick={loadNote}>Retry</button> <Link className="btn-outline" to="/notes/all">Back to notes</Link></section> : <PageSkeleton title="Note" />;
+  if (!loaded) return loadError ? <section><h1 className="page-title">Note unavailable</h1><p role="alert" className="my-4 text-danger">{loadError}</p><button className="btn-primary" onClick={loadNote}>Retry</button> <Link className="btn-outline" to="/notes/all">Back to notes</Link></section> : <div className="note-editor-shell"><div className="note-editor-document max-w-[820px] mx-auto" aria-busy="true"><div className="note-editor-topline"><span className="eyebrow">{kind === "JOURNAL" ? "JOURNAL ENTRY" : "NOTES / EDITOR"}</span></div><div className="note-editor-pending" role="status">Opening your writing securely…</div></div></div>;
 
   // Note-links are plain <a href> tags inside the editor's raw HTML (not
   // React <Link>s, since they're user content) — intercept clicks so

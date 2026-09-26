@@ -3,7 +3,6 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import EmptyState from "../../components/EmptyState.jsx";
-import PageSkeleton from "../../components/PageSkeleton.jsx";
 import NavigationIcon from "../../components/layout/NavigationIcon.jsx";
 
 function stripHtml(value) { return value?.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() || ""; }
@@ -14,7 +13,8 @@ export default function FolderWorkspace() {
   const notesResult = useApiQuery("/notes", { scope: "all", folderId });
   const folders = foldersResult.data?.folders || [];
   const notes = notesResult.data?.notes || [];
-  const loaded = foldersResult.data !== undefined && notesResult.data !== undefined;
+  const foldersReady = foldersResult.data !== undefined;
+  const notesReady = notesResult.data !== undefined;
   const folder = folders.find(item => item.id === folderId);
   const subfolders = folders.filter(item => item.parentId === folderId);
   const [search, setSearch] = useState("");
@@ -42,14 +42,18 @@ export default function FolderWorkspace() {
   async function createSubfolder(event) {
     event.preventDefault();
     if (!name.trim()) return;
-    await api.post("/folders", { name: name.trim(), parentId: folderId, color: folder?.color || "#7c6cff", icon: "📁" });
-    setName(""); setCreating(false); await foldersResult.refresh();
+    try {
+      await api.post("/folders", { name: name.trim(), parentId: folderId, color: folder?.color || "#7c6cff", icon: "📁" });
+      setName(""); setCreating(false); setFeedback("Folder created."); foldersResult.refresh().catch(error => setFeedback(`Folder created, but this workspace could not refresh: ${error.message}`));
+    } catch (error) { setFeedback(error.message || "This folder could not be created."); }
   }
 
   async function moveNote(note, destination) {
-    await api.patch(`/notes/${note.id}`, { folderId: destination || null });
-    setFeedback(`“${note.title || "Untitled note"}” was moved.`);
-    await notesResult.refresh();
+    try {
+      await api.patch(`/notes/${note.id}`, { folderId: destination || null });
+      setFeedback(`“${note.title || "Untitled note"}” was moved.`);
+      notesResult.refresh().catch(error => setFeedback(`Note moved, but this workspace could not refresh: ${error.message}`));
+    } catch (error) { setFeedback(error.message || "This note could not be moved."); }
   }
 
   async function importFiles(event) {
@@ -64,19 +68,19 @@ export default function FolderWorkspace() {
       } catch (error) { setFeedback(`“${file.name}” could not be imported. ${error.message}`); }
       finally { setImporting(current => current.filter(item => item.tempId !== tempId)); }
     }
-    await notesResult.refresh();
+    notesResult.refresh().catch(error => setFeedback(`Files were imported, but this workspace could not refresh: ${error.message}`));
   }
 
-  if (!loaded) return <PageSkeleton title="Folder" />;
-  if (!folder) return <EmptyState icon="?" title="Folder unavailable" description="It may have been moved, archived, or deleted." action={<Link to="/notes/folders" className="btn-outline">Back to folders</Link>} />;
+  if (foldersReady && !folder) return <EmptyState icon="?" title="Folder unavailable" description="It may have been moved, archived, or deleted." action={<Link to="/notes/folders" className="btn-outline">Back to folders</Link>} />;
 
   return <div className="folder-workspace">
     <nav className="folder-breadcrumb" aria-label="Folder path"><Link to="/notes/folders">Folders</Link>{breadcrumb.map(item => <span key={item.id}><NavigationIcon name="chevron" size={12} /><Link to={`/notes/folders/${item.id}`}>{item.name}</Link></span>)}</nav>
     <header className="folder-workspace-header">
-      <div className="folder-workspace-identity" style={{ "--folder-color": folder.color }}><span>{folder.icon || "📁"}</span><div><small>Folder workspace</small><h1 className="page-title">{folder.name}</h1><p>{notes.length} notes · {subfolders.length} nested folders</p></div></div>
-      <div className="product-page-actions"><button className="btn-outline" onClick={() => inputRef.current?.click()}><NavigationIcon name="files" size={16} /> Import files</button><button className="btn-outline" onClick={() => setCreating(value => !value)}><NavigationIcon name="folder" size={16} /> New folder</button><Link to={`/notes/new?folder=${folderId}`} className="btn-primary"><NavigationIcon name="plus" size={16} /> New note</Link></div>
+      <div className="folder-workspace-identity" style={{ "--folder-color": folder?.color || "#7c6cff" }}><span>{folder?.icon || "📁"}</span><div><small>Folder workspace</small><h1 className="page-title">{folder?.name || "Folder"}</h1><p>{notesReady ? notes.length : "—"} notes · {foldersReady ? subfolders.length : "—"} nested folders</p></div></div>
+      <div className="product-page-actions"><button className="btn-outline" disabled={!folder} onClick={() => inputRef.current?.click()}><NavigationIcon name="files" size={16} /> Import files</button><button className="btn-outline" disabled={!folder} onClick={() => setCreating(value => !value)}><NavigationIcon name="folder" size={16} /> New folder</button><Link to={`/notes/new?folder=${folderId}`} className="btn-primary"><NavigationIcon name="plus" size={16} /> New note</Link></div>
     </header>
     <input ref={inputRef} className="hidden" type="file" multiple onChange={importFiles} />
+    {(foldersResult.error || notesResult.error) && <div className="inline-error" role="alert"><span>{foldersResult.error?.message || notesResult.error?.message}</span><button type="button" onClick={() => { foldersResult.refresh().catch(() => {}); notesResult.refresh().catch(() => {}); }}>Retry</button></div>}
 
     {creating && <form className="nested-folder-form" onSubmit={createSubfolder}><div><span className="eyebrow">Nested collection</span><strong>Create inside {folder.name}</strong></div><input autoFocus className="input" value={name} onChange={event => setName(event.target.value)} placeholder="Folder name" /><button className="btn-primary" type="submit">Create folder</button><button type="button" onClick={() => setCreating(false)}>Cancel</button></form>}
     {(feedback || importing.length > 0) && <div className="folder-feedback" role="status">{importing.length > 0 ? `Importing ${importing.length} ${importing.length === 1 ? "file" : "files"} securely…` : feedback}</div>}
@@ -86,7 +90,7 @@ export default function FolderWorkspace() {
     <section className="folder-section">
       <div className="section-heading"><div><span className="eyebrow">Folder contents</span><h2>Notes and documents</h2></div></div>
       <div className="collection-toolbar folder-workspace-toolbar"><label><NavigationIcon name="search" size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search this folder…" /></label><select value={sort} onChange={event => setSort(event.target.value)}><option value="updated">Recently updated</option><option value="title">Title A–Z</option></select></div>
-      {visibleNotes.length === 0 ? <EmptyState icon="✦" title={search ? "No matching notes" : "This folder is ready"} description={search ? "Try another phrase or clear the search." : "Create a note or import files from your device to begin building this workspace."} action={!search && <Link to={`/notes/new?folder=${folderId}`} className="btn-primary">Create a note</Link>} /> : <div className="folder-note-list">{visibleNotes.map(note => <article key={note.id}><Link to={`/notes/${note.id}`}><span className="type-pill">Note</span><h3>{note.title || "Untitled note"}</h3><p>{stripHtml(note.content).slice(0, 150) || "No written content yet."}</p></Link><footer><span>{new Date(note.updatedAt || note.entryDate).toLocaleDateString()}</span><label>Move to<select value={folderId} onChange={event => moveNote(note, event.target.value)}><option value="">All Notes</option>{folders.filter(item => item.id !== folderId && !item.isArchived).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></footer></article>)}</div>}
+      {notesReady && (visibleNotes.length === 0 ? <EmptyState icon="✦" title={search ? "No matching notes" : "This folder is ready"} description={search ? "Try another phrase or clear the search." : "Create a note or import files from your device to begin building this workspace."} action={!search && <Link to={`/notes/new?folder=${folderId}`} className="btn-primary">Create a note</Link>} /> : <div className="folder-note-list">{visibleNotes.map(note => <article key={note.id}><Link to={`/notes/${note.id}`}><span className="type-pill">Note</span><h3>{note.title || "Untitled note"}</h3><p>{stripHtml(note.content).slice(0, 150) || "No written content yet."}</p></Link><footer><span>{new Date(note.updatedAt || note.entryDate).toLocaleDateString()}</span><label>Move to<select value={folderId} onChange={event => moveNote(note, event.target.value)}><option value="">All Notes</option>{folders.filter(item => item.id !== folderId && !item.isArchived).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></footer></article>)}</div>)}
     </section>
   </div>;
 }

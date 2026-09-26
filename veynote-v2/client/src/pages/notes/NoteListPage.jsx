@@ -21,13 +21,16 @@ function noteDate(note) { return new Date(note.updatedAt || note.entryDate); }
 
 function RecordCard({ note, scope, view, onFavorite, onRestore, onUnarchive, onDelete }) {
   const body = stripHtml(note.content);
-  return <article className={`note-record ${view === "list" ? "is-list" : ""}`}>
-    <Link to={scope === "trash" ? "#" : note.kind === "JOURNAL" ? `/journal/entries/${note.id}` : `/notes/${note.id}`} onClick={event => scope === "trash" && event.preventDefault()}>
-      <div className="note-record-top"><span className="type-pill">{note.kind === "JOURNAL" ? "Journal" : note.isPinned ? "Pinned note" : "Note"}</span><time>{noteDate(note).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</time></div>
-      <h2>{note.title || "Untitled note"}</h2><p>{body.slice(0, 190) || "No writing has been added yet."}</p>
-    </Link>
+  const trashed = scope === "trash";
+  const stamp = trashed ? note.trashedAt || note.updatedAt : note.updatedAt || note.entryDate;
+  const preview = <>
+    <div className="note-record-top"><span className="type-pill">{note.kind === "JOURNAL" ? "Journal" : note.isPinned && !trashed ? "Pinned note" : "Note"}</span><time dateTime={stamp}>{trashed ? "Deleted " : ""}{new Date(stamp).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</time></div>
+    <h2>{note.title || "Untitled note"}</h2><p>{body.slice(0, 190) || "No writing has been added yet."}</p>
+  </>;
+  return <article className={`note-record ${view === "list" ? "is-list" : ""} ${trashed || scope === "archive" ? "is-recovery" : ""}`}>
+    {trashed ? <div className="note-record-content">{preview}</div> : <Link to={note.kind === "JOURNAL" ? `/journal/entries/${note.id}` : `/notes/${note.id}`}>{preview}</Link>}
     <footer>
-      <div>{note.folder && <span><NavigationIcon name="folder" size={13} />{note.folder.name}</span>}{note.tags?.slice(0, 3).map(tag => <i key={tag}>#{tag}</i>)}</div>
+      <div>{trashed ? <span><NavigationIcon name="folder" size={13} />From {note.folder?.name || (note.kind === "JOURNAL" ? "Journal" : "Notes")}</span> : note.folder && <span><NavigationIcon name="folder" size={13} />{note.folder.name}</span>}{note.tags?.slice(0, 3).map(tag => <i key={tag}>#{tag}</i>)}</div>
       {scope === "trash" ? <div className="note-record-actions"><button type="button" onClick={() => onRestore(note)}>Restore</button><button type="button" className="is-danger" onClick={() => onDelete(note)}>Delete permanently</button></div> : scope === "archive" ? <div className="note-record-actions"><button type="button" onClick={() => onUnarchive(note)}>Restore from archive</button></div> : <button type="button" className={`favorite-control ${note.isFavorite ? "is-active" : ""}`} onClick={() => onFavorite(note)} aria-label={note.isFavorite ? "Remove from favorites" : "Add to favorites"}><NavigationIcon name="heart" size={17} /></button>}
     </footer>
   </article>;
@@ -45,10 +48,12 @@ export default function NoteListPage({ scope }) {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [actionFeedback, setActionFeedback] = useState("");
   const copy = SCOPE_COPY[scope];
   const folderId = params.folderId;
   const tag = params.tag;
 
+  useEffect(() => { if (scope === "search") setQ(searchParams.get("q") || ""); }, [scope, searchParams]);
   useEffect(() => { const timer = setTimeout(() => setSearchQuery(q), 200); return () => clearTimeout(timer); }, [q]);
   const query = { scope: ["favorites", "archive", "trash"].includes(scope) ? scope : "all" };
   if (["favorites", "archive", "trash", "tag", "search"].includes(scope)) query.kind = "ALL";
@@ -77,18 +82,18 @@ export default function NoteListPage({ scope }) {
     });
   }, [notes, filterText, sort]);
 
-  async function runAction(action) {
-    setActionError("");
-    try { await action(); result.refresh().catch(() => {}); }
+  async function runAction(action, success) {
+    setActionError(""); setActionFeedback("");
+    try { await action(); setActionFeedback(success); result.refresh().catch(error => setActionError(`The change was saved, but this collection could not refresh: ${error.message}`)); }
     catch (error) { setActionError(error.message || "The record could not be updated. Please try again."); }
   }
-  function toggleFavorite(note) { return runAction(() => api.patch(`/notes/${note.id}`, { isFavorite: !note.isFavorite })); }
-  function restoreNote(note) { return runAction(() => api.post(`/notes/${note.id}/restore`)); }
-  function unarchiveNote(note) { return runAction(() => api.patch(`/notes/${note.id}`, { isArchived: false })); }
+  function toggleFavorite(note) { return runAction(() => api.patch(`/notes/${note.id}`, { isFavorite: !note.isFavorite }), note.isFavorite ? "Removed from favorites." : "Added to favorites."); }
+  function restoreNote(note) { return runAction(() => api.post(`/notes/${note.id}/restore`), "Record restored from Trash."); }
+  function unarchiveNote(note) { return runAction(() => api.patch(`/notes/${note.id}`, { isArchived: false }), "Record restored from Archive."); }
   async function deleteForever() {
     if (!pendingDelete) return;
     setDeleting(true);
-    try { await api.delete(`/notes/${pendingDelete.id}`); setPendingDelete(null); setActionError(""); result.refresh().catch(() => {}); }
+    try { await api.delete(`/notes/${pendingDelete.id}`); setPendingDelete(null); setActionError(""); setActionFeedback("Record permanently deleted."); result.refresh().catch(error => setActionError(`The record was deleted, but this collection could not refresh: ${error.message}`)); }
     catch (error) { setActionError(error.message || "The note could not be deleted."); }
     finally { setDeleting(false); }
   }
@@ -96,19 +101,21 @@ export default function NoteListPage({ scope }) {
   const title = scope === "folder" ? folder?.name || "Folder" : scope === "tag" ? `#${tag}` : copy.title;
   const searchValue = scope === "search" ? q : filterText;
   const setSearchValue = value => {
-    if (scope === "search") { setQ(value); setSearchParams(value ? { q: value } : {}); }
+    if (scope === "search") { setQ(value); setSearchParams(value ? { q: value } : {}, { replace: true }); }
     else setFilterText(value);
   };
+  const hasFilter = Boolean(searchValue.trim());
 
   return <div className="note-collection">
     <header className="product-page-header">
       <div><span className="eyebrow">{copy.eyebrow}</span><h1 className="page-title">{title}</h1><p>{copy.description}</p></div>
-      <Link to="/notes/new" className="btn-primary"><NavigationIcon name="plus" size={16} /> New note</Link>
+      <Link to={scope === "archive" || scope === "trash" ? "/notes/all" : "/notes/new"} className="btn-primary"><NavigationIcon name={scope === "archive" || scope === "trash" ? "note" : "plus"} size={16} /> {scope === "archive" || scope === "trash" ? "All notes" : "New note"}</Link>
     </header>
 
     {scope === "trash" && <div className="retention-notice"><NavigationIcon name="clock" size={18} /><div><strong>Recoverable until you delete permanently</strong><span>Restore anything you still need. Permanent deletion cannot be undone.</span></div></div>}
     {result.error && <div className="inline-error" role="alert"><span>{result.error.message}</span><button type="button" onClick={() => result.refresh().catch(() => {})}>Retry</button></div>}
     {actionError && <div className="inline-error" role="alert"><span>{actionError}</span><button type="button" onClick={() => setActionError("")}>Dismiss</button></div>}
+    {actionFeedback && <div className="collection-feedback" role="status"><span>{actionFeedback}</span><button type="button" onClick={() => setActionFeedback("")} aria-label="Dismiss confirmation">×</button></div>}
 
     <div className="collection-toolbar">
       <label><NavigationIcon name="search" size={17} /><input value={searchValue} onChange={event => setSearchValue(event.target.value)} placeholder={scope === "search" ? "Search title, writing, or tags…" : "Filter this collection…"} autoFocus={scope === "search"} /></label>
@@ -118,7 +125,7 @@ export default function NoteListPage({ scope }) {
 
     <div className="collection-summary"><span>{notes ? `${visibleNotes.length} ${visibleNotes.length === 1 ? "record" : "records"}` : "Preparing records"}</span>{filterText && notes && <small>{notes.length - visibleNotes.length} hidden by filter</small>}</div>
 
-    {notes === null ? !result.error && <p className="collection-inline-status" role="status">Checking this collection…</p> : visibleNotes.length === 0 ? <EmptyState icon={scope === "trash" ? "⌫" : "✦"} title={filterText ? "No matching records" : copy.empty} description={filterText ? "Clear the filter or try a different phrase." : copy.emptyDesc} action={filterText ? <button className="btn-outline" onClick={() => setFilterText("")}>Clear filter</button> : undefined} /> : <div className={`note-records ${view === "list" ? "is-list" : ""}`}>{visibleNotes.map(note => <RecordCard key={note.id} note={note} scope={scope} view={view} onFavorite={toggleFavorite} onRestore={restoreNote} onUnarchive={unarchiveNote} onDelete={setPendingDelete} />)}</div>}
+    {notes !== null && (visibleNotes.length === 0 ? <EmptyState icon={scope === "trash" ? "⌫" : "✦"} title={hasFilter ? "No matching records" : copy.empty} description={hasFilter ? "Clear the filter or try a different phrase." : copy.emptyDesc} action={hasFilter ? <button className="btn-outline" onClick={() => setSearchValue("")}>Clear search</button> : undefined} /> : <div className={`note-records ${view === "list" ? "is-list" : ""}`}>{visibleNotes.map(note => <RecordCard key={note.id} note={note} scope={scope} view={view} onFavorite={toggleFavorite} onRestore={restoreNote} onUnarchive={unarchiveNote} onDelete={setPendingDelete} />)}</div>)}
 
     <ConfirmDialog open={Boolean(pendingDelete)} title="Delete this note permanently?" description={`“${pendingDelete?.title || "Untitled note"}” will be removed immediately and cannot be restored.`} confirmLabel="Delete permanently" busy={deleting} onClose={() => !deleting && setPendingDelete(null)} onConfirm={deleteForever} />
   </div>;

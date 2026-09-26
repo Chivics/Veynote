@@ -1,4 +1,3 @@
-import PageSkeleton from "../../components/PageSkeleton.jsx";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
@@ -21,43 +20,53 @@ export default function Folders() {
   const [showImporter, setShowImporter] = useState(false);
   const [importFolderId, setImportFolderId] = useState("");
   const [importError, setImportError] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [actionError, setActionError] = useState("");
   const [pendingDelete, setPendingDelete] = useState(null);
   const importInputRef = useRef(null);
   const displayedFolders = folders?.filter(folder => !folder.parentId) ?? null;
 
   function load() {
-    api.get("/folders", { archived: showArchived ? "true" : undefined }).then((d) => setFolders(d.folders));
+    setLoadError("");
+    api.get("/folders", { archived: showArchived ? "true" : undefined }).then((d) => setFolders(d.folders))
+      .catch(error => setLoadError(error.message || "Folders could not be opened."));
   }
 
-  useEffect(load, [showArchived]);
+  useEffect(() => {
+    setFolders(api.peek("/folders", { archived: showArchived ? "true" : undefined })?.folders ?? null);
+    load();
+  }, [showArchived]);
 
   async function createFolder(e) {
     e.preventDefault();
     if (!name.trim()) return;
-    await api.post("/folders", { name, color, icon: "📁" });
-    setName("");
-    setCreating(false);
-    load();
+    try {
+      await api.post("/folders", { name, color, icon: "📁" });
+      setName(""); setCreating(false); setActionError(""); load();
+    } catch (error) { setActionError(error.message || "This folder could not be created."); }
   }
 
   async function rename(folder) {
     if (!renameValue.trim()) return;
-    await api.patch(`/folders/${folder.id}`, { name: renameValue.trim() });
-    setRenamingId(null);
-    load();
+    try {
+      await api.patch(`/folders/${folder.id}`, { name: renameValue.trim() });
+      setRenamingId(null); setActionError(""); load();
+    } catch (error) { setActionError(error.message || "This folder could not be renamed."); }
   }
 
   async function remove() {
     if (!pendingDelete) return;
-    await api.delete(`/folders/${pendingDelete.id}`);
-    setPendingDelete(null);
-    load();
+    try {
+      await api.delete(`/folders/${pendingDelete.id}`);
+      setPendingDelete(null); setActionError(""); load();
+    } catch (error) { setActionError(error.message || "This folder could not be deleted."); }
   }
 
   async function toggleArchive(folder) {
-    await api.patch(`/folders/${folder.id}`, { isArchived: !folder.isArchived });
-    setMenuOpenId(null);
-    load();
+    try {
+      await api.patch(`/folders/${folder.id}`, { isArchived: !folder.isArchived });
+      setMenuOpenId(null); setActionError(""); load();
+    } catch (error) { setActionError(error.message || "This folder could not be updated."); }
   }
 
   // "Import from device" is deliberately a different action from "Create
@@ -104,6 +113,7 @@ export default function Folders() {
         </div>
       </div>
       <input ref={importInputRef} type="file" multiple className="hidden" onChange={handleImport} />
+      {(loadError || actionError) && <div className="inline-error" role="alert"><span>{actionError || loadError}</span><button type="button" onClick={() => { setActionError(""); load(); }}>Retry</button></div>}
 
       {showImporter && <section className="folder-importer" aria-labelledby="folder-import-title">
         <div className="folder-importer-icon"><NavigationIcon name="files" size={22} /></div>
@@ -161,9 +171,7 @@ export default function Folders() {
         </form>
       )}
 
-      {folders === null ? (
-        <PageSkeleton compact />
-      ) : displayedFolders.length === 0 && !creating ? (
+      {folders === null ? null : displayedFolders.length === 0 && !creating ? (
         showArchived ? (
           <EmptyState icon="🗄️" title="No archived folders" description="Folders you archive will show up here." />
         ) : (
