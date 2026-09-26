@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import InstallApp from "../../components/InstallApp";
-import AuthFrame, { GoogleIcon } from "../../components/auth/AuthFrame";
-import { API_BASE } from "../../api/client";
-import useAuthMethods from "../../components/auth/useAuthMethods";
+import AuthFrame, { GoogleIcon, PasskeyIcon } from "../../components/auth/AuthFrame";
+import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
+import { startGoogleSignIn } from "../../components/auth/startGoogleSignIn";
 
 const callbackErrors = {
   google_disabled: "Google sign-in is unavailable right now. Please use your email and password.",
@@ -14,7 +13,7 @@ const callbackErrors = {
 
 export default function Login() {
   const { login, loginWithPasskey, user } = useAuth();
-  const methods = useAuthMethods();
+  const passkeySupported = browserSupportsWebAuthn();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [email, setEmail] = useState("");
@@ -42,7 +41,11 @@ export default function Login() {
 
   async function handlePasskey() {
     if (loading) return;
-    if (!email.trim()) return setError("Enter your email address before using a passkey.");
+    if (!passkeySupported) return setError("This browser or device cannot use passkeys. Use Google or your password instead.");
+    if (!email.trim()) {
+      document.getElementById("login-email")?.focus();
+      return setError("Enter your email address below, then choose Continue with Passkey.");
+    }
     setError("");
     setCallbackError("");
     setLoading(true);
@@ -58,11 +61,28 @@ export default function Login() {
     }
   }
 
+  async function handleGoogle() {
+    if (loading) return;
+    setError("");
+    setCallbackError("");
+    setLoading(true);
+    try {
+      await startGoogleSignIn();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   if (user) return <Navigate to="/" replace />;
   return <AuthFrame title="Welcome back." description="Your work is right where you left it.">
-    {methods.google && <><div className="auth-methods">
-      <button type="button" className="auth-provider" onClick={() => { window.location.href = `${API_BASE}/auth/google`; }} disabled={loading}><GoogleIcon /> Continue with Google</button>
-    </div><div className="auth-divider"><span>or continue with email</span></div></>}
+    <div className="auth-methods">
+      <button type="button" className="auth-provider" onClick={handleGoogle} disabled={loading}><GoogleIcon /> Continue with Google</button>
+      <button type="button" className="auth-provider" onClick={handlePasskey} disabled={loading}><PasskeyIcon /> Continue with Passkey</button>
+    </div>
+    <div className="auth-divider"><span>or continue with email</span></div>
+    {(error || callbackError) && <p className="auth-form-error" role="alert">{error || callbackError}</p>}
     <form onSubmit={handleSubmit} className="auth-form">
       <label htmlFor="login-email">Email address</label>
       <input id="login-email" type="email" autoComplete="username" inputMode="email" placeholder="you@example.com" value={email} onChange={(event) => { setEmail(event.target.value); setCallbackError(""); }} required maxLength={254} />
@@ -71,12 +91,9 @@ export default function Login() {
         <input id="login-password" type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Enter your password" value={password} onChange={(event) => setPassword(event.target.value)} required />
         <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? "Hide" : "Show"}</button>
       </div>
-      {(error || callbackError) && <p className="auth-form-error" role="alert">{error || callbackError}</p>}
       <button type="submit" className="auth-submit" disabled={loading}>{loading ? "Signing in…" : "Log in"}</button>
-      {methods.passkey && <button type="button" className="auth-passkey" onClick={handlePasskey} disabled={loading}>Continue with passkey <span aria-hidden="true">↗</span></button>}
     </form>
     <p className="auth-switch">New to Veynote? <Link to="/signup">Create an account</Link></p>
     <p className="auth-session-note">Your sign-in remains on this device until you sign out or revoke the session in Settings.</p>
-    <InstallApp />
   </AuthFrame>;
 }

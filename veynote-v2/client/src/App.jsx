@@ -54,6 +54,7 @@ import TradingRuleDetail from "./pages/trading/TradingRuleDetail";
 import Settings from "./pages/Settings";
 import ConnectionStatus from "./components/ConnectionStatus";
 import StartupSplash from "./components/StartupSplash";
+import InstallApp from "./components/InstallApp";
 
 function RootRedirect() {
   const { user } = useAuth();
@@ -66,6 +67,7 @@ function AppContent() {
   return (
     <>
       <ConnectionStatus />
+      <InstallApp />
       <Routes>
         {/* -- Public / auth -- */}
         <Route path="/login" element={<Login />} />

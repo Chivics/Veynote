@@ -9,7 +9,7 @@ const { requireAuth } = require("../middleware/auth");
 const { userPublic } = require("../utils/userPublic");
 const { asyncHandler } = require("../middleware/asyncHandler");
 const { createAuthLimiter } = require("../middleware/authRateLimit");
-const { generateAuthenticationOptions, verifyAuthenticationResponse } = require("@simplewebauthn/server");
+const { generateAuthenticationOptions, verifyAuthenticationResponse, generateRegistrationOptions, verifyRegistrationResponse } = require("@simplewebauthn/server");
 const { consumeChallenge } = require("../utils/webauthnChallenge");
 
 const router = express.Router();
@@ -189,6 +189,112 @@ router.post("/passkey/verify", asyncHandler(async (req, res) => {
   const token = signToken(user.id, user.sessionGeneration);
   await authorizeSession(prisma, token, verifyToken(token), req.headers["user-agent"]);
   res.json({ token, user: userPublic(user) });
+}));
+
+// Signup can add an account-only passkey after password reauthentication.
+// This credential cannot unlock Locked Notes until the owner independently
+// unlocks that vault and explicitly enables the additional scope.
+router.post("/passkey/register/options", requireAuth, createAuthLimiter({ authenticated: true }), asyncHandler(async (req, res) => {
+  const password = req.body?.password;
+  if (typeof password !== "string" || !password || password.length > 4096) {
+    return res.status(400).json({ error: "Enter your account password to add a passkey." });
+  }
+  const user = await prisma.user.findUnique({ where: { id: req.userId } });
+  if (!user?.passwordHash || !await bcrypt.compare(password, user.passwordHash)) {
+    return res.status(401).json({ error: "Your account password is incorrect." });
+  }
+  const existing = await prisma.webAuthnCredential.findMany({ where: { userId: user.id } });
+  const { rpID } = passkeyConfig();
+  const options = await generateRegistrationOptions({
+    rpName: "Veynote",
+    rpID,
+    userName: user.email,
+    userID: new TextEncoder().encode(user.id),
+    userDisplayName: user.name,
+    attestationType: "none",
+    excludeCredentials: existing.map((credential) => ({
+      id: credential.credentialId,
+      transports: credential.transports ? JSON.parse(credential.transports) : undefined,
+    })),
+    authenticatorSelection: { residentKey: "preferred", userVerification: "required" },
+  });
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      webauthnChallenge: JSON.stringify({ challenge: options.challenge, purpose: "account-register", noteId: null }),
+      webauthnChallengeExpiresAt: new Date(Date.now() + PASSKEY_CHALLENGE_TTL_MS),
+    },
+  });
+  res.json(options);
+}));
+
+router.post("/passkey/register/verify", requireAuth, createAuthLimiter({ authenticated: true }), asyncHandler(async (req, res) => {
+  const expectedChallenge = await consumeChallenge(prisma, req.userId, "account-register");
+  if (!expectedChallenge) return res.status(400).json({ error: "That passkey setup expired. Try again." });
+  if (!req.body?.response || typeof req.body.response.id !== "string") {
+    return res.status(400).json({ error: "Start a new passkey setup attempt." });
+  }
+  const { rpID, origin } = passkeyConfig();
+  let verification;
+  try {
+    verification = await verifyRegistrationResponse({
+      response: req.body.response,
+      expectedChallenge,
+      expectedOrigin: origin,
+      expectedRPID: rpID,
+      requireUserVerification: true,
+    });
+  } catch {
+    return res.status(400).json({ error: "The device could not verify this passkey. Try again." });
+  }
+  if (!verification.verified || !verification.registrationInfo) {
+    return res.status(400).json({ error: "The device could not verify this passkey. Try again." });
+  }
+  const { credential } = verification.registrationInfo;
+  const label = req.body.deviceLabel;
+  const saved = await prisma.webAuthnCredential.create({
+    data: {
+      userId: req.userId,
+      credentialId: credential.id,
+      publicKey: Buffer.from(credential.publicKey),
+      counter: credential.counter,
+      transports: credential.transports ? JSON.stringify(credential.transports) : null,
+      deviceLabel: typeof label === "string" ? label.slice(0, 100) : null,
+      accountEnabledAt: new Date(),
+      vaultEnabled: false,
+    },
+  });
+  res.status(201).json({ credential: { id: saved.id, deviceLabel: saved.deviceLabel, createdAt: saved.createdAt, accountEnabledAt: saved.accountEnabledAt } });
+}));
+
+router.get("/passkey/credentials", requireAuth, asyncHandler(async (req, res) => {
+  const credentials = await prisma.webAuthnCredential.findMany({
+    where: { userId: req.userId, accountEnabledAt: { not: null } },
+    select: { id: true, deviceLabel: true, createdAt: true, vaultEnabled: true },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json({ credentials });
+}));
+
+router.post("/passkey/credentials/:id/remove-signin", requireAuth, createAuthLimiter({ authenticated: true }), asyncHandler(async (req, res) => {
+  const password = req.body?.password;
+  if (typeof password !== "string" || !password || password.length > 4096) {
+    return res.status(400).json({ error: "Enter your account password to remove passkey sign-in." });
+  }
+  const user = await prisma.user.findUnique({ where: { id: req.userId } });
+  if (!user?.passwordHash || !await bcrypt.compare(password, user.passwordHash)) {
+    return res.status(401).json({ error: "Your account password is incorrect." });
+  }
+  const credential = await prisma.webAuthnCredential.findFirst({
+    where: { id: req.params.id, userId: req.userId, accountEnabledAt: { not: null } },
+  });
+  if (!credential) return res.status(404).json({ error: "Passkey not found." });
+  if (credential.vaultEnabled) {
+    await prisma.webAuthnCredential.update({ where: { id: credential.id }, data: { accountEnabledAt: null } });
+  } else {
+    await prisma.webAuthnCredential.delete({ where: { id: credential.id } });
+  }
+  res.json({ ok: true });
 }));
 
 // -- Google SSO -------------------------------------------------------------

@@ -70,6 +70,19 @@ function SecurityPanel() {
     }
   }
 
+  async function enableVault(id) {
+    setBusy(true);
+    setError("");
+    try {
+      const { credential } = await api.post(`/webauthn/credentials/${id}/enable-vault`, {});
+      setCredentials((previous) => previous.map((entry) => entry.id === id ? credential : entry));
+    } catch (err) {
+      setError(err.message || "Vault access could not be enabled for this passkey.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function changePassword(e) {
     e.preventDefault();
     setError("");
@@ -108,8 +121,8 @@ function SecurityPanel() {
                   <div className="flex flex-col gap-1.5 mb-2">
                     {credentials.map((c) => (
                       <div key={c.id} className="flex items-center justify-between text-[11.5px]">
-                        <span>{c.deviceLabel || "Unnamed device"} <small className="text-ink-muted">· {c.accountEnabledAt ? "Sign-in enabled" : "Vault only"}</small></span>
-                        <span className="flex items-center gap-2">{!c.accountEnabledAt && <button type="button" disabled={busy} onClick={() => enableSignIn(c.id)} className="text-accent-notes font-semibold">Enable sign-in</button>}<button type="button" disabled={busy} onClick={() => removePasskey(c.id)} className="text-danger font-semibold">Remove</button></span>
+                        <span>{c.deviceLabel || "Unnamed device"} <small className="text-ink-muted">· {c.accountEnabledAt ? "Sign-in" : "No sign-in"} · {c.vaultEnabled ? "Vault" : "No vault access"}</small></span>
+                        <span className="flex items-center gap-2">{!c.accountEnabledAt && <button type="button" disabled={busy} onClick={() => enableSignIn(c.id)} className="text-accent-notes font-semibold">Enable sign-in</button>}{!c.vaultEnabled && <button type="button" disabled={busy} onClick={() => enableVault(c.id)} className="text-accent-notes font-semibold">Enable vault</button>}<button type="button" disabled={busy} onClick={() => removePasskey(c.id)} className="text-danger font-semibold">Remove</button></span>
                       </div>
                     ))}
                   </div>

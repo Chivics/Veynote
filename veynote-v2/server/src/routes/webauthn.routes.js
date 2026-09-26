@@ -46,7 +46,7 @@ const consumeChallenge = (userId, purpose, noteId) => consumeStoredChallenge(pri
 router.get("/credentials", asyncHandler(async (req, res) => {
   const credentials = await prisma.webAuthnCredential.findMany({
     where: { userId: req.userId },
-    select: { id: true, deviceLabel: true, createdAt: true, accountEnabledAt: true },
+    select: { id: true, deviceLabel: true, createdAt: true, accountEnabledAt: true, vaultEnabled: true },
     orderBy: { createdAt: "desc" },
   });
   res.json({ credentials });
@@ -71,7 +71,17 @@ router.post("/credentials/:id/enable-signin", asyncHandler(async (req, res) => {
   const updated = await prisma.webAuthnCredential.update({
     where: { id: credential.id }, data: { accountEnabledAt: credential.accountEnabledAt || new Date() },
   });
-  res.json({ credential: { id: updated.id, deviceLabel: updated.deviceLabel, createdAt: updated.createdAt, accountEnabledAt: updated.accountEnabledAt } });
+  res.json({ credential: { id: updated.id, deviceLabel: updated.deviceLabel, createdAt: updated.createdAt, accountEnabledAt: updated.accountEnabledAt, vaultEnabled: updated.vaultEnabled } });
+}));
+
+router.post("/credentials/:id/enable-vault", asyncHandler(async (req, res) => {
+  if (!hasValidVaultAccess(req, "vault")) {
+    return res.status(401).json({ error: "Unlock Locked Notes first.", requiresVault: "locked-notes" });
+  }
+  const credential = await prisma.webAuthnCredential.findFirst({ where: { id: req.params.id, userId: req.userId } });
+  if (!credential) return res.status(404).json({ error: "Passkey not found." });
+  const updated = await prisma.webAuthnCredential.update({ where: { id: credential.id }, data: { vaultEnabled: true } });
+  res.json({ credential: { id: updated.id, deviceLabel: updated.deviceLabel, createdAt: updated.createdAt, accountEnabledAt: updated.accountEnabledAt, vaultEnabled: updated.vaultEnabled } });
 }));
 
 // POST /api/webauthn/register/options
@@ -142,10 +152,11 @@ router.post("/register/verify", asyncHandler(async (req, res) => {
       transports: credential.transports ? JSON.stringify(credential.transports) : null,
       deviceLabel: req.body.deviceLabel?.slice(0, 100) || null,
       accountEnabledAt: req.body.enableAccountSignIn === true ? new Date() : null,
+      vaultEnabled: true,
     },
   });
 
-  res.status(201).json({ credential: { id: saved.id, deviceLabel: saved.deviceLabel, createdAt: saved.createdAt, accountEnabledAt: saved.accountEnabledAt } });
+  res.status(201).json({ credential: { id: saved.id, deviceLabel: saved.deviceLabel, createdAt: saved.createdAt, accountEnabledAt: saved.accountEnabledAt, vaultEnabled: saved.vaultEnabled } });
 }));
 
 // POST /api/webauthn/authenticate/options
@@ -156,7 +167,7 @@ router.post("/authenticate/options", asyncHandler(async (req, res) => {
     const note = await prisma.note.findFirst({ where: { id: noteId, userId: req.userId, isLocked: true, isWill: false } });
     if (!note) return res.status(404).json({ error: "Locked note not found." });
   }
-  const credentials = await prisma.webAuthnCredential.findMany({ where: { userId: req.userId } });
+  const credentials = await prisma.webAuthnCredential.findMany({ where: { userId: req.userId, vaultEnabled: true } });
   if (credentials.length === 0) {
     return res.status(400).json({ error: "No passkey is set up yet — use your password instead." });
   }
@@ -179,7 +190,7 @@ router.post("/authenticate/verify", asyncHandler(async (req, res) => {
   if (!expectedChallenge) return res.status(400).json({ error: "That unlock attempt expired — try again." });
 
   const stored = await prisma.webAuthnCredential.findFirst({
-    where: { userId: req.userId, credentialId: req.body.response?.id },
+    where: { userId: req.userId, credentialId: req.body.response?.id, vaultEnabled: true },
   });
   if (!stored) return res.status(400).json({ error: "That passkey isn't registered on this account." });
 

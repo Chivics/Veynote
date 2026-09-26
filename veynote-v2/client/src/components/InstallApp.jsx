@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 
 const DISMISS_KEY = "veynote_install_dismissed_at";
 const DISMISS_FOR = 1000 * 60 * 60 * 24 * 30;
@@ -8,10 +9,17 @@ function isInstalled() {
 }
 
 export default function InstallApp() {
+  const { pathname } = useLocation();
   const [prompt, setPrompt] = useState(() => window.__veynoteInstallPrompt || null);
   const [installed, setInstalled] = useState(isInstalled);
   const [dismissed, setDismissed] = useState(() => Date.now() - Number(localStorage.getItem(DISMISS_KEY) || 0) < DISMISS_FOR);
   const [error, setError] = useState("");
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setReady(true), 1500);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const ready = () => setPrompt(window.__veynoteInstallPrompt || null);
@@ -21,7 +29,7 @@ export default function InstallApp() {
     return () => { window.removeEventListener("veynote:install-available", ready); window.removeEventListener("veynote:installed", done); };
   }, []);
 
-  if (installed || dismissed || !prompt) return null;
+  if (installed || dismissed || !prompt || !ready || pathname.startsWith("/shared/") || pathname === "/auth/callback") return null;
 
   async function install() {
     try {
@@ -38,14 +46,14 @@ export default function InstallApp() {
     setDismissed(true);
   }
 
-  return <section className="install-app-card" aria-labelledby="install-veynote-title">
+  return <aside className="install-app-card" role="dialog" aria-modal="false" aria-labelledby="install-veynote-title">
     <div className="install-app-mark"><img src="/logo.png" alt="" /></div>
     <div className="install-app-copy">
-      <span className="eyebrow">Installable workspace</span>
+      <span className="eyebrow">Your workspace, one tap away</span>
       <h2 id="install-veynote-title">Install Veynote</h2>
-      <p>Open your workspace faster and use Veynote in its own app window.</p>
+      <p>Open Veynote from your apps in its own focused window.</p>
       {error && <p className="install-app-error" role="alert">{error}</p>}
     </div>
     <div className="install-app-actions"><button type="button" onClick={dismiss}>Not now</button><button type="button" onClick={install}>Install</button></div>
-  </section>;
+  </aside>;
 }

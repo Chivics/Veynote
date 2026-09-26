@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../api/client";
-import InstallApp from "../components/InstallApp";
 import SessionPanel from "../components/SessionPanel";
+import AccountPasskeys from "../components/AccountPasskeys";
 
 const TABS = ["Profile", "Preferences", "Security"];
 
@@ -42,7 +42,6 @@ export default function Settings() {
     <div>
       <span className="eyebrow">ACCOUNT</span>
       <h1 className="page-title text-[30px] tracking-tight my-1.5 mb-6">Settings</h1>
-      <div className="mb-6"><InstallApp /></div>
       <div role="status" className="text-sm mb-3">{saving ? "Saving preferences…" : saved ? "Saved" : ""}</div>
       {saveError && <p role="alert" className="text-danger mb-3">{saveError} Your preference was not saved. Try the control again.</p>}
 
@@ -112,14 +111,14 @@ export default function Settings() {
           </>
         )}
 
-        {tab === "Security" && <><ChangePasswordSection hasPassword={user?.hasPassword} /><SettingRow title="Passkeys" desc="Use your device's fingerprint, face, or PIN for protected notes, and optionally for account sign-in. Unlock Locked Notes to manage them."><Link to="/notes/locked" className="btn-outline">Manage passkeys</Link></SettingRow><SessionPanel /></>}
+        {tab === "Security" && <><ChangePasswordSection hasPassword={user?.hasPassword} /><AccountPasskeys /><SettingRow title="Locked Notes passkeys" desc="Use a passkey to unlock protected notes. Locked Notes access is managed separately from account sign-in."><Link to="/notes/locked" className="btn-outline">Open Locked Notes</Link></SettingRow><SessionPanel /></>}
       </div>
     </div>
   );
 }
 
 function ChangePasswordSection({ hasPassword }) {
-  const { replaceSessionToken } = useAuth();
+  const { replaceSessionToken, refresh } = useAuth();
   const [open, setOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -140,6 +139,7 @@ function ChangePasswordSection({ hasPassword }) {
         confirmPassword,
       });
       if (token) replaceSessionToken(token);
+      await refresh({ block: false });
       setSuccess(message || "Password updated.");
       setCurrentPassword("");
       setNewPassword("");

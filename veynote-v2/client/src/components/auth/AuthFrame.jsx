@@ -43,3 +43,11 @@ export function GoogleIcon() {
     <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.6 5.6C41.5 36.5 44 30.7 44 24c0-1.3-.1-2.7-.4-3.5z" />
   </svg>;
 }
+
+export function PasskeyIcon() {
+  return <svg className="auth-passkey-icon" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 3a8 8 0 0 0-8 8v2" /><path d="M20 13v-2a8 8 0 0 0-8-8" />
+    <path d="M7 14v-3a5 5 0 0 1 10 0v3" /><path d="M10 16v-5a2 2 0 0 1 4 0v6" />
+    <path d="M5 16c.5 2.4 1.8 4.2 3.9 5" /><path d="M18.8 17c-.5 2-1.7 3.4-3.3 4" /><path d="M12 18v3" />
+  </svg>;
+}

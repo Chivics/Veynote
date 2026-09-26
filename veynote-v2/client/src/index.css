@@ -1457,21 +1457,26 @@ body {
 :root[data-theme="light"] .mobile-drawer-backdrop { background: rgb(35 31 24 / .38); }
 :root[data-theme="light"] .mobile-bottom-nav { box-shadow: 0 18px 45px rgb(61 49 22 / .13), inset 0 1px rgb(255 255 255 / .8); }
 
-/* Installation and empty states share the same visual grammar. */
+/* Browser-triggered installation invitation, independent of page content. */
 .install-app-card {
-  position: relative; display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 14px;
-  margin-top: 18px; padding: 15px; overflow: hidden; border: 1px solid rgb(var(--accent-gold) / .28);
-  border-radius: 16px; background: radial-gradient(circle at 100% 0, rgb(var(--accent-gold) / .13), transparent 38%), rgb(var(--app-panel));
-  box-shadow: 0 16px 44px rgb(0 0 0 / .13), inset 0 1px rgb(255 255 255 / .04);
+  position: fixed; z-index: 120; right: max(22px, env(safe-area-inset-right)); bottom: max(22px, env(safe-area-inset-bottom));
+  width: min(410px, calc(100vw - 32px)); display: grid; grid-template-columns: 48px minmax(0,1fr); align-items: start; gap: 13px;
+  padding: 19px; border: 1px solid rgb(var(--accent-gold) / .32);
+  border-radius: 19px; background: radial-gradient(circle at 100% 0, rgb(var(--accent-gold) / .15), transparent 48%), rgb(var(--app-panel));
+  box-shadow: 0 22px 70px rgb(0 0 0 / .3), inset 0 1px rgb(255 255 255 / .06);
+  animation: install-app-arrive .32s cubic-bezier(.2,.8,.2,1) both;
 }
+@keyframes install-app-arrive { from { opacity:0; transform:translateY(14px) scale(.98); } to { opacity:1; transform:translateY(0) scale(1); } }
 .install-app-mark { width: 48px; height: 48px; display: grid; place-items: center; border: 1px solid rgb(var(--accent-gold) / .25); border-radius: 14px; background: rgb(var(--app-bg)); box-shadow: 0 9px 24px rgb(0 0 0 / .16); }
 .install-app-mark img { width: 35px; height: 35px; object-fit: contain; }
 .install-app-copy h2 { margin: 3px 0; font-family: "Fraunces", Georgia, serif; font-size: 16px; font-weight: 650; letter-spacing: -.02em; }
 .install-app-copy p { margin: 0; color: rgb(var(--ink-muted)); font-size: 10.5px; line-height: 1.55; }
 .install-app-copy .install-app-error { margin-top: 6px; color: rgb(var(--danger)); }
-.install-app-actions { display: flex; align-items: center; gap: 7px; }
+.install-app-actions { grid-column:1 / -1; display:flex; justify-content:flex-end; align-items:center; gap:7px; margin-top:1px; }
 .install-app-actions button { min-height: 38px; padding: 0 12px; border-radius: 10px; color: rgb(var(--ink-muted)); font-size: 10.5px; font-weight: 650; }
 .install-app-actions button:last-child { color: rgb(var(--app-bg)); background: rgb(var(--ink)); }
+.install-app-actions button:hover { filter:brightness(1.1); }
+@media (prefers-reduced-motion:reduce) { .install-app-card { animation:none; } }
 
 
 .empty-state { position: relative; min-height: 250px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; padding: 42px 22px; overflow: hidden; border: 1px dashed rgb(var(--app-border)); border-radius: 18px; text-align: center; background: radial-gradient(circle at 50% 0, rgb(var(--workspace-accent, var(--accent-notes)) / .07), transparent 48%), rgb(var(--app-panel) / .55); }
@@ -1482,7 +1487,8 @@ body {
 .empty-state-action { margin-top: 7px; }
 
 @media (max-width: 639px) {
-  .install-app-card { grid-template-columns: 42px 1fr; }
+  .install-app-card { left:16px; right:16px; bottom:calc(96px + env(safe-area-inset-bottom)); width:auto; grid-template-columns:42px minmax(0,1fr); padding:16px; }
+  body:has(.auth-experience) .install-app-card { bottom:calc(16px + env(safe-area-inset-bottom)); }
   .install-app-mark { width: 42px; height: 42px; border-radius: 12px; }
   .install-app-mark img { width: 31px; height: 31px; }
   .install-app-actions { grid-column: 1 / -1; justify-content: flex-end; }

@@ -684,6 +684,7 @@ model WebAuthnCredential {
   transports   String?  // JSON array, e.g. ["internal","hybrid"]
   deviceLabel  String?  // e.g. "Chrome on macOS" — set client-side at registration time
   accountEnabledAt DateTime? // null for passkeys registered before explicit account sign-in consent
+  vaultEnabled Boolean @default(true) // false for account-only credentials created during signup
   createdAt    DateTime @default(now())
 
   @@index([userId])
