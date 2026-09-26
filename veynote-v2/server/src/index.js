@@ -1,4 +1,5 @@
 require("dotenv").config();
+require("./utils/prismaBootstrap").ensurePrismaClient();
 const express = require("express");
 const passport = require("passport");
 const prisma = require("./lib/prisma");

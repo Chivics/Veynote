@@ -45,10 +45,11 @@ Edit `.env`:
   `GOOGLE_CALLBACK_URL` when using another public API URL. Leave the ID and secret blank to disable
   Google sign-in — email/password still works fully without it.
 
-For an existing deployment, the server's `npm start` path runs
-`prisma migrate deploy` before launching the API. Hostinger must use that npm
-start command; a custom command such as `node src/index.js` bypasses it and
-requires `npm run prisma:deploy` as a separate deployment step. The
+For an existing deployment, `npm start` runs `prisma migrate deploy` before
+launching the API. A Hostinger start command such as `node src/index.js` uses
+the API entrypoint's Prisma bootstrap: it regenerates Prisma Client on Linux
+before importing routes and runs pending migrations when
+`NODE_ENV=production`. The
 account-passkey migration adds a credential scope column: passkeys created
 during signup can sign in, while Locked Notes remains separately protected.
 Set `CLIENT_URL` to the exact frontend origin (`https://veynote.app` in
