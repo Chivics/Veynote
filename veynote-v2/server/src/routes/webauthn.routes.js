@@ -16,10 +16,9 @@ const router = express.Router();
 router.use(requireAuth);
 router.use(createAuthLimiter({ authenticated: true, limit: 40 }));
 
-// WebAuthn is scoped to Locked Notes only, as a faster unlock method
-// layered on top of the password — never a replacement for it. The
-// password must already be set up before a passkey can be registered,
-// so losing/replacing a device never permanently locks someone out.
+// WebAuthn registration requires Locked Notes access. A newly registered
+// passkey can also sign in only after the user explicitly chooses that scope.
+// Older vault-only credentials stay vault-only until the owner opts in.
 //
 // IMPORTANT DEPLOYMENT NOTE: WebAuthn only works over HTTPS, or on
 // "localhost" exactly, per the spec — not a bare IP address or a
@@ -47,7 +46,7 @@ const consumeChallenge = (userId, purpose, noteId) => consumeStoredChallenge(pri
 router.get("/credentials", asyncHandler(async (req, res) => {
   const credentials = await prisma.webAuthnCredential.findMany({
     where: { userId: req.userId },
-    select: { id: true, deviceLabel: true, createdAt: true },
+    select: { id: true, deviceLabel: true, createdAt: true, accountEnabledAt: true },
     orderBy: { createdAt: "desc" },
   });
   res.json({ credentials });
@@ -61,6 +60,18 @@ router.delete("/credentials/:id", asyncHandler(async (req, res) => {
   if (!credential) return res.status(404).json({ error: "Not found." });
   await prisma.webAuthnCredential.delete({ where: { id: credential.id } });
   res.json({ ok: true });
+}));
+
+router.post("/credentials/:id/enable-signin", asyncHandler(async (req, res) => {
+  if (!hasValidVaultAccess(req, "vault")) {
+    return res.status(401).json({ error: "Unlock Locked Notes first.", requiresVault: "locked-notes" });
+  }
+  const credential = await prisma.webAuthnCredential.findFirst({ where: { id: req.params.id, userId: req.userId } });
+  if (!credential) return res.status(404).json({ error: "Passkey not found." });
+  const updated = await prisma.webAuthnCredential.update({
+    where: { id: credential.id }, data: { accountEnabledAt: credential.accountEnabledAt || new Date() },
+  });
+  res.json({ credential: { id: updated.id, deviceLabel: updated.deviceLabel, createdAt: updated.createdAt, accountEnabledAt: updated.accountEnabledAt } });
 }));
 
 // POST /api/webauthn/register/options
@@ -130,10 +141,11 @@ router.post("/register/verify", asyncHandler(async (req, res) => {
       counter: credential.counter,
       transports: credential.transports ? JSON.stringify(credential.transports) : null,
       deviceLabel: req.body.deviceLabel?.slice(0, 100) || null,
+      accountEnabledAt: req.body.enableAccountSignIn === true ? new Date() : null,
     },
   });
 
-  res.status(201).json({ credential: { id: saved.id, deviceLabel: saved.deviceLabel, createdAt: saved.createdAt } });
+  res.status(201).json({ credential: { id: saved.id, deviceLabel: saved.deviceLabel, createdAt: saved.createdAt, accountEnabledAt: saved.accountEnabledAt } });
 }));
 
 // POST /api/webauthn/authenticate/options

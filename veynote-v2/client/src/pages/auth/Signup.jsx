@@ -1,108 +1,61 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import AuthFrame, { GoogleIcon } from "../../components/auth/AuthFrame";
 import { API_BASE } from "../../api/client";
+import useAuthMethods from "../../components/auth/useAuthMethods";
 
 export default function Signup() {
   const { register, user } = useAuth();
+  const methods = useAuthMethods();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  async function handleSubmit(event) {
+    event.preventDefault();
+    if (loading) return;
     setError("");
-    if (password !== confirm) {
-      setError("Passwords don't match.");
-      return;
-    }
+    if (password !== confirm) return setError("The passwords do not match. Check both fields and try again.");
+    if (new TextEncoder().encode(password).length > 72) return setError("Choose a password shorter than 72 UTF-8 bytes.");
     setLoading(true);
     try {
-      await register(name, email, password);
-      navigate("/pick-mode");
-    } catch (err) {
-      setError(err.message);
+      await register(name.trim(), email.trim(), password);
+      navigate("/pick-mode", { replace: true });
+    } catch (requestError) {
+      setError(requestError.message || "We couldn't create your account. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
   }
 
   if (user) return <Navigate to="/" replace />;
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-app-bg px-4">
-      <div className="w-full max-w-[340px] flex flex-col items-center gap-4">
-        <div className="w-[42px] h-[42px] mb-1 flex items-center justify-center"><img src="/logo.png" alt="Veynote" className="w-full h-full object-contain" /></div>
-        <h1 className="page-title text-[19px] font-bold m-0">Create your account</h1>
-
-        <button
-          onClick={() =>
-          (window.location.href = `${API_BASE}/auth/google`)
-          }
-          className="btn-outline w-full flex items-center justify-center gap-2"
-        >
-          Continue with Google
-        </button>
-
-        <div className="flex items-center gap-2.5 w-full text-ink-muted text-[10px]">
-          <div className="flex-1 h-px bg-app-border" />
-          or
-          <div className="flex-1 h-px bg-app-border" />
-        </div>
-
-        <form onSubmit={handleSubmit} className="w-full flex flex-col gap-3">
-          <input aria-label="Full name" autoComplete="name" className="input" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} required />
-          <input
-            className="input"
-            type="email"
-            aria-label="Email address"
-            autoComplete="username"
-            placeholder="you@email.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <input
-            className="input"
-            type="password"
-            placeholder="Password"
-            aria-label="Password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={8}
-          />
-          <input
-            className="input"
-            type="password"
-            placeholder="Confirm password"
-            aria-label="Confirm password"
-            autoComplete="new-password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            required
-          />
-          {error && <p role="alert" className="text-danger text-[11.5px] m-0">{error}</p>}
-          <button type="submit" disabled={loading} className="btn-primary justify-center disabled:opacity-60">
-            {loading ? "Creating account…" : "Create account"}
-          </button>
-        </form>
-
-        <p className="text-[11.5px] text-ink-muted m-0">
-          Already have an account?{" "}
-          <Link to="/login" className="text-[#c9c1ff] font-semibold">
-            Log in
-          </Link>
-        </p>
-        <p className="text-[10px] text-ink-muted text-center max-w-[280px] m-0">
-          One account, one login — you'll get full access to both Notes and Trading Journal, and
-          can switch between them anytime.
-        </p>
-      </div>
+  return <AuthFrame title="Make room for your ideas." description="Start a record that becomes more useful with time.">
+    {methods.google && <><div className="auth-methods">
+      <button type="button" className="auth-provider" onClick={() => { window.location.href = `${API_BASE}/auth/google`; }} disabled={loading}><GoogleIcon /> Continue with Google</button>
     </div>
-  );
+    <div className="auth-divider"><span>or continue with email</span></div></>}
+    <form onSubmit={handleSubmit} className="auth-form">
+      <label htmlFor="signup-name">Full name</label>
+      <input id="signup-name" autoComplete="name" placeholder="How should we address you?" value={name} onChange={(event) => setName(event.target.value)} required maxLength={120} />
+      <label htmlFor="signup-email">Email address</label>
+      <input id="signup-email" type="email" autoComplete="username" inputMode="email" placeholder="you@example.com" value={email} onChange={(event) => setEmail(event.target.value)} required maxLength={254} />
+      <label htmlFor="signup-password">Password <span>At least 8 characters</span></label>
+      <div className="auth-password-field">
+        <input id="signup-password" type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="Create a password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} />
+        <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? "Hide" : "Show"}</button>
+      </div>
+      <label htmlFor="signup-confirm">Confirm password</label>
+      <input id="signup-confirm" type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="Enter it once more" value={confirm} onChange={(event) => setConfirm(event.target.value)} required />
+      {error && <p className="auth-form-error" role="alert">{error}</p>}
+      <button type="submit" className="auth-submit" disabled={loading}>{loading ? "Creating your account…" : "Create account"}</button>
+    </form>
+    <p className="auth-switch">Already have an account? <Link to="/login">Log in</Link></p>
+    <p className="auth-session-note">Your account opens every Veynote workspace. You can choose where to start next.</p>
+  </AuthFrame>;
 }

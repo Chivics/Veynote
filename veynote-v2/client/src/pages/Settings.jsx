@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../api/client";
 import InstallApp from "../components/InstallApp";
@@ -111,7 +112,7 @@ export default function Settings() {
           </>
         )}
 
-        {tab === "Security" && <><ChangePasswordSection hasPassword={user?.hasPassword} /><SessionPanel /></>}
+        {tab === "Security" && <><ChangePasswordSection hasPassword={user?.hasPassword} /><SettingRow title="Passkeys" desc="Use your device's fingerprint, face, or PIN for protected notes, and optionally for account sign-in. Unlock Locked Notes to manage them."><Link to="/notes/locked" className="btn-outline">Manage passkeys</Link></SettingRow><SessionPanel /></>}
       </div>
     </div>
   );

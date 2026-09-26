@@ -40,7 +40,9 @@ Edit `.env`:
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — optional, only needed for
   the "Continue with Google" button. Create these in Google Cloud Console
   → APIs & Services → Credentials, with callback URL
-  `http://localhost:4000/api/auth/google/callback`. Leave blank to disable
+  `http://localhost:4000/api/auth/google/callback` locally or
+  `https://api.veynote.app/api/auth/google/callback` in production. Set
+  `GOOGLE_CALLBACK_URL` when using another public API URL. Leave the ID and secret blank to disable
   Google sign-in — email/password still works fully without it.
 
 Then:

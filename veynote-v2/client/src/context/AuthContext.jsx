@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { api } from "../api/client";
 import { clearNoteGrant } from "../utils/noteGrant";
+import { startAuthentication } from "@simplewebauthn/browser";
 
 const AuthContext = createContext(null);
 
@@ -75,6 +76,14 @@ export function AuthProvider({ children }) {
     return user;
   }
 
+  async function loginWithPasskey(email) {
+    const options = await api.post("/auth/passkey/options", { email });
+    const response = await startAuthentication({ optionsJSON: options });
+    const { token, user } = await api.post("/auth/passkey/verify", { email, response });
+    applySession(token, user);
+    return user;
+  }
+
   async function register(name, email, password) {
     const { token, user } = await api.post("/auth/register", { name, email, password });
     applySession(token, user);
@@ -101,7 +110,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, sessionError, login, register, logout, applySession, replaceSessionToken, updateUser, refresh: loadMe }}
+      value={{ user, loading, sessionError, login, loginWithPasskey, register, logout, applySession, replaceSessionToken, updateUser, refresh: loadMe }}
     >
       {children}
     </AuthContext.Provider>

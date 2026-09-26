@@ -15,6 +15,7 @@ function SecurityPanel() {
   const [changing, setChanging] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [enableAccountSignIn, setEnableAccountSignIn] = useState(false);
   const supported = browserSupportsWebAuthn();
 
   function loadCredentials() {
@@ -33,8 +34,9 @@ function SecurityPanel() {
       const options = await api.post("/webauthn/register/options", {});
       const response = await startRegistration({ optionsJSON: options });
       const label = navigator.userAgentData?.platform || navigator.platform || "This device";
-      const { credential } = await api.post("/webauthn/register/verify", { response, deviceLabel: label });
+      const { credential } = await api.post("/webauthn/register/verify", { response, deviceLabel: label, enableAccountSignIn });
       setCredentials((prev) => [credential, ...(prev || [])]);
+      setEnableAccountSignIn(false);
     } catch (err) {
       setError(err.message || "Couldn't set up a passkey on this device.");
     } finally {
@@ -50,6 +52,19 @@ function SecurityPanel() {
       setCredentials((prev) => prev.filter((credential) => credential.id !== id));
     } catch (err) {
       setError(err.message || "This passkey could not be removed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function enableSignIn(id) {
+    setBusy(true);
+    setError("");
+    try {
+      const { credential } = await api.post(`/webauthn/credentials/${id}/enable-signin`, {});
+      setCredentials((previous) => previous.map((entry) => entry.id === id ? credential : entry));
+    } catch (err) {
+      setError(err.message || "Account sign-in could not be enabled for this passkey.");
     } finally {
       setBusy(false);
     }
@@ -88,18 +103,19 @@ function SecurityPanel() {
                 {credentials === null ? (
                   !credentialsError && <p className="text-[11px] text-ink-muted mb-2" role="status">Checking registered passkeys…</p>
                 ) : credentials.length === 0 ? (
-                  <p className="text-[11px] text-ink-muted mb-2">No passkey set up yet — add one for a faster unlock with your fingerprint, face, or device PIN.</p>
+                  <p className="text-[11px] text-ink-muted mb-2">No passkey set up yet. Add one to unlock protected notes with your device's fingerprint, face, or PIN. Account sign-in is optional.</p>
                 ) : (
                   <div className="flex flex-col gap-1.5 mb-2">
                     {credentials.map((c) => (
                       <div key={c.id} className="flex items-center justify-between text-[11.5px]">
-                        <span>{c.deviceLabel || "Unnamed device"}</span>
-                        <button type="button" disabled={busy} onClick={() => removePasskey(c.id)} className="text-danger font-semibold">Remove</button>
+                        <span>{c.deviceLabel || "Unnamed device"} <small className="text-ink-muted">· {c.accountEnabledAt ? "Sign-in enabled" : "Vault only"}</small></span>
+                        <span className="flex items-center gap-2">{!c.accountEnabledAt && <button type="button" disabled={busy} onClick={() => enableSignIn(c.id)} className="text-accent-notes font-semibold">Enable sign-in</button>}<button type="button" disabled={busy} onClick={() => removePasskey(c.id)} className="text-danger font-semibold">Remove</button></span>
                       </div>
                     ))}
                   </div>
                 )}
-                <button type="button" onClick={addPasskey} disabled={busy} className="btn-outline text-[11px]">+ Add a passkey on this device</button>
+                <label className="flex items-center gap-2 text-[11px] text-ink-soft mb-2"><input type="checkbox" checked={enableAccountSignIn} onChange={(event) => setEnableAccountSignIn(event.target.checked)} /> Also allow this passkey to sign in to Veynote</label>
+                <button type="button" onClick={addPasskey} disabled={busy} className="btn-outline text-[11px]">+ Add a passkey</button>
               </>
             )}
           </div>

@@ -1,62 +1,43 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import AuthFrame from "../../components/auth/AuthFrame";
+
+const choices = [
+  { id: "NOTES", symbol: "✎", title: "Writing & knowledge", description: "Notes, journal, Library, and the things you want to remember." },
+  { id: "TRADING", symbol: "↗", title: "Trading & review", description: "Trades, accounts, analysis, and a clearer view of your process." },
+];
 
 export default function PickMode() {
   const { updateUser } = useAuth();
   const navigate = useNavigate();
   const [picked, setPicked] = useState("NOTES");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   async function handleContinue() {
+    if (loading) return;
     setLoading(true);
+    setError("");
     try {
       await updateUser({ defaultMode: picked });
+      navigate(picked === "NOTES" ? "/notes" : "/trading", { replace: true });
+    } catch (requestError) {
+      setError(requestError.message || "Your starting workspace could not be saved. Try again.");
     } finally {
-      navigate(picked === "NOTES" ? "/notes" : "/trading");
+      setLoading(false);
     }
   }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-app-bg px-4">
-      <div className="w-full max-w-[340px] flex flex-col items-center gap-5">
-        <div className="w-[42px] h-[42px] flex items-center justify-center"><img src="/logo.png" alt="Veynote" className="w-full h-full object-contain" /></div>
-        <div className="text-center">
-          <h1 className="page-title text-[19px] font-bold mb-1">What brings you to Veynote?</h1>
-          <p className="text-[11.5px] text-ink-muted m-0">Just picks where you land first — you'll always have both.</p>
-        </div>
-
-        <div className="flex gap-2.5 w-full">
-          <button
-            onClick={() => setPicked("NOTES")}
-            className={`flex-1 rounded-xl p-4 text-center text-[11.5px] border transition ${
-              picked === "NOTES"
-                ? "border-accent-notes bg-accent-notes-soft text-white"
-                : "border-app-border bg-app-panel text-ink-soft"
-            }`}
-          >
-            📓
-            <br />
-            Journaling
-          </button>
-          <button
-            onClick={() => setPicked("TRADING")}
-            className={`flex-1 rounded-xl p-4 text-center text-[11.5px] border transition ${
-              picked === "TRADING"
-                ? "border-accent-notes bg-accent-notes-soft text-white"
-                : "border-app-border bg-app-panel text-ink-soft"
-            }`}
-          >
-            📈
-            <br />
-            Trading
-          </button>
-        </div>
-
-        <button onClick={handleContinue} disabled={loading} className="btn-primary w-full justify-center disabled:opacity-60">
-          {loading ? "Setting up…" : "Continue"}
-        </button>
-      </div>
+  return <AuthFrame eyebrow="One final preference" title="Where will you begin?" description="Choose the workspace you want to open first. Every workspace stays available, and you can change this later.">
+    <div className="auth-choice-list" role="group" aria-label="Starting workspace">
+      {choices.map((choice) => <button key={choice.id} type="button" className={`auth-choice ${picked === choice.id ? "is-active" : ""}`} aria-pressed={picked === choice.id} onClick={() => setPicked(choice.id)}>
+        <span className="auth-choice-symbol" aria-hidden="true">{choice.symbol}</span>
+        <span><strong>{choice.title}</strong><small>{choice.description}</small></span>
+        <i aria-hidden="true" />
+      </button>)}
     </div>
-  );
+    {error && <p className="auth-form-error" role="alert">{error}</p>}
+    <button type="button" onClick={handleContinue} disabled={loading} className="auth-submit">{loading ? "Saving your choice…" : "Continue to Veynote"}</button>
+  </AuthFrame>;
 }

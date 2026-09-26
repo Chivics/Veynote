@@ -57,10 +57,8 @@ model User {
   // without a second secret. Null means that vault hasn't been set up yet.
   lockedNotesPasswordHash String?
   willPasswordHash        String?
-  // Holds the WebAuthn challenge between "generate options" and "verify
-  // response" — this app has no session store, so it's parked here
-  // instead. Single-slot is fine: registration and authentication are
-  // never in flight for the same user at the same time in practice.
+  // Single-use WebAuthn challenge shared by account sign-in and vault unlock.
+  // Starting another ceremony invalidates the previous pending challenge.
   webauthnChallenge          String?
   webauthnChallengeExpiresAt DateTime?
   createdAt       DateTime @default(now())
@@ -685,6 +683,7 @@ model WebAuthnCredential {
   counter      Int      @default(0)
   transports   String?  // JSON array, e.g. ["internal","hybrid"]
   deviceLabel  String?  // e.g. "Chrome on macOS" — set client-side at registration time
+  accountEnabledAt DateTime? // null for passkeys registered before explicit account sign-in consent
   createdAt    DateTime @default(now())
 
   @@index([userId])

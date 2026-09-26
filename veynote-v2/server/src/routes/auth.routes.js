@@ -9,13 +9,28 @@ const { requireAuth } = require("../middleware/auth");
 const { userPublic } = require("../utils/userPublic");
 const { asyncHandler } = require("../middleware/asyncHandler");
 const { createAuthLimiter } = require("../middleware/authRateLimit");
+const { generateAuthenticationOptions, verifyAuthenticationResponse } = require("@simplewebauthn/server");
+const { consumeChallenge } = require("../utils/webauthnChallenge");
 
 const router = express.Router();
-router.use(["/login", "/register"], createAuthLimiter());
+router.use(["/login", "/register", "/passkey/options", "/passkey/verify"], createAuthLimiter());
 
 const GOOGLE_ENABLED = Boolean(
   process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
 );
+const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL ||
+  (process.env.NODE_ENV === "production"
+    ? "https://api.veynote.app/api/auth/google/callback"
+    : "http://localhost:4000/api/auth/google/callback");
+const PASSKEY_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const CLIENT_ORIGIN = (process.env.CLIENT_URL || "http://localhost:5173").replace(/\/$/, "");
+
+function passkeyConfig() {
+  const origin = CLIENT_ORIGIN;
+  return { origin, rpID: new URL(origin).hostname };
+}
+
+router.get("/methods", (_req, res) => res.json({ google: GOOGLE_ENABLED, passkey: true }));
 
 if (GOOGLE_ENABLED) {
   passport.use(
@@ -23,12 +38,12 @@ if (GOOGLE_ENABLED) {
       {
         clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: "/api/auth/google/callback",
+        callbackURL: GOOGLE_CALLBACK_URL,
       },
       async (_accessToken, _refreshToken, profile, done) => {
         try {
           const email = profile.emails?.[0]?.value;
-          if (!email) return done(new Error("Google account has no email."));
+          if (!email || profile._json?.email_verified !== true) return done(new Error("Google account email is not verified."));
 
           let user = await prisma.user.findUnique({ where: { email } });
 
@@ -106,6 +121,76 @@ router.post("/login", asyncHandler(async (req, res) => {
   res.json({ token, user: userPublic(user) });
 }));
 
+// A registered, user-verified passkey can create an ordinary account session.
+// The email binds options to one account; another account's credential cannot
+// be exchanged for this account's session.
+router.post("/passkey/options", asyncHandler(async (req, res) => {
+  const email = req.body?.email;
+  if (typeof email !== "string" || !email.trim() || email.length > 254) {
+    return res.status(400).json({ error: "Enter your email address to continue with a passkey." });
+  }
+  const user = await prisma.user.findUnique({ where: { email: email.trim() } });
+  const credentials = user ? await prisma.webAuthnCredential.findMany({ where: { userId: user.id, accountEnabledAt: { not: null } } }) : [];
+  if (!credentials.length) {
+    return res.status(400).json({ error: "No passkey is available for this email. Use another sign-in method." });
+  }
+  const { rpID } = passkeyConfig();
+  const options = await generateAuthenticationOptions({
+    rpID,
+    allowCredentials: credentials.map((credential) => ({
+      id: credential.credentialId,
+      transports: credential.transports ? JSON.parse(credential.transports) : undefined,
+    })),
+    userVerification: "required",
+  });
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      webauthnChallenge: JSON.stringify({ challenge: options.challenge, purpose: "account-login", noteId: null }),
+      webauthnChallengeExpiresAt: new Date(Date.now() + PASSKEY_CHALLENGE_TTL_MS),
+    },
+  });
+  res.json(options);
+}));
+
+router.post("/passkey/verify", asyncHandler(async (req, res) => {
+  const email = req.body?.email;
+  const response = req.body?.response;
+  if (typeof email !== "string" || !email.trim() || email.length > 254 || !response || typeof response.id !== "string") {
+    return res.status(400).json({ error: "Start a new passkey sign-in attempt." });
+  }
+  const user = await prisma.user.findUnique({ where: { email: email.trim() } });
+  if (!user) return res.status(400).json({ error: "Start a new passkey sign-in attempt." });
+  const expectedChallenge = await consumeChallenge(prisma, user.id, "account-login");
+  if (!expectedChallenge) return res.status(400).json({ error: "That passkey request expired. Try again." });
+  const stored = await prisma.webAuthnCredential.findFirst({ where: { userId: user.id, credentialId: response.id, accountEnabledAt: { not: null } } });
+  if (!stored) return res.status(401).json({ error: "This passkey is not registered for that account." });
+  const { rpID, origin } = passkeyConfig();
+  let verification;
+  try {
+    verification = await verifyAuthenticationResponse({
+      response,
+      expectedChallenge,
+      expectedOrigin: origin,
+      expectedRPID: rpID,
+      credential: {
+        id: stored.credentialId,
+        publicKey: new Uint8Array(stored.publicKey),
+        counter: stored.counter,
+        transports: stored.transports ? JSON.parse(stored.transports) : undefined,
+      },
+      requireUserVerification: true,
+    });
+  } catch {
+    return res.status(401).json({ error: "Passkey verification failed. Try again or use your password." });
+  }
+  if (!verification.verified) return res.status(401).json({ error: "Passkey verification failed. Try again or use your password." });
+  await prisma.webAuthnCredential.update({ where: { id: stored.id }, data: { counter: verification.authenticationInfo.newCounter } });
+  const token = signToken(user.id, user.sessionGeneration);
+  await authorizeSession(prisma, token, verifyToken(token), req.headers["user-agent"]);
+  res.json({ token, user: userPublic(user) });
+}));
+
 // -- Google SSO -------------------------------------------------------------
 router.get("/google", (req, res, next) => {
   if (!GOOGLE_ENABLED) {
@@ -120,15 +205,15 @@ router.get("/google", (req, res, next) => {
 router.get(
   "/google/callback",
   (req, res, next) => {
-    if (!GOOGLE_ENABLED) return res.redirect(`${process.env.CLIENT_URL}/login?error=google_disabled`);
-    passport.authenticate("google", { session: false, failureRedirect: "/login" })(req, res, next);
+    if (!GOOGLE_ENABLED) return res.redirect(`${CLIENT_ORIGIN}/login?error=google_disabled`);
+    passport.authenticate("google", { session: false, failureRedirect: `${CLIENT_ORIGIN}/login?error=google_failed` })(req, res, next);
   },
   asyncHandler(async (req, res) => {
     const token = signToken(req.user.id, req.user.sessionGeneration);
     await authorizeSession(prisma, token, verifyToken(token), req.headers["user-agent"]);
-    // Hand off to the SPA with the token in the URL — the frontend reads it
-    // once and stores it, then strips it from the address bar.
-    res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${token}`);
+    // The fragment is never sent in the next HTTP request or referrer. The SPA
+    // reads it once and immediately removes it from browser history.
+    res.redirect(`${CLIENT_ORIGIN}/auth/callback#token=${encodeURIComponent(token)}`);
   })
 );
 
