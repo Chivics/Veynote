@@ -1,5 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { execFileSync } = require("node:child_process");
+const path = require("node:path");
 
 process.env.CLIENT_URL = "http://localhost:5173";
 process.env.JWT_SECRET = "readiness-http-test-secret-not-for-production";
@@ -16,9 +18,9 @@ const model = name => ({ async findMany(query) {
 const db = Object.fromEntries(["user", "authSession", "noteCreationRequest", "webAuthnCredential", "webAuthnLoginChallenge"].map(name => [name, model(name)]));
 const prismaPath = require.resolve("../src/lib/prisma");
 require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: db };
-// Boot the real entry point, middleware and routes. Importing it must not
+// Boot the real application, middleware and routes. Importing it must not
 // open a second port or require a live database to start the HTTP tests.
-const { app } = require("../src/index");
+const { app } = require("../src/app");
 let server;
 let origin;
 test.before(async () => {
@@ -27,6 +29,15 @@ test.before(async () => {
   origin = `http://127.0.0.1:${server.address().port}`;
 });
 test.after(() => new Promise(resolve => { server.closeIdleConnections(); server.close(resolve); }));
+
+test("a hosting launcher can require the entry file and still start the API", () => {
+  const application = require.resolve("../src/app");
+  const entry = require.resolve("../src/index");
+  const source = `require.cache[${JSON.stringify(application)}] = { exports: { app: { listen(port, host, callback) { console.log(JSON.stringify({ listening: true, port, host })); callback(); } } } }; process.env.PORT = '4321'; require(${JSON.stringify(entry)});`;
+  const output = execFileSync(process.execPath, ["-e", source], { cwd: path.resolve(__dirname, ".."), encoding: "utf8", timeout: 10000 });
+  assert.ok(output.includes('"listening":true'));
+  assert.ok(output.includes('"port":"4321"'));
+});
 
 test("the actual API entry point proves every required model before reporting ready", async () => {
   const response = await fetch(`${origin}/api/ready`, { headers: { Origin: process.env.CLIENT_URL } });
