@@ -14,7 +14,6 @@ export default function Signup() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [setupPasskey, setSetupPasskey] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
   const [accountCreated, setAccountCreated] = useState(false);
   const [passkeyError, setPasskeyError] = useState("");
@@ -32,19 +31,11 @@ export default function Signup() {
     try {
       await register(name.trim(), email.trim(), password);
       setAccountCreated(true);
-      if (setupPasskey) {
-        try {
-          await registerAccountPasskey(password);
-        } catch (passkeyFailure) {
-          setPasskeyError(passkeyFailure.name === "NotAllowedError"
-            ? "Passkey setup was cancelled. Your account was created and you can retry or continue without it."
-            : passkeyFailure.message || "Your account was created, but the passkey could not be added. Try again or continue without it.");
-          return;
-        }
-      }
-      setPassword("");
       setConfirm("");
-      navigate("/pick-mode", { replace: true });
+      if (!passkeySupported) {
+        setPassword("");
+        navigate("/pick-mode", { replace: true });
+      }
     } catch (requestError) {
       setEnrolling(false);
       setError(requestError.message || "We couldn't create your account. Check your connection and try again.");
@@ -63,7 +54,9 @@ export default function Signup() {
       setConfirm("");
       navigate("/pick-mode", { replace: true });
     } catch (requestError) {
-      setPasskeyError(requestError.message || "This device could not create a passkey. Try again or continue without it.");
+      setPasskeyError(requestError.name === "NotAllowedError"
+        ? "Setup was cancelled. Your account is ready; try again or continue with email sign-in."
+        : requestError.message || "This device couldn't finish setup. Try again or set it up later in Security settings.");
     } finally {
       setLoading(false);
     }
@@ -78,15 +71,15 @@ export default function Signup() {
     finally { setLoading(false); }
   }
 
-  if (user && !enrolling) return <Navigate to="/" replace />;
-  if (accountCreated) return <AuthFrame eyebrow="Secure your new account" title="Set up your passkey." description="Your account is ready. Your device can now create a passkey for faster sign-in.">
+  if (user && !enrolling) return <Navigate to="/pick-mode" replace />;
+  if (accountCreated) return <AuthFrame eyebrow="Account created" title="Make your next sign-in effortless." description="Enable secure device sign-in once. Next time, let your device verify you naturally.">
     <div className="auth-enrollment-card" role="status">
       <span className="auth-passkey-glyph"><PasskeyIcon /></span>
-      <div><strong>{loading ? "Waiting for your device…" : "Your account is saved"}</strong><p>Your fingerprint, face scan, or device PIN stays with your operating system. Veynote stores only the passkey's public credential.</p></div>
+      <div><strong>{loading ? "Waiting for your device…" : "Your device chooses the method"}</strong><p>Fingerprint, face recognition, a PIN, or another supported method. Your operating system handles verification; Veynote never receives your biometric data or device PIN.</p></div>
     </div>
     {passkeyError && <p className="auth-form-error" role="alert">{passkeyError}</p>}
-    {passkeyError && <button type="button" onClick={retryPasskey} disabled={loading} className="auth-submit">Try passkey again</button>}
-    <button type="button" className="auth-secondary-action" onClick={() => { setPassword(""); setConfirm(""); navigate("/pick-mode", { replace: true }); }}>Continue without passkey</button>
+    <button type="button" onClick={retryPasskey} disabled={loading} className="auth-submit">{loading ? "Waiting for your device…" : passkeyError ? "Try device setup again" : "Enable device sign-in"}</button>
+    <button type="button" disabled={loading} className="auth-secondary-action" onClick={() => { setPassword(""); setConfirm(""); navigate("/pick-mode", { replace: true }); }}>Choose my workspace instead</button>
   </AuthFrame>;
   return <AuthFrame title="Make room for your ideas." description="Start a record that becomes more useful with time.">
     <div className="auth-methods">
@@ -106,10 +99,9 @@ export default function Signup() {
       </div>
       <label htmlFor="signup-confirm">Confirm password</label>
       <input id="signup-confirm" type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="Enter it once more" value={confirm} onChange={(event) => setConfirm(event.target.value)} required />
-      <label className="auth-passkey-option"><input type="checkbox" checked={setupPasskey} disabled={!passkeySupported || loading} onChange={(event) => setSetupPasskey(event.target.checked)} /><span><strong>Set up a passkey after creating my account</strong><small>{passkeySupported ? "Use your device's fingerprint, face, or PIN next. You can skip this later." : "Passkeys are not available in this browser. You can add one later on a supported device."}</small></span></label>
       <button type="submit" className="auth-submit" disabled={loading}>{loading ? "Creating your account…" : "Create account"}</button>
     </form>
     <p className="auth-switch">Already have an account? <Link to="/login">Log in</Link></p>
-    <p className="auth-session-note">Your account opens every Veynote workspace. You can choose where to start next.</p>
+    <p className="auth-session-note">{passkeySupported ? "Next: optional device sign-in setup, then choose your workspace." : "Your account opens every Veynote workspace. Choose where to start next."}</p>
   </AuthFrame>;
 }

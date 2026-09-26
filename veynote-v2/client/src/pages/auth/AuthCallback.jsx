@@ -17,7 +17,7 @@ export default function AuthCallback() {
     try {
       const { user } = await api.get("/auth/me", undefined, { force: true });
       applySession(token, user);
-      navigate(user.defaultMode === "TRADING" ? "/trading" : "/notes", { replace: true });
+      navigate("/pick-mode", { replace: true });
     } catch (error) {
       if (error.status === 401) {
         if (localStorage.getItem("veynote_token") === token) localStorage.removeItem("veynote_token");

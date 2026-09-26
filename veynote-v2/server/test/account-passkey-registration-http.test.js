@@ -70,6 +70,8 @@ test("account passkey registration binds and consumes a separate challenge", asy
   assert.equal(started.status, 200);
   const options = await started.json();
   assert.equal(options.rp.id, "localhost");
+  assert.equal(options.authenticatorSelection.residentKey, "required");
+  assert.equal(options.authenticatorSelection.userVerification, "required");
   assert.equal(JSON.parse(user.webauthnChallenge).purpose, "account-register");
 
   const unverified = await post("/passkey/register/verify", { response: { id: "invalid" } });

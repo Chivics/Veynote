@@ -3,7 +3,7 @@ import { api } from "../api/client";
 import { clearNoteGrant } from "../utils/noteGrant";
 import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
 
-const AuthContext = createContext(null);
+export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -77,9 +77,9 @@ export function AuthProvider({ children }) {
   }
 
   async function loginWithPasskey(email) {
-    const options = await api.post("/auth/passkey/options", { email });
+    const { challengeId, ...options } = await api.post("/auth/passkey/options", email ? { email } : {});
     const response = await startAuthentication({ optionsJSON: options });
-    const { token, user } = await api.post("/auth/passkey/verify", { email, response });
+    const { token, user } = await api.post("/auth/passkey/verify", { ...(email ? { email } : { challengeId }), response });
     applySession(token, user);
     return user;
   }

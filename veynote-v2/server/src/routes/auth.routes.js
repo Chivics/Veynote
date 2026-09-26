@@ -1,4 +1,5 @@
 const express = require("express");
+const { randomBytes } = require("node:crypto");
 const bcrypt = require("bcryptjs");
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
@@ -122,17 +123,31 @@ router.post("/login", asyncHandler(async (req, res) => {
 }));
 
 // A registered, user-verified passkey can create an ordinary account session.
-// The email binds options to one account; another account's credential cannot
-// be exchanged for this account's session.
+// Devices discover an account through its credential; older non-discoverable
+// credentials retain the email-bound fallback.
 router.post("/passkey/options", asyncHandler(async (req, res) => {
   const email = req.body?.email;
+  // Discoverable credentials let the OS choose an account without collecting
+  // an email first. Persist ceremonies so replay protection survives restarts
+  // and works across multiple API instances.
+  if (email === undefined || email === "") {
+    const { rpID } = passkeyConfig();
+    const options = await generateAuthenticationOptions({ rpID, allowCredentials: [], userVerification: "required" });
+    const challengeId = randomBytes(32).toString("hex");
+    await prisma.webAuthnLoginChallenge.deleteMany({ where: { expiresAt: { lte: new Date() } } });
+    await prisma.webAuthnLoginChallenge.create({ data: {
+      id: challengeId, challenge: options.challenge,
+      expiresAt: new Date(Date.now() + PASSKEY_CHALLENGE_TTL_MS),
+    } });
+    return res.json({ ...options, challengeId });
+  }
   if (typeof email !== "string" || !email.trim() || email.length > 254) {
-    return res.status(400).json({ error: "Enter your email address to continue with a passkey." });
+    return res.status(400).json({ error: "Enter a valid email address for device sign-in." });
   }
   const user = await prisma.user.findUnique({ where: { email: email.trim() } });
   const credentials = user ? await prisma.webAuthnCredential.findMany({ where: { userId: user.id, accountEnabledAt: { not: null } } }) : [];
   if (!credentials.length) {
-    return res.status(400).json({ error: "No passkey is available for this email. Use another sign-in method." });
+    return res.status(400).json({ error: "Device sign-in hasn't been set up for this email. Use email and password or Google first." });
   }
   const { rpID } = passkeyConfig();
   const options = await generateAuthenticationOptions({
@@ -156,6 +171,26 @@ router.post("/passkey/options", asyncHandler(async (req, res) => {
 router.post("/passkey/verify", asyncHandler(async (req, res) => {
   const email = req.body?.email;
   const response = req.body?.response;
+  if (email === undefined || email === "") {
+    const challengeId = req.body?.challengeId;
+    if (typeof challengeId !== "string" || !/^[a-f0-9]{64}$/.test(challengeId) || !response || typeof response.id !== "string" || response.id.length > 2048) {
+      return res.status(400).json({ error: "Start a new device sign-in attempt." });
+    }
+    const attempt = await prisma.webAuthnLoginChallenge.findUnique({ where: { id: challengeId } });
+    if (!attempt) return res.status(400).json({ error: "This device request expired or was already used. Try again." });
+    const consumed = await prisma.webAuthnLoginChallenge.deleteMany({ where: { id: challengeId, expiresAt: { gt: new Date() } } });
+    if (consumed.count !== 1) return res.status(400).json({ error: "This device request expired or was already used. Try again." });
+    const stored = await prisma.webAuthnCredential.findFirst({ where: { credentialId: response.id, accountEnabledAt: { not: null } } });
+    if (!stored) return res.status(401).json({ error: "Device sign-in is not enabled for this credential. Sign in with email or Google first." });
+    const user = await prisma.user.findUnique({ where: { id: stored.userId } });
+    // Discoverable assertions must identify the account owning the credential.
+    const handle = response.response?.userHandle;
+    if (!user || typeof handle !== "string" || handle.length > 256 || !/^[a-zA-Z0-9_-]+={0,2}$/.test(handle) ||
+        !Buffer.from(handle, "base64url").equals(Buffer.from(user.id))) {
+      return res.status(401).json({ error: "Your device could not verify this account. Try another sign-in method." });
+    }
+    return finishDeviceSignIn(req, res, user, stored, attempt.challenge, response);
+  }
   if (typeof email !== "string" || !email.trim() || email.length > 254 || !response || typeof response.id !== "string") {
     return res.status(400).json({ error: "Start a new passkey sign-in attempt." });
   }
@@ -165,6 +200,10 @@ router.post("/passkey/verify", asyncHandler(async (req, res) => {
   if (!expectedChallenge) return res.status(400).json({ error: "That passkey request expired. Try again." });
   const stored = await prisma.webAuthnCredential.findFirst({ where: { userId: user.id, credentialId: response.id, accountEnabledAt: { not: null } } });
   if (!stored) return res.status(401).json({ error: "This passkey is not registered for that account." });
+  return finishDeviceSignIn(req, res, user, stored, expectedChallenge, response);
+}));
+
+async function finishDeviceSignIn(req, res, user, stored, expectedChallenge, response) {
   const { rpID, origin } = passkeyConfig();
   let verification;
   try {
@@ -182,14 +221,18 @@ router.post("/passkey/verify", asyncHandler(async (req, res) => {
       requireUserVerification: true,
     });
   } catch {
-    return res.status(401).json({ error: "Passkey verification failed. Try again or use your password." });
+    return res.status(401).json({ error: "Your device could not verify you. Try again or use another sign-in method." });
   }
-  if (!verification.verified) return res.status(401).json({ error: "Passkey verification failed. Try again or use your password." });
-  await prisma.webAuthnCredential.update({ where: { id: stored.id }, data: { counter: verification.authenticationInfo.newCounter } });
+  if (!verification.verified) return res.status(401).json({ error: "Your device could not verify you. Try again or use another sign-in method." });
+  // Compare-and-set prevents simultaneous assertions with a stale counter
+  // from overwriting a newer authenticator counter.
+  const changed = await prisma.webAuthnCredential.updateMany({ where: { id: stored.id, counter: stored.counter, accountEnabledAt: { not: null } }, data: { counter: verification.authenticationInfo.newCounter } });
+  if (changed.count !== 1) return res.status(401).json({ error: "Device sign-in changed during verification. Please try again." });
   const token = signToken(user.id, user.sessionGeneration);
-  await authorizeSession(prisma, token, verifyToken(token), req.headers["user-agent"]);
+  const session = await authorizeSession(prisma, token, verifyToken(token), req.headers["user-agent"]);
+  if (!session) return res.status(401).json({ error: "Your account session changed. Please sign in again." });
   res.json({ token, user: userPublic(user) });
-}));
+}
 
 // Signup can add an account-only passkey after password reauthentication.
 // This credential cannot unlock Locked Notes until the owner independently
@@ -216,7 +259,7 @@ router.post("/passkey/register/options", requireAuth, createAuthLimiter({ authen
       id: credential.credentialId,
       transports: credential.transports ? JSON.parse(credential.transports) : undefined,
     })),
-    authenticatorSelection: { residentKey: "preferred", userVerification: "required" },
+    authenticatorSelection: { residentKey: "required", requireResidentKey: true, userVerification: "required" },
   });
   await prisma.user.update({
     where: { id: user.id },
@@ -332,10 +375,11 @@ router.get("/me", requireAuth, asyncHandler(async (req, res) => {
 
 // -- Set default/last-active mode + remembered path (§2 of the board) ------
 router.patch("/me", requireAuth, asyncHandler(async (req, res) => {
-  const { defaultMode, lastActiveNotesPath, lastActiveTradingPath, theme, editorFontSize, name } = req.body;
+  const { defaultMode, defaultWorkspace, lastActiveNotesPath, lastActiveTradingPath, theme, editorFontSize, name } = req.body;
   if ((theme !== undefined && !["dark", "light", "system"].includes(theme)) ||
       (editorFontSize !== undefined && !["small", "medium", "comfort", "large", "display", "xlarge"].includes(editorFontSize)) ||
       (defaultMode !== undefined && !["NOTES", "TRADING"].includes(defaultMode)) ||
+      (defaultWorkspace !== undefined && !["Notes", "Trading", "Business", "Library", "Journal", "Vault"].includes(defaultWorkspace)) ||
       (name !== undefined && (typeof name !== "string" || !name.trim() || name.length > 120)) ||
       (lastActiveNotesPath !== undefined && (typeof lastActiveNotesPath !== "string" || !/^\/notes(?:\/|$)/.test(lastActiveNotesPath) || lastActiveNotesPath.length > 500)) ||
       (lastActiveTradingPath !== undefined && (typeof lastActiveTradingPath !== "string" || !/^\/trading(?:\/|$)/.test(lastActiveTradingPath) || lastActiveTradingPath.length > 500))) {
@@ -345,6 +389,7 @@ router.patch("/me", requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.userId },
     data: {
       ...(defaultMode && { defaultMode }),
+      ...(defaultWorkspace ? { defaultWorkspace } : defaultMode ? { defaultWorkspace: defaultMode === "TRADING" ? "Trading" : "Notes" } : {}),
       ...(lastActiveNotesPath && { lastActiveNotesPath }),
       ...(lastActiveTradingPath && { lastActiveTradingPath }),
       ...(theme && { theme }),

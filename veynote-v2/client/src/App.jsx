@@ -55,10 +55,11 @@ import Settings from "./pages/Settings";
 import ConnectionStatus from "./components/ConnectionStatus";
 import StartupSplash from "./components/StartupSplash";
 import InstallApp from "./components/InstallApp";
+import { workspaceHome } from "./utils/workspace";
 
 function RootRedirect() {
   const { user } = useAuth();
-  return <Navigate to={user?.defaultMode === "TRADING" ? "/trading" : "/notes"} replace />;
+  return <Navigate to={workspaceHome(user)} replace />;
 }
 
 function AppContent() {

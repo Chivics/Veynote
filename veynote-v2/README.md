@@ -54,6 +54,20 @@ during signup can sign in, while Locked Notes remains separately protected.
 Set `CLIENT_URL` to the exact frontend origin (`https://veynote.app` in
 production) so passkey origin verification succeeds.
 
+Device sign-in is presented as **Continue securely**. New device credentials
+are discoverable, allowing the operating system to find the account without
+asking for an email first. Older credentials retain an email-based fallback.
+Signup offers explicit device setup; existing accounts can set it up under
+Settings → Security. The browser owns the security prompt and determines
+which verification methods are available.
+
+Migration `20260926120000_device_signin_workspaces` adds expiring, single-use
+device sign-in challenges and an optional starting-workspace preference.
+Every explicit sign-in opens the workspace chooser; returning authenticated
+launches open the saved workspace. Existing Notes/Trading preferences are
+preserved when no workspace preference has been set. Deploy this migration
+with the API before serving the updated frontend.
+
 Then:
 
 ```bash

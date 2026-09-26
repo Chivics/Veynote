@@ -1,14 +1,15 @@
 require("dotenv").config();
 const { PrismaClient } = require("@prisma/client");
+const { checkDatabaseReadiness } = require("../src/utils/databaseReadiness");
 const db = new PrismaClient();
 
 async function main() {
-  const tables = await db.$queryRawUnsafe("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND LOWER(TABLE_NAME) IN ('user', 'authsession', 'notecreationrequest', '_prisma_migrations')");
-  const columns = await db.$queryRawUnsafe("SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND LOWER(TABLE_NAME) = 'user' AND COLUMN_NAME = 'sessionGeneration'");
-  console.log(JSON.stringify({ tables, sessionGeneration: columns.length > 0 }));
+  const tables = await db.$queryRawUnsafe("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND LOWER(TABLE_NAME) IN ('user', 'authsession', 'notecreationrequest', 'webauthncredential', 'webauthnloginchallenge', '_prisma_migrations')");
+  const columns = await db.$queryRawUnsafe("SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND LOWER(TABLE_NAME) = 'user' AND COLUMN_NAME IN ('sessionGeneration', 'defaultWorkspace')");
+  console.log(JSON.stringify({ tables, sessionGeneration: columns.some(column => column.COLUMN_NAME === "sessionGeneration"), defaultWorkspace: columns.some(column => column.COLUMN_NAME === "defaultWorkspace") }));
   if (process.argv.includes("--require-ready")) {
-    const ready = columns.length > 0 && ["User", "AuthSession", "NoteCreationRequest"].every(name => tables.some(table => table.TABLE_NAME === name));
-    if (!ready) process.exitCode = 1;
+    await checkDatabaseReadiness(db);
+    console.log(JSON.stringify({ check: "database_schema", ready: true }));
   }
   if (tables.some(table => table.TABLE_NAME === "_prisma_migrations")) {
     const migrations = await db.$queryRawUnsafe("SELECT migration_name, finished_at, rolled_back_at FROM _prisma_migrations ORDER BY started_at");

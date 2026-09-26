@@ -45,6 +45,7 @@ model User {
   googleId        String?  @unique
   avatarUrl       String?
   defaultMode     Mode     @default(NOTES)
+  defaultWorkspace String? // null keeps the existing defaultMode preference
   lastActiveNotesPath   String? // remembers "where you left off" per mode, per §2 of the design board
   lastActiveTradingPath String?
   theme           String   @default("dark") // dark | light | system
@@ -670,10 +671,18 @@ model FileNode {
   @@index([parentId])
 }
 
-// A registered passkey/security key for unlocking Locked Notes.
-// Deliberately scoped to that one purpose (not Will & Inheritance, which
-// stays password-only) per the product spec. counter is used to detect
-// cloned-authenticator replay attacks, per the WebAuthn spec.
+// A registered device credential with separately consented account and vault
+// scopes. Account-only credentials never unlock notes. Will & Inheritance
+// retains its independent password boundary. counter detects replay/cloning
+// for authenticators that maintain a signature counter.
+model WebAuthnLoginChallenge {
+  id        String   @id
+  challenge String
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
 model WebAuthnCredential {
   id           String   @id @default(cuid())
   userId       String
