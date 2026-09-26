@@ -15,7 +15,7 @@ const model = name => ({ async findMany(query) {
   if (failure?.model === name) throw failure.error;
   return [];
 } });
-const db = Object.fromEntries(["user", "authSession", "noteCreationRequest", "webAuthnCredential", "webAuthnLoginChallenge"].map(name => [name, model(name)]));
+const db = Object.fromEntries(["user", "authSession", "noteCreationRequest", "webAuthnCredential", "webAuthnLoginChallenge", "authEmailChallenge", "authEmailJob"].map(name => [name, model(name)]));
 const prismaPath = require.resolve("../src/lib/prisma");
 require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: db };
 // Boot the real application, middleware and routes. Importing it must not
@@ -33,7 +33,7 @@ test.after(() => new Promise(resolve => { server.closeIdleConnections(); server.
 test("a hosting launcher can require the entry file and still start the API", () => {
   const application = require.resolve("../src/app");
   const entry = require.resolve("../src/index");
-  const source = `require.cache[${JSON.stringify(application)}] = { exports: { app: { listen(port, host, callback) { console.log(JSON.stringify({ listening: true, port, host })); callback(); } } } }; process.env.PORT = '4321'; require(${JSON.stringify(entry)});`;
+  const source = `require.cache[${JSON.stringify(application)}] = { exports: { app: { listen(port, host, callback) { console.log(JSON.stringify({ listening: true, port, host })); callback(); } } } }; process.env.PORT = '4321'; process.env.SMTP_HOST = ''; require(${JSON.stringify(entry)});`;
   const output = execFileSync(process.execPath, ["-e", source], { cwd: path.resolve(__dirname, ".."), encoding: "utf8", timeout: 10000 });
   assert.ok(output.includes('"listening":true'));
   assert.ok(output.includes('"port":"4321"'));

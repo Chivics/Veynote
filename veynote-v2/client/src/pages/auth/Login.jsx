@@ -97,7 +97,7 @@ export default function Login() {
     <form onSubmit={handleSubmit} className="auth-form">
       <label htmlFor="login-email">Email address</label>
       <input id="login-email" type="email" autoComplete="username webauthn" inputMode="email" placeholder="you@example.com" value={email} onChange={(event) => { setEmail(event.target.value); setCallbackError(""); }} required maxLength={254} />
-      <label htmlFor="login-password">Password</label>
+      <label htmlFor="login-password">Password <Link to="/forgot-password" className="auth-forgot-link">Forgot password?</Link></label>
       <div className="auth-password-field">
         <input id="login-password" type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Enter your password" value={password} onChange={(event) => setPassword(event.target.value)} required />
         <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? "Hide" : "Show"}</button>

@@ -2,11 +2,13 @@ async function checkDatabaseReadiness(db) {
   // Connectivity alone (SELECT 1) misses deployments with outdated tables.
   // These probes return at most one non-content field and work on empty DBs.
   const probes = [
-    ["account", "user", { sessionGeneration: true, defaultWorkspace: true }],
+    ["account", "user", { sessionGeneration: true, defaultWorkspace: true, emailVerifiedAt: true }],
     ["sessions", "authSession", { id: true }],
     ["note_saves", "noteCreationRequest", { id: true }],
     ["device_access", "webAuthnCredential", { vaultEnabled: true }],
     ["device_signin", "webAuthnLoginChallenge", { id: true }],
+    ["account_email", "authEmailChallenge", { id: true }],
+    ["email_delivery", "authEmailJob", { id: true }],
   ];
   for (const [check, model, select] of probes) {
     try {

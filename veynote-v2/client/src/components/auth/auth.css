@@ -40,6 +40,17 @@
 .auth-email-submit { background:rgb(var(--app-panel)); color:rgb(var(--ink)); border:1px solid rgb(var(--app-border)); }
 .auth-switch { margin:23px 0 0; text-align:center; color:rgb(var(--ink-muted)); font-size:12px; }
 .auth-switch a { color:rgb(var(--accent-notes)); font-weight:750; }
+.auth-forgot-link { color:rgb(var(--accent-notes)); font-size:11px; font-weight:700; padding:6px 0; }
+.auth-notice { display:flex; gap:14px; align-items:flex-start; padding:20px; border:1px solid rgb(var(--accent-notes) / .3); border-radius:16px; background:linear-gradient(135deg,rgb(var(--accent-notes) / .09),rgb(var(--app-panel))); }
+.auth-notice-icon { flex:none; display:grid; place-items:center; width:42px; height:42px; border-radius:12px; background:rgb(var(--accent-notes) / .12); color:rgb(var(--accent-notes)); }
+.auth-notice strong { font-size:14px; font-weight:750; }
+.auth-notice p { color:rgb(var(--ink-soft)); font-size:12px; line-height:1.7; margin:6px 0 0; overflow-wrap:anywhere; }
+.auth-notice.is-success { border-color:rgb(var(--success) / .3); background:rgb(var(--success) / .06); }
+.auth-notice.is-success .auth-notice-icon { color:rgb(var(--success)); background:rgb(var(--success) / .12); }
+.auth-back-link { display:flex; align-items:center; justify-content:center; min-height:44px; margin-top:18px; color:rgb(var(--ink-soft)); font-size:12px; font-weight:750; }
+.auth-back-link:hover { color:rgb(var(--accent-notes)); }
+.auth-link-button { display:flex; align-items:center; justify-content:center; text-align:center; padding:12px 18px; }
+.auth-inline-feedback { font-size:12px; line-height:1.6; color:rgb(var(--ink-soft)); margin:16px 0; }
 .auth-session-note { max-width:370px; margin:17px auto 0; color:rgb(var(--ink-muted)); font-size:10px; line-height:1.6; text-align:center; }
 .auth-passkey-icon { flex:none; color:rgb(var(--accent-gold)); }
 .auth-enrollment-card { display:flex; align-items:flex-start; gap:14px; margin-bottom:18px; padding:18px; border:1px solid rgb(var(--accent-gold) / .35); border-radius:15px; background:rgb(var(--accent-gold) / .08); }

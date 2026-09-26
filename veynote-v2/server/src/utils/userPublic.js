@@ -3,7 +3,7 @@
 const PUBLIC_FIELDS = [
   "id", "name", "email", "avatarUrl", "defaultMode", "defaultWorkspace", "lastActiveNotesPath",
   "lastActiveTradingPath", "theme", "editorFontSize", "timezone", "locale",
-  "createdAt", "updatedAt",
+  "createdAt", "updatedAt", "emailVerifiedAt",
 ];
 
 function userPublic(user) {

@@ -68,6 +68,30 @@ launches open the saved workspace. Existing Notes/Trading preferences are
 preserved when no workspace preference has been set. Deploy this migration
 with the API before serving the updated frontend.
 
+Account recovery and email verification use migration
+`20260926160000_account_email_recovery`. Configure `SMTP_HOST`, `SMTP_PORT`
+(465 or 587), `SMTP_USER`, `SMTP_PASSWORD`, and `SMTP_FROM` in the **server**
+environment. TLS is required. `CLIENT_URL` supplies the trusted link origin;
+the request's Host header never controls recovery links. `AUTH_EMAIL_SECRET`
+can supply a separate stable secret of at least 32 characters; otherwise a
+purpose-derived key from `JWT_SECRET` encrypts pending delivery tokens.
+
+The API persists delivery jobs before responding. Its worker claims jobs
+across instances, retries failures, and clears encrypted payloads after
+delivery. Password links expire in 30 minutes, verification links in 24 hours;
+both are single-use. Link tokens travel in URL fragments, are removed from
+browser history on opening, and are submitted in POST bodies. The verifier
+stores only token hashes. Without SMTP configuration, recovery reports an
+explicit unavailable state rather than pretending to send an email.
+
+A successful reset atomically consumes the link, updates the password,
+rotates the session generation and revokes account sessions. Neither Vault
+password changes. Existing accounts remain usable without mandatory email
+verification; users can verify under Settings → Security. Google sign-in
+records verification only after Google's verified-email assertion.
+The flow follows [OWASP's recovery guidance](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html)
+and uses [Nodemailer's SMTP transport](https://nodemailer.com/smtp).
+
 Then:
 
 ```bash

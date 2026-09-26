@@ -41,7 +41,7 @@ const post = (path, body) => fetch(base + path, { method: "POST", headers: { "Co
 test("auth methods expose only configured providers", async () => {
   const response = await fetch(base + "/methods");
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { google: false, passkey: true });
+  assert.deepEqual(await response.json(), { google: false, passkey: true, emailRecovery: false });
 });
 
 test("passkey options bind a challenge to the matching account", async () => {

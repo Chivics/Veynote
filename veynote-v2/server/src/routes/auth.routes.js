@@ -12,6 +12,7 @@ const { asyncHandler } = require("../middleware/asyncHandler");
 const { createAuthLimiter } = require("../middleware/authRateLimit");
 const { generateAuthenticationOptions, verifyAuthenticationResponse, generateRegistrationOptions, verifyRegistrationResponse } = require("@simplewebauthn/server");
 const { consumeChallenge } = require("../utils/webauthnChallenge");
+const { mailConfig } = require("../utils/authEmail");
 
 const router = express.Router();
 router.use(["/login", "/register", "/passkey/options", "/passkey/verify"], createAuthLimiter());
@@ -31,7 +32,7 @@ function passkeyConfig() {
   return { origin, rpID: new URL(origin).hostname };
 }
 
-router.get("/methods", (_req, res) => res.json({ google: GOOGLE_ENABLED, passkey: true }));
+router.get("/methods", (_req, res) => res.json({ google: GOOGLE_ENABLED, passkey: true, emailRecovery: Boolean(mailConfig()) }));
 
 if (GOOGLE_ENABLED) {
   passport.use(
@@ -54,6 +55,7 @@ if (GOOGLE_ENABLED) {
                 name: profile.displayName || "New user",
                 email,
                 googleId: profile.id,
+                emailVerifiedAt: new Date(),
                 avatarUrl: profile.photos?.[0]?.value || null,
               },
             });
@@ -61,8 +63,10 @@ if (GOOGLE_ENABLED) {
             // an account with this email already exists via password login — link it
             user = await prisma.user.update({
               where: { id: user.id },
-              data: { googleId: profile.id },
+              data: { googleId: profile.id, emailVerifiedAt: new Date() },
             });
+          } else if (!user.emailVerifiedAt) {
+            user = await prisma.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
           }
 
           return done(null, user);

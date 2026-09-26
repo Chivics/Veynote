@@ -5,6 +5,8 @@ const prisma = require("./lib/prisma");
 const { asyncHandler } = require("./middleware/asyncHandler");
 const { errorHandler } = require("./middleware/errorHandler");
 const { checkDatabaseReadiness } = require("./utils/databaseReadiness");
+const { mailConfig } = require("./utils/authEmail");
+const authMailConfig = mailConfig();
 
 const { router: authRoutes } = require("./routes/auth.routes");
 const folderRoutes = require("./routes/folders.routes");
@@ -66,6 +68,7 @@ app.get("/api/ready", asyncHandler(async (_req, res) => {
 }));
 
 app.use("/api/auth", authRoutes);
+app.use("/api/auth", require("./routes/accountEmail.routes").createAccountEmailRoutes({ db: prisma, config: authMailConfig }));
 app.use("/api/sessions", require("./routes/sessions.routes"));
 
 app.use("/api/folders", folderRoutes);
@@ -109,4 +112,3 @@ app.use("/api/business", businessRoutes);
 app.use(errorHandler);
 
 module.exports = { app };
-

@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { api } from "../api/client";
 import SessionPanel from "../components/SessionPanel";
 import AccountPasskeys from "../components/AccountPasskeys";
+import AccountEmailVerification from "../components/AccountEmailVerification";
 
 const TABS = ["Profile", "Preferences", "Security"];
 
@@ -111,7 +112,7 @@ export default function Settings() {
           </>
         )}
 
-        {tab === "Security" && <><ChangePasswordSection hasPassword={user?.hasPassword} /><AccountPasskeys /><SettingRow title="Locked Notes passkeys" desc="Use a passkey to unlock protected notes. Locked Notes access is managed separately from account sign-in."><Link to="/notes/locked" className="btn-outline">Open Locked Notes</Link></SettingRow><SessionPanel /></>}
+        {tab === "Security" && <><AccountEmailVerification /><ChangePasswordSection hasPassword={user?.hasPassword} /><AccountPasskeys /><SettingRow title="Locked Notes passkeys" desc="Use a passkey to unlock protected notes. Locked Notes access is managed separately from account sign-in."><Link to="/notes/locked" className="btn-outline">Open Locked Notes</Link></SettingRow><SessionPanel /></>}
       </div>
     </div>
   );

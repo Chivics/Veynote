@@ -42,6 +42,7 @@ model User {
   name            String
   email           String   @unique
   passwordHash    String?  // null when the account was created via Google SSO only
+  emailVerifiedAt DateTime?
   googleId        String?  @unique
   avatarUrl       String?
   defaultMode     Mode     @default(NOTES)
@@ -67,6 +68,7 @@ model User {
   sessionGeneration Int @default(0)
   sessions AuthSession[]
   noteCreationRequests NoteCreationRequest[]
+  authEmailChallenges AuthEmailChallenge[]
 
   folders         Folder[]
   notes           Note[]
@@ -96,6 +98,41 @@ model User {
   businessCustomersCreated BusinessCustomer[] @relation("BusinessCustomerCreator")
   businessInteractions BusinessInteraction[] @relation("BusinessInteractionActor")
   businessOpportunitiesCreated BusinessOpportunity[] @relation("BusinessOpportunityCreator")
+}
+
+enum AuthEmailPurpose {
+  PASSWORD_RESET
+  VERIFY_EMAIL
+}
+
+model AuthEmailChallenge {
+  id        String @id @default(cuid())
+  userId    String
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose   AuthEmailPurpose
+  tokenHash String @unique @db.Char(64)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  emailJob  AuthEmailJob?
+
+  @@unique([userId, purpose])
+  @@index([expiresAt])
+}
+
+model AuthEmailJob {
+  id          String @id @default(cuid())
+  challengeId String @unique
+  challenge   AuthEmailChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  // The delivery worker needs the link, but its bearer token must not be
+  // stored in plaintext alongside the verification hash.
+  sealedToken String @db.Text
+  availableAt DateTime @default(now())
+  leaseUntil  DateTime?
+  leaseId     String?
+  attempts    Int @default(0)
+  sentAt      DateTime?
+
+  @@index([sentAt, availableAt, leaseUntil])
 }
 
 enum BusinessRole {

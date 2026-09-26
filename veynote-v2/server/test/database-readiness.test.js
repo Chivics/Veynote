@@ -6,10 +6,10 @@ const { errorHandler } = require("../src/middleware/errorHandler");
 test("readiness probes required models without reading note content or credentials", async () => {
   const calls = [];
   const model = name => ({ async findMany(query) { calls.push({ name, query }); return []; } });
-  await checkDatabaseReadiness({ user: model("user"), authSession: model("sessions"), noteCreationRequest: model("creation"), webAuthnCredential: model("passkeys"), webAuthnLoginChallenge: model("deviceChallenges") });
-  assert.equal(calls.length, 5);
+  await checkDatabaseReadiness({ user: model("user"), authSession: model("sessions"), noteCreationRequest: model("creation"), webAuthnCredential: model("passkeys"), webAuthnLoginChallenge: model("deviceChallenges"), authEmailChallenge: model("accountEmail"), authEmailJob: model("emailJobs") });
+  assert.equal(calls.length, 7);
   assert.ok(calls.every(call => call.query.take === 1));
-  assert.deepEqual(calls[0].query.select, { sessionGeneration: true, defaultWorkspace: true });
+  assert.deepEqual(calls[0].query.select, { sessionGeneration: true, defaultWorkspace: true, emailVerifiedAt: true });
   assert.deepEqual(calls[3].query.select, { vaultEnabled: true });
   await assert.rejects(checkDatabaseReadiness({ user: { async findMany() { throw Object.assign(Error("private database details"), { code: "P2022" }); } } }), { code: "P2022" });
 });

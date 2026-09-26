@@ -10,6 +10,7 @@ import SharedNote from "./pages/SharedNote";
 import Signup from "./pages/auth/Signup";
 import PickMode from "./pages/auth/PickMode";
 import AuthCallback from "./pages/auth/AuthCallback";
+import { ForgotPassword, ResetPassword, VerifyEmail } from "./pages/auth/AccountRecovery";
 
 import NotesDashboard from "./pages/notes/Dashboard";
 import NoteListPage from "./pages/notes/NoteListPage";
@@ -73,6 +74,9 @@ function AppContent() {
         {/* -- Public / auth -- */}
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/shared/:token" element={<SharedNote />} />
         <Route
