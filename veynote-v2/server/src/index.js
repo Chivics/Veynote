@@ -4,6 +4,7 @@ const passport = require("passport");
 const prisma = require("./lib/prisma");
 const { asyncHandler } = require("./middleware/asyncHandler");
 const { errorHandler } = require("./middleware/errorHandler");
+const { checkDatabaseReadiness } = require("./utils/databaseReadiness");
 
 const { router: authRoutes } = require("./routes/auth.routes");
 const folderRoutes = require("./routes/folders.routes");
@@ -60,7 +61,7 @@ app.get("/api/health", (_req, res) => {
 // the database engine can execute a query before a deployment is healthy.
 app.get("/api/ready", asyncHandler(async (_req, res) => {
   res.set("Cache-Control", "no-store");
-  await require("./utils/databaseReadiness").checkDatabaseReadiness(prisma);
+  await checkDatabaseReadiness(prisma);
   res.json({ ok: true });
 }));
 
@@ -109,6 +110,10 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 4000;
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Veynote V2 API listening on :${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Veynote V2 API listening on :${PORT}`);
+  });
+}
+
+module.exports = { app };
