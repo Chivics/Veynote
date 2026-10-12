@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
-import { EntryCard } from "./Dashboard";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import NavigationIcon from "../../components/layout/NavigationIcon";
 import "./tradingJournal.css";
@@ -86,14 +85,28 @@ export default function EntryListPage({ mode }) {
           description={searchQuery || outcome !== "ALL" ? "Try a broader phrase, outcome, or account scope." : "Log your first trade to begin a reliable decision history."}
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {visibleEntries.map((e) => (
-            <EntryCard key={e.id} entry={e} />
-          ))}
+        <div className="trade-journal-ledger">
+          <header><span>Decision</span><span>Market & account</span><span>Outcome</span><span>Evidence</span><span aria-hidden="true" /></header>
+          {visibleEntries.map((entry) => <TradeLedgerRow key={entry.id} entry={entry}/>) }
         </div>
       )}
     </main>
   );
+}
+
+function TradeLedgerRow({ entry }) {
+  const documented = Boolean((entry.content || "").replace(/<[^>]+>/g," ").trim() || entry.preTradeEmotion || entry.postTradeEmotion);
+  const resultLabel = entry.result === "BREAK_EVEN" ? "Break-even" : entry.result ? entry.result.charAt(0)+entry.result.slice(1).toLowerCase() : "Open";
+  const resultTone = entry.result === "WIN" ? "is-win" : entry.result === "LOSS" ? "is-loss" : entry.result === "BREAK_EVEN" ? "is-even" : "is-open";
+  const setups = (entry.setupTypes || "").split(",").map(item=>item.trim()).filter(Boolean);
+  return <Link className="trade-journal-ledger-row" to={`/trading/entries/${entry.id}`}>
+    <time><strong>{new Date(entry.entryDate).getDate()}</strong><span>{new Date(entry.entryDate).toLocaleDateString(undefined,{month:"short",year:"numeric"})}</span></time>
+    <span className="trade-journal-decision"><small>{entry.isTrade ? "TRADE" : "RESEARCH NOTE"}</small><strong>{entry.title || "Untitled trading record"}</strong><span>{entry.account?.name || "No account assigned"}{setups.length ? ` · ${setups.slice(0,2).join(" · ")}` : ""}</span></span>
+    <span className="trade-journal-market"><strong>{entry.asset || "—"}</strong><small>{entry.direction ? entry.direction.charAt(0)+entry.direction.slice(1).toLowerCase() : "No direction"}</small></span>
+    <span className={`trade-journal-outcome ${resultTone}`}><strong>{entry.achievedR != null ? `${entry.achievedR > 0 ? "+" : ""}${entry.achievedR}R` : resultLabel}</strong><small>{entry.profitLoss != null ? `${entry.profitLoss > 0 ? "+" : ""}${Number(entry.profitLoss).toLocaleString()}` : resultLabel}</small></span>
+    <span className={`trade-journal-evidence ${documented ? "is-documented" : ""}`}><NavigationIcon name={documented?"check":"note"} size={14}/><span><strong>{documented?"Documented":"Needs context"}</strong><small>{documented?"Thesis or psychology recorded":"Add the evidence behind the result"}</small></span></span>
+    <NavigationIcon name="chevron" size={16}/>
+  </Link>;
 }
 
 function FilterChip({ active, onClick, children }) {

@@ -48,6 +48,7 @@ import JournalReviewWorkspace from "./pages/journal/JournalReviewWorkspace";
 import JournalMoodWorkspace from "./pages/journal/JournalMoodWorkspace";
 import JournalRelatedRecords from "./pages/journal/JournalRelatedRecords";
 import JournalRecordDetail from "./pages/journal/JournalRecordDetail";
+import JournalEntryGateway from "./pages/journal/JournalEntryGateway";
 import BusinessWorkspace, { BusinessDashboard, BusinessCustomers, BusinessCustomerDetail, BusinessPipeline, BusinessFollowUps, BusinessOpportunityDetail } from "./pages/business/BusinessWorkspace";
 
 import TradingDashboard from "./pages/trading/Dashboard";
@@ -68,6 +69,7 @@ import FileTrash from "./pages/notes/FileTrash";
 import ConnectedFiles from "./pages/notes/ConnectedFiles";
 import ActivityCenter from "./pages/ActivityCenter.jsx";
 import SharingCenter from "./pages/SharingCenter.jsx";
+import GlobalSearch from "./pages/GlobalSearch.jsx";
 
 function RootRedirect() {
   const { user } = useAuth();
@@ -89,6 +91,7 @@ export default function WorkspaceApplication() {
           <Route path="settings" element={<Settings />} />
           <Route path="activity" element={<ActivityCenter />} />
           <Route path="sharing" element={<SharingCenter />} />
+          <Route path="search" element={<GlobalSearch />} />
           {import.meta.env.DEV && <Route path="product-preview" element={<ProductPreview />} />}
 
           {/* Notes mode */}
@@ -193,7 +196,7 @@ export default function WorkspaceApplication() {
           {/* Personal Journal — persisted through the rich record engine */}
           <Route path="journal" element={<JournalDashboard />} />
           <Route path="journal/today" element={<JournalToday />} />
-          <Route path="journal/new" element={<NoteEditor kind="JOURNAL" />} />
+          <Route path="journal/new" element={<JournalEntryGateway />} />
           <Route path="journal/timeline" element={<JournalTimeline />} />
           <Route path="journal/calendar" element={<JournalCalendar />} />
           <Route path="journal/insights" element={<JournalInsights />} />

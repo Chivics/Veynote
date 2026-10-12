@@ -1800,6 +1800,37 @@ async function main() {
     return;
   }
 
+  if (process.argv.includes("--global-search-only")) {
+    stage="Global search fixtures";
+    const note=await makeNote("Northstar strategy brief","<h2>Recommendation</h2><p>Northstar evidence for the board.</p>");
+    await request("/api/tasks","POST",{title:"Review Northstar evidence",status:"TODO",priority:"High"});
+    await db.libraryItem.create({data:{userId,title:"Northstar field guide",database:"READING",category:"Book",status:"Reading",notes:"Northstar source material"}});
+    await db.tradingEntry.create({data:{userId,title:"Northstar market thesis",content:"Northstar execution evidence",asset:"EURUSD",direction:"LONG",result:"OPEN"}});
+    await db.note.create({data:{userId,title:"Northstar private record",content:"<p>Must stay outside search.</p>",contentPreview:"Northstar private",wordCount:3,isLocked:true}});
+    stage="Global search desktop";
+    await page.send("Page.navigate",{url:app+"/search?q=Northstar"});
+    await until(()=>evaluate("document.querySelectorAll('.global-search-result').length >= 4"),{timeout:20000});
+    assert.equal(await evaluate("document.body.innerText.includes('Northstar strategy brief') && document.body.innerText.includes('Review Northstar evidence') && document.body.innerText.includes('Northstar field guide') && document.body.innerText.includes('Northstar market thesis')"),true,"Global search must connect the implemented workspaces");
+    assert.equal(await evaluate("document.body.innerText.includes('Northstar private record')"),false,"Locked writing must remain outside universal search");
+    assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth+1"),true,"Global search must fit desktop");
+    await saveScreenshot("global-search-desktop-dark");
+    stage="Global search scoping";
+    await evaluate("[...document.querySelectorAll('.global-search>nav button')].find(button=>button.textContent.includes('Tasks')).click()");
+    await until(()=>evaluate("new URLSearchParams(location.search).get('scope')==='tasks' && document.querySelectorAll('.global-search-result').length===1"));
+    assert.equal(await evaluate("document.body.innerText.includes('Review Northstar evidence') && !document.body.innerText.includes('Northstar strategy brief')"),true,"Workspace filters must narrow real results");
+    stage="Global search record navigation";
+    await evaluate("document.querySelector('.global-search-result').click()");
+    await until(()=>evaluate("location.pathname.startsWith('/notes/tasks/')"),{timeout:20000});
+    stage="Global search mobile";
+    await page.send("Emulation.setDeviceMetricsOverride",{width:414,height:896,deviceScaleFactor:1,mobile:true});
+    await page.send("Page.navigate",{url:app+"/search?q=Northstar"});
+    await until(()=>evaluate("document.querySelectorAll('.global-search-result').length>=4"),{timeout:20000});
+    assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth+1 && Boolean(document.querySelector('.mobile-bottom-nav'))"),true,"Global search must fit mobile and retain current-workspace navigation");
+    await saveScreenshot("global-search-mobile-dark");await evaluate("document.documentElement.dataset.theme='light'");await saveScreenshot("global-search-mobile-light");
+    assert.equal((await request(`/api/notes/${note.id}`)).note.title,"Northstar strategy brief","Search navigation must never mutate its source record");
+    console.log(JSON.stringify({result:"PASS",checks:["cross-workspace retrieval","protected-record exclusion","workspace scoping","deep record navigation","desktop/mobile dark/light layout"],screenshots}));return;
+  }
+
   if (process.argv.includes("--settings-only")) {
     stage = "Settings profile console";
     await captureAppScreen("/settings", "settings-profile-desktop-dark");
@@ -1914,6 +1945,13 @@ async function main() {
     await page.send("Page.navigate", { url:app + "/journal/related" });
     await until(() => evaluate("document.querySelector('.journal-related-groups')?.innerText.includes('Strategy source note')"));
     assert.equal(await evaluate("document.body.innerText.includes('Focused after review')"), true, "Related records must connect writing through shared subjects");
+    stage = "Journal entry gateway";
+    await page.send("Page.navigate", { url:app + "/journal/new" });
+    await until(() => evaluate("Boolean(document.querySelector('.journal-entry-gateway-primary'))"), { timeout:20000 });
+    assert.equal(await evaluate("document.querySelectorAll('.journal-entry-gateway-primary > a').length"), 6, "Journal creation must begin with a purposeful record-type gateway");
+    assert.equal(await evaluate("Boolean(document.querySelector('.note-editor-shell'))"), false, "Bare Journal creation must not drop users into the generic writing surface");
+    assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), true, "Journal entry gateway must fit desktop");
+    await saveScreenshot("journal-entry-gateway-desktop-dark");
     stage = "Structured Journal editor context";
     await page.send("Page.navigate", { url:app + "/journal/new?template=decision-journal&tag=Journal%3ADecision" });
     await until(() => evaluate("document.querySelector('.journal-context-type select')?.value === 'decision'"), { timeout:20000 });

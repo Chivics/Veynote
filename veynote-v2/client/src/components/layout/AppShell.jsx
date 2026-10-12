@@ -203,7 +203,7 @@ export default function AppShell() {
   const { user, sessionLocked } = useAuth();
   const workspaceLocation = `${location.pathname}${location.search}`;
   const lastWorkspace = useRef(currentWorkspace(workspaceLocation, mode));
-  const workspace = ["/settings", "/activity", "/sharing", "/product-preview"].includes(location.pathname) ? lastWorkspace.current : currentWorkspace(workspaceLocation, mode);
+  const workspace = ["/settings", "/activity", "/sharing", "/search", "/product-preview"].includes(location.pathname) ? lastWorkspace.current : currentWorkspace(workspaceLocation, mode);
   useEffect(() => { lastWorkspace.current = workspace; }, [workspace]);
   const noteSegment = location.pathname.match(/^\/notes\/([^/]+)$/)?.[1];
   const journalEditor = /^\/journal\/(new|entries\/[^/]+)$/.test(location.pathname);
@@ -289,7 +289,7 @@ export default function AppShell() {
   useEffect(() => {
     function onKeyDown(event) {
       if (drawerOpen || sessionLocked || event.defaultPrevented || document.querySelector("dialog[open]")) return;
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); navigate(WORKSPACES[workspace].search); }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); navigate("/search"); }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") { event.preventDefault(); navigate(WORKSPACES[workspace].create); }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -309,7 +309,7 @@ export default function AppShell() {
         <button type="button" className="mobile-avatar" onClick={() => navigate("/settings")} aria-label="Open account settings">{initials(user)}</button>
       </header>
       <div className="desktop-topbar print:hidden">
-        <button type="button" onClick={() => navigate(WORKSPACES[workspace].search)}><NavigationIcon name="search" size={17} /><span>Search {workspace}</span><kbd>⌘ K</kbd></button>
+        <button type="button" onClick={() => navigate("/search")}><NavigationIcon name="search" size={17} /><span>Search Veynote</span><kbd>⌘ K</kbd></button>
         <div><span className={`sync-indicator ${online ? "" : "is-offline"}`} role="status"><i /> {online ? "Online" : "Offline"}</span><button type="button" className="desktop-activity" aria-label="Open activity" onClick={() => navigate("/activity")}><NavigationIcon name="bell" size={17} /></button><button type="button" className="desktop-avatar" aria-label="Open account settings" onClick={() => navigate("/settings")}>{initials(user)}</button></div>
       </div>
       <div className="app-content"><ContextualNavigation /><Outlet /></div>

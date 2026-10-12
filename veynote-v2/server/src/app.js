@@ -35,6 +35,7 @@ const willRoutes = require("./routes/will.routes");
 const businessRoutes = require("./routes/business.routes");
 const { router: writingTemplateRoutes } = require("./routes/writingTemplates.routes");
 const { createSharingRoutes } = require("./routes/sharing.routes");
+const { createSearchRoutes } = require("./routes/search.routes");
 
 const app = express();
 // Configure only known proxy networks; never trust arbitrary forwarded headers.
@@ -89,6 +90,7 @@ app.use("/api/notes", createNoteCommentsRoutes({ db: prisma }));
 app.use("/api/notes", noteAttachmentRoutes);
 app.use("/api/writing-templates", writingTemplateRoutes);
 app.use("/api/sharing", createSharingRoutes({ db: prisma }));
+app.use("/api/search", createSearchRoutes({ db: prisma }));
 
 app.use("/api/accounts", accountRoutes);
 
