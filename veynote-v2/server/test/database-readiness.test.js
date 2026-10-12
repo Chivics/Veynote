@@ -88,6 +88,10 @@ test("readiness failures return safe actionable diagnostics and are never cachea
       [{ code: "P2022" }, "DATABASE_SCHEMA_MISSING"],
       [{ name: "PrismaClientValidationError" }, "DATABASE_CLIENT_OUTDATED"],
       [{ code: "DATABASE_CLIENT_OUTDATED" }, "DATABASE_CLIENT_OUTDATED"],
+      [{ code: "P1000" }, "DATABASE_CREDENTIALS_REJECTED"],
+      [{ code: "P1001" }, "DATABASE_UNREACHABLE"],
+      [{ code: "P1002" }, "DATABASE_CONNECTION_TIMEOUT"],
+      [{ code: "P2024" }, "DATABASE_POOL_TIMEOUT"],
       [{ name: "Error", code: "PRIVATE_VALUE" }, "DATABASE_READINESS_FAILED"],
     ]) {
       const res = { headers: {}, set(key, value) { this.headers[key] = value; }, status(value) { this.statusCode = value; return this; }, json(value) { this.body = value; return this; } };

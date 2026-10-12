@@ -4,7 +4,15 @@ function errorHandler(error, _req, res, next) {
     const check = ["account", "sessions", "note_saves", "note_list_summaries", "document_revisions", "document_chunks", "device_access", "device_signin", "account_email", "email_delivery", "writing_templates", "tag_index", "file_trash", "attachment_trash", "note_comments", "task_trash", "estate_liabilities", "vault_security_activity"].includes(error.readinessCheck) ? error.readinessCheck : "database";
     const schemaMissing = ["P2021", "P2022"].includes(error.code);
     const clientOutdated = error.code === "DATABASE_CLIENT_OUTDATED" || error.cause?.name === "PrismaClientValidationError";
-    const code = schemaMissing ? "DATABASE_SCHEMA_MISSING" : clientOutdated ? "DATABASE_CLIENT_OUTDATED" : "DATABASE_READINESS_FAILED";
+    const readinessCodes = {
+      P1000: "DATABASE_CREDENTIALS_REJECTED",
+      P1001: "DATABASE_UNREACHABLE",
+      P1002: "DATABASE_CONNECTION_TIMEOUT",
+      P1008: "DATABASE_OPERATION_TIMEOUT",
+      P1017: "DATABASE_CONNECTION_CLOSED",
+      P2024: "DATABASE_POOL_TIMEOUT",
+    };
+    const code = schemaMissing ? "DATABASE_SCHEMA_MISSING" : clientOutdated ? "DATABASE_CLIENT_OUTDATED" : readinessCodes[error.code] || "DATABASE_READINESS_FAILED";
     const causeCode = /^P\d{4}$/.test(error.code || "") ? error.code : undefined;
     const causeType = ["PrismaClientValidationError", "PrismaClientInitializationError", "PrismaClientRustPanicError", "TypeError", "ReferenceError"].includes(error.cause?.name) ? error.cause.name : undefined;
     console.error(JSON.stringify({ event: "database_readiness_failed", check, code, causeCode, causeType }));
