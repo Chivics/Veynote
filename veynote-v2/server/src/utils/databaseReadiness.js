@@ -21,19 +21,22 @@ async function checkDatabaseReadiness(db) {
     ["estate_liabilities", "willLiability", { id: true, assetId: true, status: true }],
     ["vault_security_activity", "vaultSecurityEvent", { id: true, scope: true, outcome: true }],
   ];
-  for (const [check, model, select] of probes) {
+  const results = await Promise.all(probes.map(async ([check, model, select]) => {
     try {
       if (typeof db[model]?.findMany !== "function") {
         throw Object.assign(new Error("Regenerate the database client before starting the API."), { code: "DATABASE_CLIENT_OUTDATED" });
       }
       await db[model].findMany({ select, take: 1 });
+      return null;
     } catch (cause) {
       // Keep the original error inside the process. Only the fixed check name
       // and allowlisted classification may enter a response or log.
-      throw Object.assign(new Error("A required database readiness check failed.", { cause }), {
+      return Object.assign(new Error("A required database readiness check failed.", { cause }), {
         name: "DatabaseReadinessError", readinessCheck: check, code: cause?.code,
       });
     }
-  }
+  }));
+  const failure = results.find(Boolean);
+  if (failure) throw failure;
 }
 module.exports = { checkDatabaseReadiness };

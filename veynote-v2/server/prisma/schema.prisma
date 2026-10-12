@@ -3,9 +3,9 @@
 
 generator client {
   provider = "prisma-client-js"
-  // Isolate the query engine from the hosting provider's Node process.
-  // Regenerate on the deployment host; no database migration is needed.
-  engineType = "binary"
+  // The in-process library engine avoids the shared host's stalled child
+  // process transport while keeping the same Prisma API and schema.
+  engineType = "library"
 }
 
 datasource db {

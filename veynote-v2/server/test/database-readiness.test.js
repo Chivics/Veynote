@@ -74,7 +74,7 @@ test("readiness identifies the failing check and preserves its cause only intern
     assert.equal(error.cause, privateFailure);
     return true;
   });
-  assert.equal(laterProbeCalled, false);
+  assert.equal(laterProbeCalled, true);
   await assert.rejects(checkDatabaseReadiness({ user: { findMany: async () => [] } }), {
     code: "DATABASE_CLIENT_OUTDATED", readinessCheck: "sessions",
   });
