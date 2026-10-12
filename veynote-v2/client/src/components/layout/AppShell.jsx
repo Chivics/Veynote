@@ -125,6 +125,7 @@ function GlobalControls({ onNavigate, onDismiss }) {
     <div className="global-controls-items">
     {onNavigate && <button type="button" onClick={event => go(event, "/settings?tab=Profile")}><NavigationIcon name="account" size={18} /><span>Account</span></button>}
     {onNavigate && <button type="button" onClick={event => go(event, "/activity")}><NavigationIcon name="bell" size={18} /><span>Activity</span></button>}
+    <button type="button" onClick={event => go(event, "/sharing")}><NavigationIcon name="share" size={18} /><span>Sharing & review</span></button>
     <button type="button" onClick={event => go(event, "/settings")}><NavigationIcon name="settings" size={18} /><span>Settings</span></button>
     {import.meta.env.DEV && <button type="button" onClick={event => go(event, "/product-preview")}><NavigationIcon name="preview" size={18} /><span>Product Preview</span><small>Design</small></button>}
     <button type="button" onClick={changeTheme}><NavigationIcon name="sun" size={18} /><span>Appearance</span><small>{user?.theme || "System"}</small></button>
@@ -202,7 +203,7 @@ export default function AppShell() {
   const { user, sessionLocked } = useAuth();
   const workspaceLocation = `${location.pathname}${location.search}`;
   const lastWorkspace = useRef(currentWorkspace(workspaceLocation, mode));
-  const workspace = ["/settings", "/activity", "/product-preview"].includes(location.pathname) ? lastWorkspace.current : currentWorkspace(workspaceLocation, mode);
+  const workspace = ["/settings", "/activity", "/sharing", "/product-preview"].includes(location.pathname) ? lastWorkspace.current : currentWorkspace(workspaceLocation, mode);
   useEffect(() => { lastWorkspace.current = workspace; }, [workspace]);
   const noteSegment = location.pathname.match(/^\/notes\/([^/]+)$/)?.[1];
   const journalEditor = /^\/journal\/(new|entries\/[^/]+)$/.test(location.pathname);

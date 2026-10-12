@@ -67,6 +67,7 @@ import ProductPreview from "./pages/ProductPreview";
 import FileTrash from "./pages/notes/FileTrash";
 import ConnectedFiles from "./pages/notes/ConnectedFiles";
 import ActivityCenter from "./pages/ActivityCenter.jsx";
+import SharingCenter from "./pages/SharingCenter.jsx";
 
 function RootRedirect() {
   const { user } = useAuth();
@@ -87,6 +88,7 @@ export default function WorkspaceApplication() {
           <Route index element={<RootRedirect />} />
           <Route path="settings" element={<Settings />} />
           <Route path="activity" element={<ActivityCenter />} />
+          <Route path="sharing" element={<SharingCenter />} />
           {import.meta.env.DEV && <Route path="product-preview" element={<ProductPreview />} />}
 
           {/* Notes mode */}

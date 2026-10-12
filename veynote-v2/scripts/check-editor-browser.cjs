@@ -1763,6 +1763,43 @@ async function main() {
     return;
   }
 
+  if (process.argv.includes("--sharing-center-only")) {
+    stage = "Sharing center fixtures";
+    const shared = await makeNote("Executive review memorandum", "<h2>Recommendation</h2><p>A controlled document for external review.</p>");
+    const discussed = await makeNote("Operating decision record", "<h2>Decision</h2><p>Retain the reasoning with the outcome.</p>");
+    const privateNote = await makeNote("Private working paper", "<p>This record remains outside review.</p>");
+    const { shareToken } = await request(`/api/notes/${shared.id}/share`, "POST", {});
+    await request(`/api/notes/${discussed.id}/comments`, "POST", { body:"Confirm the final assumption before approval.", quote:"Retain the reasoning" });
+    stage = "Sharing center desktop";
+    await captureAppScreen("/sharing", "sharing-center-desktop-dark");
+    await until(() => evaluate("document.body.innerText.includes('Executive review memorandum') && document.body.innerText.includes('Operating decision record')"), { timeout:20000 });
+    assert.equal(await evaluate("document.body.innerText.includes('Private working paper')"), false, "Private documents without access or discussion must remain outside the review register");
+    assert.equal(await evaluate("document.body.innerText.includes('OPEN THREADS') && document.body.innerText.includes('Public link active')"), true, "Sharing must present governed access and discussion state together");
+    assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), true, "Sharing must fit desktop");
+    stage = "Sharing center filtering";
+    await evaluate("[...document.querySelectorAll('.sharing-tools nav button')].find(button => button.textContent.includes('Discussions')).click()");
+    await until(() => evaluate("new URLSearchParams(location.search).get('view') === 'discussion' && document.body.innerText.includes('Operating decision record')"));
+    assert.equal(await evaluate("document.body.innerText.includes('Executive review memorandum')"), false, "Discussion view must not include public-only documents");
+    stage = "Sharing center mobile";
+    await page.send("Emulation.setDeviceMetricsOverride", { width:414,height:896,deviceScaleFactor:1,mobile:true });
+    await page.send("Page.navigate", { url:app + "/sharing" });
+    await until(() => evaluate("Boolean(document.querySelector('.sharing-center'))"), { timeout:20000 });
+    assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth + 1 && Boolean(document.querySelector('.mobile-bottom-nav'))"), true, "Sharing must fit mobile and preserve workspace navigation");
+    await saveScreenshot("sharing-center-mobile-dark");
+    await evaluate("document.documentElement.dataset.theme='light'"); await saveScreenshot("sharing-center-mobile-light");
+    stage = "Controlled public revocation";
+    await evaluate("document.documentElement.dataset.theme='dark'");
+    await until(() => evaluate("document.body.innerText.includes('Executive review memorandum')"));
+    await evaluate("[...document.querySelectorAll('.sharing-record')].find(record => record.innerText.includes('Executive review memorandum')).querySelector('button.is-danger').click()");
+    await until(() => evaluate("Boolean(document.querySelector('.confirm-dialog[open]'))"));
+    await evaluate("document.querySelector('.confirm-dialog[open] .confirm-dialog-actions button:last-child').click()");
+    await until(() => evaluate("document.body.innerText.includes('was revoked')"), { timeout:20000 });
+    assert.equal((await fetch(`${api}/api/public/notes/${shareToken}`)).status,404,"Revocation from the governance center must invalidate public access immediately");
+    assert.equal((await request(`/api/notes/${privateNote.id}`)).note.title,"Private working paper","Sharing controls must not mutate unrelated private writing");
+    console.log(JSON.stringify({result:"PASS",checks:["owner-scoped access register","public and discussion filters","private-record exclusion","contextual review activity","confirmed immediate revocation","desktop/mobile dark/light layout"],screenshots}));
+    return;
+  }
+
   if (process.argv.includes("--settings-only")) {
     stage = "Settings profile console";
     await captureAppScreen("/settings", "settings-profile-desktop-dark");
