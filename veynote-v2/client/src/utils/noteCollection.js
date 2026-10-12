@@ -5,11 +5,33 @@ export function writingText(html = "") {
   if (typeof document !== "undefined") {
     const template = document.createElement("template");
     template.innerHTML = html;
-    template.content.querySelectorAll("script, style, iframe, object").forEach(node => node.remove());
-    template.content.querySelectorAll("p, div, h1, h2, h3, h4, h5, h6, li, tr, br").forEach(node => node.append(" "));
-    return (template.content.textContent || "").replace(/\s+/g, " ").trim();
+    const parts = [];
+    const boundaries = new Set(["P","DIV","H1","H2","H3","H4","H5","H6","LI","UL","OL","TR","TD","TH","BLOCKQUOTE","PRE","FIGCAPTION","BR"]);
+    const ignored = new Set(["SCRIPT","STYLE","IFRAME","OBJECT","EMBED","INPUT"]);
+    function visit(node) {
+      if (node.nodeType === 3) { parts.push(node.textContent || ""); return; }
+      if (node.nodeType !== 1 && node.nodeType !== 11) return;
+      if (ignored.has(node.tagName) || node.classList?.contains("cl-box")) return;
+      const boundary = boundaries.has(node.tagName);
+      if (boundary) parts.push(" ");
+      node.childNodes.forEach(visit);
+      if (boundary) parts.push(" ");
+    }
+    visit(template.content);
+    return parts.join("").replace(/\s+/g, " ").trim();
   }
   return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+export function noteExcerpt(note) {
+  if (typeof note?.contentPreview === "string" && note.content === undefined) return note.contentPreview;
+  return writingText(note?.content || "");
+}
+
+export function noteWordCount(note) {
+  if (Number.isSafeInteger(note?.wordCount) && note.wordCount >= 0) return note.wordCount;
+  const text = writingText(note?.content || "");
+  return text ? text.split(/\s+/).length : 0;
 }
 
 export function recordPath(note) {
@@ -26,9 +48,10 @@ export function collectionState(params, scope) {
   const page = Number(params.get("page"));
   return {
     q: params.get("q") || "",
-    sort: ["updated", "created", "title"].includes(params.get("sort")) ? params.get("sort") : "updated",
-    view: params.get("view") === "grid" ? "grid" : "list",
+    sort: ["updated", "created", "title", "deleted"].includes(params.get("sort")) ? params.get("sort") : scope === "trash" ? "deleted" : "updated",
+    view: ["list", "grid"].includes(params.get("view")) ? params.get("view") : scope === "favorites" ? "grid" : "list",
     kind: ["NOTE", "JOURNAL", "ALL"].includes(params.get("kind")) ? params.get("kind") : defaultKind,
+    focus: ["pinned", "shared"].includes(params.get("focus")) ? params.get("focus") : "all",
     folder: params.get("folder") || "", tag: params.get("tag") || "",
     page: Number.isSafeInteger(page) && page > 0 ? page : 1,
   };
@@ -40,7 +63,7 @@ export function collectionParams(previous, patch) {
     if (value === "" || value == null) next.delete(key);
     else next.set(key, String(value));
   }
-  if (Object.keys(patch).some(key => ["q", "sort", "kind", "folder", "tag"].includes(key))) next.delete("page");
+  if (Object.keys(patch).some(key => ["q", "sort", "kind", "folder", "tag", "focus"].includes(key))) next.delete("page");
   return next;
 }
 
@@ -49,12 +72,14 @@ export function collectWriting(notes, filters, searchOnServer = false) {
   return notes.filter(note => {
     if (note.isLocked || note.isWill) return false;
     if (filters.kind !== "ALL" && (note.kind || "NOTE") !== filters.kind) return false;
+    if (filters.focus === "pinned" && !note.isPinned) return false;
+    if (filters.focus === "shared" && !note.shareEnabled) return false;
     if (filters.folder && (filters.folder === "unfiled" ? note.folderId : note.folderId !== filters.folder)) return false;
     if (filters.tag && !note.tags?.includes(filters.tag)) return false;
-    return searchOnServer || !needle || `${note.title || ""} ${writingText(note.content)} ${(note.tags || []).join(" ")}`.toLocaleLowerCase().includes(needle);
+    return searchOnServer || !needle || `${note.title || ""} ${noteExcerpt(note)} ${(note.tags || []).join(" ")}`.toLocaleLowerCase().includes(needle);
   }).sort((a, b) => {
     if (filters.sort === "title") return (a.title || "Untitled note").localeCompare(b.title || "Untitled note");
-    const field = filters.sort === "created" ? "createdAt" : "updatedAt";
+    const field = filters.sort === "deleted" ? "trashedAt" : filters.sort === "created" ? "createdAt" : "updatedAt";
     const time = note => new Date(note[field] || note.createdAt || note.entryDate || 0).getTime() || 0;
     return time(b) - time(a) || String(a.id).localeCompare(String(b.id));
   });

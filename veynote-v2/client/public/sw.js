@@ -1,5 +1,5 @@
-const CACHE = "veynote-public-shell-v1";
-const PUBLIC_FILES = ["/offline.html", "/logo.png"];
+const CACHE = "veynote-public-shell-v2";
+const PUBLIC_FILES = ["/offline.html", "/logo.png", "/icon-192.png", "/manifest.webmanifest"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(PUBLIC_FILES)));
   // Wait for existing windows to close; do not interrupt unsaved writing.

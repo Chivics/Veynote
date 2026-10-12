@@ -33,6 +33,7 @@ function TradeEditorForm() {
   useEffect(() => bodyRef.current ? observeMedia(bodyRef.current) : undefined, [loaded]);
   const [saving, setSaving] = useState(false);
   const [initialContent, setInitialContent] = useState('');
+  const [analysisPath, setAnalysisPath] = useState([]);
   const [loadError, setLoadError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [accountError, setAccountError] = useState('');
@@ -57,6 +58,7 @@ function TradeEditorForm() {
     riskAmount: "",
     profitLoss: "",
     session: "",
+    entryDate: new Date().toISOString().slice(0, 10),
     setupTypes: [],
     customSetupType: "",
     biasTimeframe: "",
@@ -108,6 +110,7 @@ function TradeEditorForm() {
           riskAmount: e.riskAmount ?? "",
           profitLoss: e.profitLoss ?? "",
           session: e.session || "",
+          entryDate: new Date(e.entryDate || e.createdAt).toISOString().slice(0, 10),
           setupTypes: [...new Set(normalizedSetupTypes)],
           customSetupType: storedCustomSetup
             ? storedCustomSetup.slice("CUSTOM:".length)
@@ -126,6 +129,7 @@ function TradeEditorForm() {
           postTradeWentWrong: e.postTradeWentWrong || "",
           postTradeLesson: e.postTradeLesson || "",
         });
+        setAnalysisPath([e.biasTimeframe, e.setupTimeframe, e.entryTimeframe].filter(Boolean));
         setInitialContent(e.content || '');
         setLoaded(true);
       }).catch(error => { if(active) setLoadError(error.message); });
@@ -165,9 +169,16 @@ function TradeEditorForm() {
       return customValue ? `CUSTOM:${customValue}` : "CUSTOM";
     });
 
+    const firstTimeframe = analysisPath[0] || form.biasTimeframe || null;
+    const finalTimeframe = analysisPath.at(-1) || form.entryTimeframe || null;
+    const setupIndex = analysisPath.length > 2 ? analysisPath.length - 2 : analysisPath.length > 1 ? 1 : 0;
     return {
       ...formWithoutCustomField,
       setupTypes,
+      entryDate: form.entryDate || null,
+      biasTimeframe: firstTimeframe,
+      setupTimeframe: analysisPath[setupIndex] || form.setupTimeframe || null,
+      entryTimeframe: finalTimeframe,
       content,
       entryPrice: form.entryPrice ? Number(form.entryPrice) : null,
       stopLoss: form.stopLoss ? Number(form.stopLoss) : null,
@@ -280,6 +291,7 @@ function TradeEditorForm() {
         <select value={form.session} onChange={(e) => setForm((f) => ({ ...f, session: e.target.value }))} className="chip bg-app-panel2 outline-none">
           <option value="">Session</option><option value="ASIA">Asia</option><option value="LONDON">London</option><option value="NEW_YORK">New York</option><option value="OVERLAP">London / New York overlap</option><option value="OTHER">Other</option>
         </select>
+        <label className="chip bg-app-panel2 trade-date-chip"><span>Trade date</span><input aria-label="Trade date" type="date" value={form.entryDate} onChange={(e) => setForm((f) => ({ ...f, entryDate: e.target.value }))} /></label>
       </div>
 
       <input
@@ -385,13 +397,6 @@ function TradeEditorForm() {
           </div>
         )}
 
-        <p className="text-[10.5px] text-ink-muted mt-3.5 mb-1.5">TIMEFRAME HIERARCHY</p>
-        <div className="flex gap-2 flex-wrap">
-          <input className="input w-36" placeholder="Bias TF (Daily/4H)" value={form.biasTimeframe} onChange={(e) => setForm((f) => ({ ...f, biasTimeframe: e.target.value }))} />
-          <input className="input w-32" placeholder="Setup TF (1H)" value={form.setupTimeframe} onChange={(e) => setForm((f) => ({ ...f, setupTimeframe: e.target.value }))} />
-          <input className="input w-36" placeholder="Entry TF (15M/5M)" value={form.entryTimeframe} onChange={(e) => setForm((f) => ({ ...f, entryTimeframe: e.target.value }))} />
-        </div>
-
         {form.result !== "OPEN" && (
           <div className="mt-3.5">
             <p className="text-[10.5px] text-ink-muted mb-1.5">ACHIEVED R</p>
@@ -419,9 +424,9 @@ function TradeEditorForm() {
       />
       </section>
 
-      <section id="analysis" className="trade-editor-section"><div className="trade-section-heading"><div><span className="eyebrow">03 · TOP-DOWN ANALYSIS</span><h2>Build the evidence board</h2><p>Choose only the timeframes that belong to this trade, then document the progression to execution.</p></div></div>
+      <section id="analysis" className="trade-editor-section"><div className="trade-section-heading"><div><span className="eyebrow">03 · TOP-DOWN ANALYSIS</span><h2>Build the evidence board</h2><p>Choose only the timeframes that belong to this trade, then document the progression to execution.</p></div>{analysisPath.length > 0 && <span className="trade-analysis-path" aria-label="Selected timeframe path">{analysisPath.join(" → ")}</span>}</div>
       <div className="mb-8">
-        <TradeDocumentation entryId={entryId} ensureEntryId={ensureEntryId} />
+        <TradeDocumentation entryId={entryId} ensureEntryId={ensureEntryId} onTimeframesChange={setAnalysisPath} />
       </div>
       </section>
 

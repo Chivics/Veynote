@@ -3,10 +3,13 @@ import { willApi } from "../../api/will";
 import WillModal from "./WillModal";
 import DeleteConfirmation from "./DeleteConfirmation";
 import { EmptyState } from "./WillSection";
+import "./willDocuments.css";
+
+const MAX_DOCUMENT_BYTES = 200 * 1024 * 1024;
 
 function matchesScope(document, scopeType, scopeId) {
   if (!scopeType || !scopeId) {
-    return !document.detailId && !document.assetId && !document.beneficiaryId;
+    return !document.detailId && !document.assetId && !document.beneficiaryId && !document.contactId && !document.executorId && !document.liabilityId;
   }
   const key = `${scopeType}Id`;
   return document[key] === scopeId;
@@ -67,6 +70,18 @@ export default function WillDocuments({ documents: suppliedDocuments, onChange, 
     }
   }
 
+  function chooseFile(event) {
+    const selected = event.target.files?.[0] || null;
+    if (selected && selected.size > MAX_DOCUMENT_BYTES) {
+      setFile(null);
+      setError("That document is larger than the 200 MB protected-file limit.");
+      event.target.value = "";
+      return;
+    }
+    setError("");
+    setFile(selected);
+  }
+
   async function remove() {
     if (!deleteTarget) return;
     setDeleting(true); setError("");
@@ -112,7 +127,7 @@ export default function WillDocuments({ documents: suppliedDocuments, onChange, 
 
       <WillModal open={open} title="Add Will document" onClose={() => !uploading && setOpen(false)}>
         <div className="space-y-5">
-          <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} className="block w-full text-sm" />
+          <div className="estate-document-picker"><input type="file" onChange={chooseFile} className="block w-full text-sm" /><p>Choose a supported document up to 200 MB. Upload progress remains visible while the file is transferred into the protected estate store.</p>{file && <strong>{file.name} · {(file.size / 1024 / 1024).toFixed(file.size >= 1024 * 1024 ? 1 : 2)} MB</strong>}</div>
           {uploading && <div><div className="text-xs mb-2">Uploading {progress}%</div><div className="h-2 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-current transition-all" style={{ width: `${progress}%` }} /></div></div>}
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
             <button type="button" className="btn-outline" disabled={uploading} onClick={() => setOpen(false)}>Cancel</button>

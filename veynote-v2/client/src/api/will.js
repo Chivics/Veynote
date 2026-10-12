@@ -99,6 +99,24 @@ export const willApi = {
     },
   },
 
+  liabilities: {
+    get(id) {
+      return api.get(`/will/liabilities/${id}`);
+    },
+
+    create(data) {
+      return api.post("/will/liabilities", data);
+    },
+
+    update(id, data) {
+      return api.patch(`/will/liabilities/${id}`, data);
+    },
+
+    remove(id) {
+      return api.delete(`/will/liabilities/${id}`);
+    },
+  },
+
   documents: {
     list() {
       return api.get("/will/documents");

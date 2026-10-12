@@ -1,11 +1,10 @@
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import NavigationIcon from "./layout/NavigationIcon";
+import "./noteActions.css";
 
-// Consolidates the secondary note actions (find, focus, history,
-// duplicate, lock) into one "⋯" menu instead of a row of separate
-// buttons competing for space in the header — Export and Share stay as
-// their own icon buttons next to this one, since they're self-contained
-// dropdowns already and nesting a dropdown inside a dropdown is worse
-// UX than two adjacent triggers.
+// Secondary actions share one keyboard-accessible dialog. Close it before
+// opening another tool so the editor is no longer inert during formatting,
+// find, history and device-authentication actions.
 export default function NoteOptionsMenu({
   routeId,
   isOwner,
@@ -13,7 +12,10 @@ export default function NoteOptionsMenu({
   isLocked,
   onToggleFind,
   onOpenHistory,
+  onOpenInsights,
+  onOpenExport,
   onDuplicate,
+  onSaveAsTemplate,
   onToggleLock,
   isFavorite,
   isArchived,
@@ -24,59 +26,72 @@ export default function NoteOptionsMenu({
   onToggleFocusMode,
 }) {
   const [open, setOpen] = useState(false);
+  const dialog = useRef(null), trigger = useRef(null), heading = useId();
+  useEffect(() => {
+    if (open && !dialog.current.open) dialog.current.showModal();
+    if (!open && dialog.current.open) dialog.current.close();
+  }, [open]);
+  function close() { dialog.current.close(); setOpen(false); trigger.current?.focus(); }
 
   function pick(action) {
-    setOpen(false);
+    close();
     action?.();
   }
 
   return (
-    <div className="relative">
+    <>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-7 h-7 max-sm:w-11 max-sm:h-11 flex items-center justify-center rounded-md text-ink-muted hover:text-ink hover:bg-app-panel2 text-[15px] max-sm:text-[17px]"
-        title="More options"
+        ref={trigger} onClick={() => setOpen(true)}
+        className="note-focus-action" aria-label="Document options" aria-haspopup="dialog" aria-expanded={open}
       >
-        ⋯
+        <NavigationIcon name="more" size={20} />
       </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-1.5 z-20 bg-app-panel border border-app-border rounded-lg shadow-2xl py-1.5 min-w-[190px] text-[12.5px]">
+      <dialog ref={dialog} className="note-actions-dialog" aria-labelledby={heading} onCancel={event => { event.preventDefault(); close(); }} onClick={event => {
+        if (event.target !== dialog.current) return;
+        const rect = dialog.current.getBoundingClientRect();
+        if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close();
+      }}>
+          <header><div><span className="eyebrow">YOUR WRITING</span><h2 id={heading}>Document options</h2></div><button type="button" autoFocus aria-label="Close document options" onClick={close}><NavigationIcon name="close" size={20} /></button></header>
+          <div className="note-actions-list">
+            {onOpenInsights && <button type="button" onClick={() => pick(onOpenInsights)}><NavigationIcon name="chart" size={19} /><span>Document insights</span></button>}
+            {onOpenExport && <button type="button" onClick={() => pick(onOpenExport)}><NavigationIcon name="download" size={19} /><span>Export document</span></button>}
             <button type="button" onClick={() => pick(onToggleFind)} className="block w-full text-left px-3 py-2 text-ink hover:bg-app-panel2">
-              🔍 Find &amp; replace
+              <NavigationIcon name="search" size={19} /><span>Find &amp; replace</span>
             </button>
             <button type="button" onClick={() => pick(onToggleFocusMode)} className="block w-full text-left px-3 py-2 text-ink hover:bg-app-panel2">
-              {focusMode ? "🔲 Exit focus mode" : "🎯 Focus mode"}
+              <NavigationIcon name="focus" size={19} /><span>{focusMode ? "Exit focus mode" : "Focus mode"}</span>
             </button>
             {isOwner && routeId && (
               <button type="button" onClick={() => pick(onOpenHistory)} className="block w-full text-left px-3 py-2 text-ink hover:bg-app-panel2">
-                🕐 Version history
+                <NavigationIcon name="clock" size={19} /><span>Version history</span>
               </button>
             )}
             {isOwner && routeId && !isWill && (
               <>
                 <div className="h-px bg-app-border my-1" />
                 <button type="button" onClick={() => pick(onToggleFavorite)} className="block w-full text-left px-3 py-2 text-ink hover:bg-app-panel2">
-                  {isFavorite ? "♡ Remove from favorites" : "♡ Add to favorites"}
+                  <NavigationIcon name="heart" size={19} /><span>{isFavorite ? "Remove from favorites" : "Add to favorites"}</span>
                 </button>
                 <button type="button" onClick={() => pick(onToggleArchive)} className="block w-full text-left px-3 py-2 text-ink hover:bg-app-panel2">
-                  {isArchived ? "↥ Restore from archive" : "▤ Move to archive"}
+                  <NavigationIcon name="archive" size={19} /><span>{isArchived ? "Restore from Archive" : "Move to Archive"}</span>
                 </button>
                 <button type="button" onClick={() => pick(onDuplicate)} className="block w-full text-left px-3 py-2 text-ink hover:bg-app-panel2">
-                  ⧉ Duplicate
+                  <NavigationIcon name="note" size={19} /><span>Duplicate document</span>
                 </button>
+                {!isLocked && onSaveAsTemplate && <button type="button" onClick={() => pick(onSaveAsTemplate)} className="block w-full text-left px-3 py-2 text-ink hover:bg-app-panel2">
+                  <NavigationIcon name="files" size={19} /><span>Save as template</span>
+                </button>}
                 <button type="button" onClick={() => pick(onToggleLock)} className="block w-full text-left px-3 py-2 text-ink hover:bg-app-panel2">
-                  {isLocked ? "🔓 Unlock note" : "🔒 Lock note"}
+                  <NavigationIcon name="lock" size={19} /><span>{isLocked ? "Remove note lock" : "Lock this note"}</span>
                 </button>
                 <div className="h-px bg-app-border my-1" />
-                <button type="button" onClick={() => pick(onMoveToTrash)} className="block w-full text-left px-3 py-2 text-danger hover:bg-app-panel2">Move to Trash</button>
+                <button type="button" onClick={() => pick(onMoveToTrash)} className="is-danger"><NavigationIcon name="trash" size={19} /><span>Move to Trash</span></button>
               </>
             )}
           </div>
-        </>
-      )}
-    </div>
+          <footer><NavigationIcon name="shield" size={15} /><span>{isLocked || isWill ? "Protected document. Access remains restricted." : "Archive preserves writing. Trash allows recovery."}</span></footer>
+      </dialog>
+    </>
   );
 }

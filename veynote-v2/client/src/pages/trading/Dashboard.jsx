@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
-import StatCard from "../../components/StatCard";
 import EmptyState from "../../components/EmptyState";
+import NavigationIcon from "../../components/layout/NavigationIcon";
+import "./tradingDashboard.css";
 
 export default function TradingDashboard() {
   const [entries, setEntries] = useState(() => api.peek("/trading/entries")?.entries ?? null);
@@ -36,84 +37,28 @@ export default function TradingDashboard() {
 
   const openPositions = entries?.filter((e) => e.isTrade && e.result === "OPEN") || [];
   const recent = (entries || []).slice(0, 4);
+  const netR = analytics?.hasData ? (analytics.totalR ?? analytics.cumulativeR?.at(-1)?.value ?? 0) : null;
+  const closedTrades = analytics?.hasData ? analytics.totalTrades : 0;
+  const journalCoverage = analytics?.ruleAdherence?.journaledPct;
+  const activeAccounts = (accounts || []).filter(account => account.status !== "BREACHED");
 
   return (
-    <div className="px-1 sm:px-0">
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 md:gap-6 mb-8 md:mb-6">
-        <div className="min-w-0">
-          <span className="eyebrow">{new Date().toDateString().toUpperCase()}</span>
-          <h1 className="page-title font-bold text-[22px] leading-tight sm:text-[26px] md:text-[30px] tracking-tight mt-1.5 mb-2 break-words">
-            Trading Journal
-          </h1>
-          <p className="text-ink-muted m-0 max-w-[600px] text-[13px] md:text-base">
-            Capture the thinking behind every setup.
-          </p>
-        </div>
-        <Link
-          to="/trading/entries/new"
-          className="btn-primary w-full md:w-auto text-center whitespace-nowrap shrink-0"
-        >
-          + Log trade
-        </Link>
-      </div>
+    <main className="trading-command-page">
+      <header className="trading-command-hero">
+        <div className="trading-command-copy"><span className="eyebrow">{new Intl.DateTimeFormat(undefined,{weekday:"long",month:"long",day:"numeric"}).format(new Date()).toUpperCase()}</span><h1>Decision quality, measured over time.</h1><p>Review risk, execution and the evidence behind every result from one trading operating view.</p><div className="trading-command-actions"><Link to="/trading/entries/new" className="btn-primary"><NavigationIcon name="plus" size={16}/>Log trade</Link><Link to="/trading/entries" className="btn-outline"><NavigationIcon name="book" size={16}/>Open journal</Link></div></div>
+        <div className="trading-command-performance"><span>NET PERFORMANCE</span><strong className={netR == null ? "" : netR >= 0 ? "text-success" : "text-danger"}>{netR == null ? "—" : `${netR > 0 ? "+" : ""}${netR}R`}</strong><small>{closedTrades ? `${closedTrades} closed trades · ${analytics.winRate}% win rate` : "Close a trade to establish a performance baseline"}</small><div className="trading-command-curve" aria-label="Recent cumulative R performance">{(analytics?.cumulativeR || []).slice(-18).map((point,index)=><i key={point.tradeId || index} className={point.value>=0?"positive":"negative"} style={{height:`${Math.max(12,Math.min(100,50+Number(point.value||0)*7))}%`}}/>)}</div></div>
+      </header>
 
       {analyticsError && <div className="inline-error mb-4" role="alert"><span>Performance is unavailable: {analyticsError}</span><button type="button" onClick={() => loadAnalytics(true)}>Retry</button></div>}
 
-      <div className="rounded-2xl p-4 md:p-5 flex flex-col md:flex-row md:items-center gap-4 md:gap-3.5 mb-8 md:mb-7 border border-app-border bg-gradient-to-br from-app-panel to-accent-trade-soft">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="w-[38px] h-[38px] rounded-xl bg-accent-trade-soft text-[#7db9ff] flex items-center justify-center text-base shrink-0">
-            📈
-          </div>
-          <div className="min-w-0">
-            <strong className="block text-[13.5px] mb-0.5">What did you trade today?</strong>
-            <span className="text-[11.5px] text-ink-muted leading-snug">
-              Log a setup, review a past trade, or add a psychology note.
-            </span>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2 md:ml-auto shrink-0">
-          <Link to="/trading/entries/new" className="chip hover:bg-app-border">
-            📈 Trade setup
-          </Link>
-          <Link to="/trading/search" className="chip hover:bg-app-border">
-            ◎ Search
-          </Link>
-        </div>
-      </div>
+      <section className="trading-briefing" aria-label="Trading briefing"><div><span>Open exposure</span><strong>{entries ? openPositions.length : "—"}</strong><small>{openPositions.length ? openPositions.map(item=>item.asset).filter(Boolean).slice(0,2).join(" · ") : "No open trades recorded"}</small></div><div><span>Evidence coverage</span><strong>{journalCoverage == null ? "—" : `${journalCoverage}%`}</strong><small>Closed trades with psychology context</small></div><div><span>Account coverage</span><strong>{accounts ? activeAccounts.length : "—"}</strong><small>{accounts?.length ? `${accounts.length} total workspaces` : "Add an account to separate performance"}</small></div><div><span>Next review</span><strong>{closedTrades ? "Ready" : "Pending"}</strong><small>{closedTrades ? "Analytics can identify patterns" : "Record a completed outcome"}</small></div></section>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8 md:mb-7">
-        <StatCard
-          label="Win rate"
-          value={analytics?.hasData ? `${analytics.winRate}%` : "—"}
-          hint={analytics === null ? "Awaiting performance" : analytics.hasData ? "All closed trades" : "Close a trade to start"}
-        />
-        <StatCard
-          label="Total R"
-          value={
-            analytics?.hasData
-              ? `${analytics.cumulativeR.at(-1)?.value >= 0 ? "+" : ""}${analytics.cumulativeR.at(-1)?.value}R`
-              : "—"
-          }
-          hintTone={
-            analytics?.hasData && analytics.cumulativeR.at(-1)?.value >= 0
-              ? "positive"
-              : "negative"
-          }
-        />
-        <StatCard
-          label="Open positions"
-          value={entries ? openPositions.length : "—"}
-          hint={openPositions[0]?.asset || ""}
-        />
-        <StatCard label="Total entries" value={entries ? entries.length : "—"} />
-      </div>
+      <nav className="trading-command-links" aria-label="Trading workspace shortcuts"><Link to="/trading/analytics"><NavigationIcon name="chart" size={18}/><span><strong>Performance intelligence</strong><small>Expectancy, drawdown and edge</small></span><NavigationIcon name="chevron" size={14}/></Link><Link to="/trading/rules"><NavigationIcon name="shield" size={18}/><span><strong>Rulebook</strong><small>Risk controls and compliance</small></span><NavigationIcon name="chevron" size={14}/></Link><Link to="/trading/calendar"><NavigationIcon name="calendar" size={18}/><span><strong>Trading calendar</strong><small>Review decisions in time</small></span><NavigationIcon name="chevron" size={14}/></Link><Link to="/trading/reports"><NavigationIcon name="files" size={18}/><span><strong>Reports</strong><small>Private and public summaries</small></span><NavigationIcon name="chevron" size={14}/></Link></nav>
 
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mt-10 mb-4">
         <div className="min-w-0">
           <span className="eyebrow">RECENT</span>
-          <h2 className="text-[16px] md:text-[19px] tracking-[-.02em] mt-[5px] mb-0">
-            Continue where you left off
-          </h2>
+          <h2 className="text-[16px] md:text-[19px] tracking-[-.02em] mt-[5px] mb-0">Recent decisions</h2>
         </div>
         <Link to="/trading/entries" className="text-ink-soft text-[12px] shrink-0">
           View all →
@@ -147,7 +92,7 @@ export default function TradingDashboard() {
         <div className="min-w-0">
           <span className="eyebrow">ACCOUNTS</span>
           <h2 className="text-[16px] md:text-[19px] tracking-[-.02em] mt-[5px] mb-0">
-            Your accounts
+            Account workspaces
           </h2>
         </div>
       </div>
@@ -172,7 +117,7 @@ export default function TradingDashboard() {
           ))}
         </div>
       )}
-    </div>
+    </main>
   );
 }
 
@@ -184,11 +129,11 @@ export function EntryCard({ entry }) {
     >
       <div className="flex justify-between items-center gap-2.5">
         <span
-          className={`type-pill shrink-0 ${
+          className={`type-pill shrink-0 inline-flex items-center gap-1.5 ${
             entry.isTrade ? "bg-accent-trade-soft text-[#9ecbff]" : ""
           }`}
         >
-          {entry.isTrade ? "Trading" : "Note"}
+          <NavigationIcon name={entry.isTrade ? "chart" : "note"} size={12}/>{entry.isTrade ? "Trade" : "Research note"}
         </span>
         <span className="text-[10px] text-ink-muted shrink-0">
           {new Date(entry.entryDate).toLocaleDateString(undefined, {
@@ -262,9 +207,7 @@ function AccountCard({ account }) {
       to={`/trading/accounts/${account.id}`}
       className="card p-4 flex flex-col gap-2 hover:border-ink-muted transition min-w-0"
     >
-      <div className="w-9 h-9 rounded-lg bg-accent-trade-soft text-[#7db9ff] flex items-center justify-center mb-2 text-base">
-        ◆
-      </div>
+      <div className="w-9 h-9 rounded-lg bg-accent-trade-soft text-[#7db9ff] flex items-center justify-center mb-2 text-base"><NavigationIcon name="brief" size={18}/></div>
       <span
         className={`self-start text-[9.5px] font-bold px-2 py-0.5 rounded-full ${badgeClass}`}
       >

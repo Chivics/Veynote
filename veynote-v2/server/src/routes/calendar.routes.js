@@ -4,9 +4,20 @@ const { requireAuth } = require("../middleware/auth");
 const { getSystemEventsForMonth } = require("../data/holidays");
 const { ownedReference } = require("../middleware/ownedReference");
 const { calendarEventPublic } = require("../utils/calendarPrivacy");
+const { calendarAgenda,calendarHorizon } = require("../utils/calendarAgenda");
+const { calendarInput } = require("../utils/calendarInput");
+const { asyncHandler } = require("../middleware/asyncHandler");
 
 const router = express.Router();
 router.use(requireAuth);
+router.get("/horizon", asyncHandler(async(req,res)=>{
+  try {res.set("Cache-Control","no-store");res.json(await calendarHorizon(prisma,req.userId,req.query));}
+  catch(error){if(error.status===400)return res.status(400).json({error:error.message});throw error;}
+}));
+router.get("/agenda", asyncHandler(async (req,res) => {
+  try { res.set("Cache-Control","no-store"); res.json(await calendarAgenda(prisma,req.userId,req.query)); }
+  catch(error) { if(error.status===400)return res.status(400).json({error:error.message}); throw error; }
+}));
 
 // GET /api/calendar?mode=NOTES|TRADING&year=2026&month=8
 router.get("/", async (req, res) => {
@@ -88,33 +99,41 @@ router.get("/day", async (req, res) => {
 router.post("/",
   ownedReference(prisma.note, "linkedNoteId", { isLocked: false, isWill: false, isTrashed: false }),
   ownedReference(prisma.tradingEntry, "linkedTradeId"),
-  async (req, res) => {
+  asyncHandler(async (req, res) => {
   const { mode, date, title, time, linkedNoteId, linkedTradeId } = req.body;
-  if (!title?.trim() || !date) {
-    return res.status(400).json({ error: "Title and date are required." });
-  }
+  let fields;
+  try { fields=calendarInput(req.body); } catch(error) { return res.status(400).json({error:error.message}); }
 
   const event = await prisma.calendarEvent.create({
     data: {
       userId: req.userId,
       mode: mode === "TRADING" ? "TRADING" : "NOTES",
-      date: new Date(date),
-      title: title.trim(),
-      time: time || null,
+      ...fields,
       linkedNoteId: linkedNoteId || null,
       linkedTradeId: linkedTradeId || null,
     },
   });
 
   res.status(201).json({ event });
-});
+}));
 
-router.delete("/:id", async (req, res) => {
+router.patch("/:id", asyncHandler(async (req, res) => {
+  let fields;
+  try { fields = calendarInput(req.body); }
+  catch (error) { return res.status(400).json({ error: error.message }); }
+  const where = { id: req.params.id, userId: req.userId, mode: "NOTES", linkedNoteId: null, linkedTradeId: null };
+  const changed = await prisma.calendarEvent.updateMany({ where, data: fields });
+  if (!changed.count) return res.status(404).json({ error: "Editable reminder not found." });
+  const event = await prisma.calendarEvent.findFirst({ where, select: { id: true, title: true, date: true, time: true } });
+  res.json({ event });
+}));
+
+router.delete("/:id", asyncHandler(async (req, res) => {
   const existing = await prisma.calendarEvent.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!existing) return res.status(404).json({ error: "Event not found." });
 
   await prisma.calendarEvent.delete({ where: { id: existing.id } });
   res.json({ ok: true });
-});
+}));
 
 module.exports = router;

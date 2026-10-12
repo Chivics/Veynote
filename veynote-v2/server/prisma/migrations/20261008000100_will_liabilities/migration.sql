@@ -1,0 +1,26 @@
+CREATE TABLE `WillLiability` (
+  `id` VARCHAR(191) NOT NULL,
+  `userId` VARCHAR(191) NOT NULL,
+  `willId` VARCHAR(191) NOT NULL,
+  `assetId` VARCHAR(191) NULL,
+  `name` VARCHAR(191) NOT NULL,
+  `type` VARCHAR(191) NOT NULL DEFAULT 'Other',
+  `lender` VARCHAR(191) NULL,
+  `amount` VARCHAR(191) NULL,
+  `currency` VARCHAR(191) NULL,
+  `accountReference` VARCHAR(191) NULL,
+  `dueDate` DATETIME(3) NULL,
+  `status` VARCHAR(191) NOT NULL DEFAULT 'ACTIVE',
+  `notes` TEXT NULL,
+  `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updatedAt` DATETIME(3) NOT NULL,
+
+  INDEX `WillLiability_willId_idx`(`willId`),
+  INDEX `WillLiability_userId_idx`(`userId`),
+  INDEX `WillLiability_assetId_idx`(`assetId`),
+  INDEX `WillLiability_status_idx`(`status`),
+  PRIMARY KEY (`id`),
+  CONSTRAINT `WillLiability_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `WillLiability_willId_fkey` FOREIGN KEY (`willId`) REFERENCES `Will`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `WillLiability_assetId_fkey` FOREIGN KEY (`assetId`) REFERENCES `WillAsset`(`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

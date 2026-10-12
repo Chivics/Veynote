@@ -9,7 +9,7 @@ const { requireAuth } = require("../middleware/auth");
 const router = express.Router();
 router.use(requireAuth);
 
-const UPLOAD_DIR = path.join(__dirname, "..", "..", "uploads");
+const { uploadRoot: UPLOAD_DIR } = require("../utils/storagePaths");
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;

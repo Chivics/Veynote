@@ -9,10 +9,14 @@ import {
 } from "../../utils/vault";
 
 import { willApi } from "../../api/will";
+import BackNavigation from "../../components/BackNavigation";
 
 import WillModal from "../../components/will/WillModal";
 import DeleteConfirmation from "../../components/will/DeleteConfirmation";
 import WillDocuments from "../../components/will/WillDocuments";
+import WillWorkspaceNavigation from "../../components/will/WillWorkspaceNavigation";
+import "./willWorkspace.css";
+import "./willCollectionWorkspace.css";
 
 import {
   AssetForm,
@@ -22,7 +26,9 @@ import {
   EMPTY_BENEFICIARY,
   EMPTY_CONTACT,
   EMPTY_EXECUTOR,
+  EMPTY_LIABILITY,
   ExecutorForm,
+  LiabilityForm,
   WillDetailForm,
 } from "../../components/will/WillForms";
 
@@ -32,37 +38,48 @@ const CONFIG = {
     label: "Will Detail",
     singular: "detail",
     api: willApi.details,
-    back: "/will",
+    back: "/will/instructions",
   },
 
   asset: {
     label: "Asset",
     singular: "asset",
     api: willApi.assets,
-    back: "/will",
+    back: "/will/assets",
   },
 
   beneficiary: {
     label: "Beneficiary",
     singular: "beneficiary",
     api: willApi.beneficiaries,
-    back: "/will",
+    back: "/will/beneficiaries",
   },
 
   contact: {
     label: "Important Contact",
     singular: "contact",
     api: willApi.contacts,
-    back: "/will",
+    back: "/will/people",
   },
 
   executor: {
     label: "Executor",
     singular: "executor",
     api: willApi.executors,
-    back: "/will",
+    back: "/will/people",
+  },
+  liability: {
+    label: "Liability",
+    singular: "liability",
+    api: willApi.liabilities,
+    back: "/will/liabilities",
   },
 };
+
+function returnPath(kind, record, fallback = "/will") {
+  if (kind === "detail" && String(record?.type || "").replaceAll("_", "-") === "digital-legacy") return "/will/digital-legacy";
+  return CONFIG[kind]?.back || fallback;
+}
 
 
 function Field({ label, value }) {
@@ -119,6 +136,7 @@ export default function WillRecordDetail({ kind }) {
   const [relatedAssets, setRelatedAssets] = useState([]);
   const [relatedBeneficiaries, setRelatedBeneficiaries] = useState([]);
   const [relatedExecutors, setRelatedExecutors] = useState([]);
+  const [relatedActivity, setRelatedActivity] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -167,7 +185,7 @@ export default function WillRecordDetail({ kind }) {
        * Load the current Will dashboard so the
        * beneficiary edit form can show available assets.
        */
-      if (kind === "beneficiary" || kind === "asset") {
+      if (kind === "beneficiary" || kind === "asset" || kind === "liability" || kind === "contact" || kind === "executor" || kind === "detail") {
         try {
           const dashboard = await willApi.get();
 
@@ -176,6 +194,7 @@ export default function WillRecordDetail({ kind }) {
           );
           setRelatedBeneficiaries(dashboard?.will?.beneficiaries || []);
           setRelatedExecutors(dashboard?.will?.executors || []);
+          setRelatedActivity((dashboard?.will?.activities || []).filter((item) => String(item.entityId || "") === String(id)).slice(0, 8));
         } catch (assetError) {
           /*
            * This should not prevent the beneficiary
@@ -305,7 +324,7 @@ export default function WillRecordDetail({ kind }) {
     try {
       await config.api.remove(id);
 
-      navigate(config.back, {
+      navigate(returnPath(kind, record, config.back), {
         replace: true,
       });
     } catch (err) {
@@ -347,6 +366,7 @@ export default function WillRecordDetail({ kind }) {
     setRelatedAssets([]);
     setRelatedBeneficiaries([]);
     setRelatedExecutors([]);
+    setRelatedActivity([]);
 
     setModalOpen(false);
     setDeleteOpen(false);
@@ -397,7 +417,7 @@ export default function WillRecordDetail({ kind }) {
             {config && id && <button type="button" onClick={load} disabled={loading}>Retry</button>}
           </div>
         ) : <p className="collection-inline-status mt-5" role="status">Opening this protected record…</p>}
-        <Link to="/will" className="btn-outline inline-block mt-5">← Back to Will</Link>
+        <BackNavigation to={config?.back || "/will"} label={config?.label || "Will"} className="mt-5" />
       </div>
     );
   }
@@ -428,6 +448,11 @@ export default function WillRecordDetail({ kind }) {
           ...EMPTY_CONTACT,
           ...record,
         }
+      : kind === "liability"
+      ? {
+          ...EMPTY_LIABILITY,
+          ...record,
+        }
       : {
           ...EMPTY_EXECUTOR,
           ...record,
@@ -455,19 +480,16 @@ export default function WillRecordDetail({ kind }) {
           .replaceAll("-", " ")
           .replaceAll("_", " ")
       : config.label;
+  const backPath = returnPath(kind, record, config.back);
 
 
   return (
-    <ProtectedContentBoundary vault="will"><div className="max-w-[900px] mx-auto pb-10">
+    <ProtectedContentBoundary vault="will"><div className="will-workspace estate-record-page max-w-[1040px] mx-auto pb-10">
 
       {/* Breadcrumb / actions */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
 
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10.5px] text-ink-muted">
-            {config.label}
-          </span>
-        </div>
+        <BackNavigation to={backPath} label={kind === "detail" && backPath === "/will/digital-legacy" ? "Digital legacy" : config.label} />
 
         <div className="flex flex-wrap gap-2">
 
@@ -501,6 +523,8 @@ export default function WillRecordDetail({ kind }) {
         </div>
       </div>
 
+      <WillWorkspaceNavigation />
+
 
       {/* Error banner */}
       {error && (
@@ -511,7 +535,7 @@ export default function WillRecordDetail({ kind }) {
 
 
       {/* Header */}
-      <header className="mb-5">
+      <header className="estate-record-hero mb-5">
 
         <span className="eyebrow">
           {displayType}
@@ -727,6 +751,19 @@ export default function WillRecordDetail({ kind }) {
               </>
             )}
 
+            {kind === "liability" && (
+              <>
+                <Field label="Liability type" value={record.type} />
+                <Field label="Status" value={record.status} />
+                <Field label="Lender / counterparty" value={record.lender} />
+                <Field label="Amount" value={[record.currency, record.amount].filter(Boolean).join(" ")} />
+                <Field label="Account / reference" value={record.accountReference} />
+                <Field label="Due date" value={record.dueDate ? formatDate(record.dueDate) : ""} />
+                <Field label="Related asset" value={record.asset?.name} />
+                <div className="sm:col-span-2"><Field label="Notes & settlement context" value={record.notes} /></div>
+              </>
+            )}
+
           </div>
 
 
@@ -759,11 +796,11 @@ export default function WillRecordDetail({ kind }) {
 
         {kind === "beneficiary" && <RelationshipPanel eyebrow="ASSIGNED ASSETS" title="Assets assigned to this person" empty="No assets are currently allocated to this beneficiary." items={(record.allocations || []).map(allocation => ({ id: allocation.id, to: `/will/assets/${allocation.assetId}`, title: allocation.asset?.name || "Asset", detail: allocationLabel(allocation), note: [allocation.asset?.currency, allocation.asset?.estimatedValue].filter(Boolean).join(" ") }))} />}
 
+        {kind === "liability" && <RelationshipPanel eyebrow="RELATED ASSET" title="What this obligation affects" empty="This liability is not linked to a specific asset." items={record.asset ? [{ id:record.asset.id, to:`/will/assets/${record.asset.id}`, title:record.asset.name, detail:[record.asset.currency, record.asset.estimatedValue].filter(Boolean).join(" ") || "Open asset", note:record.asset.description }] : []} />}
+
 
         {/* Supporting documents */}
-        {(kind === "detail" ||
-          kind === "asset" ||
-          kind === "beneficiary") && (
+        {(
           <section className="card p-4 sm:p-6">
 
             <div className="mb-4">
@@ -796,6 +833,13 @@ export default function WillRecordDetail({ kind }) {
 
           </section>
         )}
+
+        <section className="card p-4 sm:p-6">
+          <span className="eyebrow">RECORD HISTORY</span>
+          <h2 className="text-lg font-bold mt-1">Activity & provenance</h2>
+          <p className="text-[10.5px] text-ink-muted mt-1">A protected history of changes to this record. Activity describes the event without exposing sensitive field values.</p>
+          {relatedActivity.length ? <div className="estate-record-activity">{relatedActivity.map((item) => <article key={item.id}><span>{item.message}</span><time>{formatDate(item.createdAt)}</time></article>)}</div> : <p className="text-[10.5px] text-ink-muted mt-4">No additional history has been recorded for this item yet.</p>}
+        </section>
 
       </div>
 
@@ -859,6 +903,16 @@ export default function WillRecordDetail({ kind }) {
         {kind === "executor" && (
           <ExecutorForm
             initial={formInitial}
+            onSubmit={save}
+            onCancel={() => setModalOpen(false)}
+            busy={busy}
+          />
+        )}
+
+        {kind === "liability" && (
+          <LiabilityForm
+            initial={formInitial}
+            assets={relatedAssets}
             onSubmit={save}
             onCancel={() => setModalOpen(false)}
             busy={busy}

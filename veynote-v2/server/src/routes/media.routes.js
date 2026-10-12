@@ -4,25 +4,39 @@ const jwt = require("jsonwebtoken");
 const { requireAuth } = require("../middleware/auth");
 const { asyncHandler } = require("../middleware/asyncHandler");
 const { noteAccess, denyNoteAccess } = require("../utils/noteAccess");
+const { uploadRoot } = require("../utils/storagePaths");
 
 const validName = (value) => typeof value === "string" && /^[a-f0-9]{32}(?:\.[a-z0-9_-]{1,16})?$/i.test(value);
 const scopeFor = (file) => JSON.stringify([file.id, file.note?.id || null, Boolean(file.note?.isLocked), Boolean(file.note?.isWill), Boolean(file.note?.isTrashed)]);
 const TOKEN_OPTIONS = { algorithms: ["HS256"], issuer: "https://api.veynote.app", audience: "veynote:file" };
 
-function createMediaRoutes({ db, root = path.join(__dirname, "..", "..", "uploads") }) {
+function createMediaRoutes({ db, root = uploadRoot }) {
   const access = express.Router();
   const files = express.Router();
   files.use((_req, res, next) => { res.set("Cache-Control", "private, no-store"); next(); });
 
   async function ownedFile(storedName, userId) {
-    const attachment = await db.attachment.findFirst({ where: { storedName, userId }, include: { note: true } });
+    const attachment = await db.attachment.findFirst({ where: { storedName, userId, deletedAt: null }, include: { note: true } });
     if (attachment) {
       if (attachment.noteId && (!attachment.note || attachment.note.userId !== userId)) return null;
       return attachment;
     }
-    const regularFile = await db.tradeImage.findFirst({ where: { storedName, userId } })
-      || await db.fileNode.findFirst({ where: { storedName, userId, isDirectory: false } });
-    if (regularFile || !db.libraryItem) return regularFile;
+    const tradeImage = await db.tradeImage.findFirst({ where: { storedName, userId } });
+    if (tradeImage) return tradeImage;
+    const fileNode = await db.fileNode.findFirst({ where: { storedName, userId, isDirectory: false, deletedAt: null } });
+    if (fileNode) {
+      let parentId = fileNode.parentId;
+      const visited = new Set();
+      while (parentId) {
+        if (visited.has(parentId)) return null;
+        visited.add(parentId);
+        const parent = await db.fileNode.findFirst({ where: { id: parentId, userId, isDirectory: true, deletedAt: null } });
+        if (!parent) return null;
+        parentId = parent.parentId;
+      }
+      return fileNode;
+    }
+    if (!db.libraryItem) return null;
     const item = await db.libraryItem.findFirst({ where: { coverStoredName: storedName, userId } });
     return item && {
       id: item.id, userId: item.userId, storedName: item.coverStoredName,
@@ -66,11 +80,20 @@ function createMediaRoutes({ db, root = path.join(__dirname, "..", "..", "upload
 function sendMedia(res, file, root, { preview = false } = {}) {
   if (!validName(file.storedName)) return res.status(404).json({ error: "File not found." });
   const raster = ["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"].includes(file.mimeType);
-  const inlinePdf = preview && file.mimeType === "application/pdf";
+  const inlineType = preview && (
+    file.mimeType === "application/pdf" ||
+    file.mimeType === "text/plain" ||
+    file.mimeType === "text/csv" ||
+    /^(audio|video)\/[a-z0-9.+-]+$/i.test(file.mimeType || "")
+  );
   res.set({ "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "Content-Security-Policy": "default-src 'none'; sandbox" });
-  if (inlinePdf) res.setHeader("Content-Disposition", `inline; filename*=UTF-8''${encodeURIComponent(file.originalName || file.name || "document.pdf")}`);
+  if (inlineType) {
+    const displayName = file.originalName || file.name || "preview";
+    const asciiName = displayName.replace(/[^\x20-\x7e]|["\\/]/g, "_");
+    res.setHeader("Content-Disposition", `inline; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(displayName)}`);
+  }
   else if (!raster) res.attachment(file.originalName || file.name || "download");
-  res.type(raster || inlinePdf ? file.mimeType : "application/octet-stream");
+  res.type(raster || inlineType ? file.mimeType : "application/octet-stream");
   return res.sendFile(file.storedName, { root: path.resolve(root), dotfiles: "deny" }, (error) => {
     if (error && !res.headersSent) res.status(404).json({ error: "The stored file is unavailable." });
   });

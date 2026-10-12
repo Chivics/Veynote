@@ -3,13 +3,21 @@
   "name": "Veynote",
   "short_name": "Veynote",
   "description": "Your notes, journal and trading records in one workspace.",
+  "lang": "en",
+  "categories": ["productivity", "business", "finance"],
   "start_url": "/?source=installed",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
   "background_color": "#080a0c",
   "theme_color": "#080a0c",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "New note", "short_name": "New note", "url": "/notes/new?source=shortcut", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Today", "short_name": "Today", "url": "/notes/today?source=shortcut", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Log trade", "short_name": "Log trade", "url": "/trading/entries/new?source=shortcut", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
   ]
 }

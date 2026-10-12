@@ -1,7 +1,7 @@
 function errorHandler(error, _req, res, next) {
   if (res.headersSent) return next(error);
   if (error?.name === "DatabaseReadinessError") {
-    const check = ["account", "sessions", "note_saves", "device_access", "device_signin", "account_email", "email_delivery"].includes(error.readinessCheck) ? error.readinessCheck : "database";
+    const check = ["account", "sessions", "note_saves", "note_list_summaries", "document_revisions", "document_chunks", "device_access", "device_signin", "account_email", "email_delivery", "writing_templates", "tag_index", "file_trash", "attachment_trash", "note_comments", "task_trash", "estate_liabilities", "vault_security_activity"].includes(error.readinessCheck) ? error.readinessCheck : "database";
     const schemaMissing = ["P2021", "P2022"].includes(error.code);
     const clientOutdated = error.code === "DATABASE_CLIENT_OUTDATED" || error.cause?.name === "PrismaClientValidationError";
     const code = schemaMissing ? "DATABASE_SCHEMA_MISSING" : clientOutdated ? "DATABASE_CLIENT_OUTDATED" : "DATABASE_READINESS_FAILED";
@@ -13,7 +13,13 @@ function errorHandler(error, _req, res, next) {
     return res.status(503).json({ code, check, error: "Veynote's database service is not ready. Your sign-in is kept; please retry after the service is restored." });
   }
   if (error?.type === "entity.parse.failed") return res.status(400).json({ code: "INVALID_JSON", error: "The request contains invalid JSON." });
-  if (error?.type === "entity.too.large") return res.status(413).json({ code: "REQUEST_TOO_LARGE", error: "This request is too large. Use an attachment for large files." });
+  if (error?.type === "entity.too.large") {
+    const revisionControl = /(?:^|\/)document-revisions(?:\/|$)/.test(_req.originalUrl || "");
+    const noteDocument = /^\/api\/notes(?:\/|$)/.test(_req.originalUrl || "") && _req.is("application/json");
+    return res.status(413).json({ code: "REQUEST_TOO_LARGE", error: noteDocument
+      ? revisionControl ? "The transfer request is too large. Send document content as bounded chunks." : "This document exceeds the current single-save capacity. Keep this page open and download a backup of your writing."
+      : "This request is too large. Use an attachment for large files." });
+  }
   if (error?.code === "NOTE_CONFLICT") return res.status(409).json({ code: "NOTE_CONFLICT", error: "This note changed elsewhere. Your changes have not overwritten it." });
   if (["NOTE_CREATE_INVALID", "NOTE_CREATE_MISMATCH", "NOTE_CREATE_REMOVED", "NOTE_CREATE_PROTECTED", "NOTE_CREATE_CHANGED"].includes(error?.code)) {
     return res.status(error.status).json({ code: error.code, error: error.message, ...(error.noteId && { noteId: error.noteId }) });

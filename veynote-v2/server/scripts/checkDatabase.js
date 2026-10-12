@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("../src/utils/loadEnvironment");
 const { PrismaClient } = require("@prisma/client");
 const { checkDatabaseReadiness } = require("../src/utils/databaseReadiness");
 const db = new PrismaClient();

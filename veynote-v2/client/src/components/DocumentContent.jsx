@@ -10,7 +10,10 @@ export default function DocumentContent({ html, className }) {
     root.querySelectorAll('img[src^="/api/public/"]').forEach((img) => {
       img.src = new URL(img.getAttribute("src"), new URL(API_BASE, window.location.href).origin).href;
     });
+    root.querySelectorAll('a.editor-inline-file-link[href^="/api/public/"]').forEach((link) => {
+      link.href = new URL(link.getAttribute("href"), new URL(API_BASE, window.location.href).origin).href;
+    });
     return observeMedia(root);
   }, [html]);
-  return <div ref={ref} className={className} dangerouslySetInnerHTML={{ __html: safeHtml(html) }} />;
+  return <div ref={ref} className={`editor-page ${className || ""}`} dangerouslySetInnerHTML={{ __html: safeHtml(html) }} />;
 }

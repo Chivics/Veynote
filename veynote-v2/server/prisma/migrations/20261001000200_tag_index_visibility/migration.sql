@@ -1,0 +1,1 @@
+ALTER TABLE `Tag` ADD COLUMN `isVisibleInIndex` BOOLEAN NOT NULL DEFAULT false;

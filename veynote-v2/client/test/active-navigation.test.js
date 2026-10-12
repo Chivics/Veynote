@@ -16,7 +16,7 @@ test("customer creation uses its query action without marking ordinary browsing 
 test("all quick navigation stays at five real destinations and nested records retain their category", () => {
   for (const destinations of Object.values(QUICK_NAV)) assert.equal(destinations.length, 5);
   assert.equal(activeNavigationIndex("/notes/library/reading/book-1", "", QUICK_NAV.Library), 1);
-  assert.equal(activeNavigationIndex("/notes/folders/folder-1", "", WORKSPACES.Notes.pages), 3);
+  assert.equal(WORKSPACES.Notes.pages[activeNavigationIndex("/notes/folders/folder-1", "", WORKSPACES.Notes.pages)][0], "Folders");
   assert.equal(activeNavigationIndex("/notes/folders-other", "", WORKSPACES.Notes.pages), -1);
   assert.equal(activeNavigationIndex("/settings", "", QUICK_NAV.Journal), -1);
 });

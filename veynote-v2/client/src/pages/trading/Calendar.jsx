@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
+import NavigationIcon from "../../components/layout/NavigationIcon";
+import "./tradingCalendar.css";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -44,18 +46,24 @@ export default function TradingCalendar() {
     });
     return map;
   }, [data]);
+  const monthSummary = useMemo(() => {
+    const rows = data?.tradingDaySummaries || [];
+    return { days:rows.length, trades:rows.reduce((sum,row)=>sum+(Number(row.tradeCount)||0),0), netR:Number(rows.reduce((sum,row)=>sum+(Number(row.netR)||0),0).toFixed(2)), positive:rows.filter(row=>Number(row.netR)>0).length };
+  }, [data]);
 
   return (
-    <div>
-      <div className="product-page-header"><div><span className="eyebrow">TRADING · TIMELINE</span><h1 className="page-title">Trading calendar</h1><p>{activeAccount ? `Only trades logged under ${activeAccount.name} appear in this view.` : "Review your recorded trades by day and return to their full context."}</p></div><select className="input trading-calendar-account" aria-label="Trading account" value={accountId} onChange={event => setSearchParams(previous => { const next = new URLSearchParams(previous); if (event.target.value) next.set("accountId", event.target.value); else next.delete("accountId"); return next; }, { replace: true })}><option value="">All accounts</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></div>
+    <main className="trading-calendar-page">
+      <header className="trading-calendar-header"><div><span className="eyebrow">TRADING · TEMPORAL REVIEW</span><h1 className="page-title">Performance in the context of time.</h1><p>{activeAccount ? `Only trades logged under ${activeAccount.name} contribute to this calendar.` : "See when decisions were made, where results clustered, and return to the complete evidence behind any trading day."}</p></div><select aria-label="Trading account" value={accountId} onChange={event => setSearchParams(previous => { const next = new URLSearchParams(previous); if (event.target.value) next.set("accountId", event.target.value); else next.delete("accountId"); return next; }, { replace: true })}><option value="">All accounts</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></header>
       {(result.error || dayResult.error) && <p role="alert" className="text-danger">{(result.error || dayResult.error).message} <button className="btn-outline" onClick={() => Promise.allSettled([result.refresh(), dayResult.refresh()])}>Retry</button></p>}
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
-        <div className="card p-5 flex-1 max-w-[800px]">
-          <div className="flex items-center justify-center gap-[25px] mb-4">
-            <button onClick={() => changeMonth(-1)} className="w-7 h-7 rounded-md bg-app-panel2 border border-app-border">‹</button>
-            <h2 className="text-[15px] m-0 min-w-[130px] text-center">{MONTHS[month - 1]} {year}</h2>
-            <button onClick={() => changeMonth(1)} className="w-7 h-7 rounded-md bg-app-panel2 border border-app-border">›</button>
+      <section className="trading-calendar-summary"><div><span>Net month</span><strong className={monthSummary.netR>=0?"text-success":"text-danger"}>{data ? `${monthSummary.netR>0?"+":""}${monthSummary.netR}R` : "—"}</strong></div><div><span>Trading days</span><strong>{data ? monthSummary.days : "—"}</strong></div><div><span>Trades</span><strong>{data ? monthSummary.trades : "—"}</strong></div><div><span>Positive days</span><strong>{data ? monthSummary.positive : "—"}</strong></div></section>
+
+      <div className="trading-calendar-layout">
+        <section className="trading-calendar-board">
+          <div className="trading-calendar-period">
+            <button onClick={() => changeMonth(-1)} aria-label="Previous month">‹</button>
+            <div><span>MONTHLY REVIEW</span><h2>{MONTHS[month - 1]} {year}</h2></div>
+            <button onClick={() => changeMonth(1)} aria-label="Next month">›</button>
           </div>
 
           <div className="grid grid-cols-7 gap-1.5 mb-1.5">
@@ -87,9 +95,9 @@ export default function TradingCalendar() {
               );
             })}
           </div>
-        </div>
+        </section>
 
-        <div className="card p-4 w-full lg:w-[240px] shrink-0">
+        <aside className="trading-calendar-day">
           <p className="text-[10px] text-ink-muted m-0 mb-1">{MONTHS[month - 1].toUpperCase()} {selectedDay}, {year}</p>
           {dayDetail?.trades?.length > 0 ? (
             <>
@@ -107,7 +115,7 @@ export default function TradingCalendar() {
               <div className="border-t border-app-border pt-2.5">
                 {dayDetail.trades.map((t) => (
                   <Link key={t.id} to={`/trading/entries/${t.id}`} className="block text-[11.5px] mb-1.5">
-                    📈 {t.title}{" "}
+                    <NavigationIcon name="chart" size={13}/> {t.title}{" "}
                     <span className={t.result === "WIN" ? "text-success" : t.result === "LOSS" ? "text-danger" : "text-ink-muted"}>
                       ({t.result === "OPEN" ? "Open" : t.result.charAt(0) + t.result.slice(1).toLowerCase()})
                     </span>
@@ -121,9 +129,9 @@ export default function TradingCalendar() {
           <Link to={`/trading/entries/new${accountId ? `?accountId=${encodeURIComponent(accountId)}` : ""}`} className="btn-outline w-full text-center block mt-3.5">
             + Log a trade
           </Link>
-        </div>
+        </aside>
       </div>
-    </div>
+    </main>
   );
 }
 

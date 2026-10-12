@@ -5,10 +5,21 @@ async function checkDatabaseReadiness(db) {
     ["account", "user", { sessionGeneration: true, defaultWorkspace: true, emailVerifiedAt: true }],
     ["sessions", "authSession", { id: true, inactivityMinutes: true, lastActivityAt: true, lockedAt: true, reauthenticatedAt: true, reauthChallengeExpiresAt: true }],
     ["note_saves", "noteCreationRequest", { id: true }],
+    ["note_list_summaries", "note", { id: true, contentPreview: true, wordCount: true }],
+    ["document_revisions", "noteDocumentRevision", { id: true, status: true }],
+    ["document_chunks", "noteDocumentChunk", { id: true, ordinal: true, sizeBytes: true }],
     ["device_access", "webAuthnCredential", { vaultEnabled: true }],
     ["device_signin", "webAuthnLoginChallenge", { id: true }],
     ["account_email", "authEmailChallenge", { id: true }],
     ["email_delivery", "authEmailJob", { id: true }],
+    ["writing_templates", "writingTemplate", { id: true, isTrashed: true }],
+    ["tag_index", "tag", { id: true, isVisibleInIndex: true }],
+    ["file_trash", "fileNode", { id: true, deletedAt: true }],
+    ["attachment_trash", "attachment", { id: true, deletedAt: true }],
+    ["note_comments", "noteComment", { id: true }],
+    ["task_trash", "task", { id: true, deletedAt: true }],
+    ["estate_liabilities", "willLiability", { id: true, assetId: true, status: true }],
+    ["vault_security_activity", "vaultSecurityEvent", { id: true, scope: true, outcome: true }],
   ];
   for (const [check, model, select] of probes) {
     try {

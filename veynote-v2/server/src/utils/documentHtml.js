@@ -1,6 +1,6 @@
 const sanitizeHtml = require("sanitize-html");
 
-function sanitizeDocument(html, { imageUrl } = {}) {
+function sanitizeDocument(html, { imageUrl, fileUrl } = {}) {
   return sanitizeHtml(typeof html === "string" ? html : "", {
     allowedTags: [...sanitizeHtml.defaults.allowedTags, "img", "input", "font", "mark", "s", "u", "strike"],
     allowedAttributes: {
@@ -18,10 +18,19 @@ function sanitizeDocument(html, { imageUrl } = {}) {
       "text-align": [/^(left|right|center|justify)$/], "line-height": [/^\d+(\.\d+)?(px|em|rem|%)?$/],
       "margin-bottom": [/^\d+(\.\d+)?(px|em|rem)$/], "font-weight": [/^(normal|bold|[1-9]00)$/],
       "font-style": [/^(normal|italic)$/], "text-decoration": [/^(underline|line-through|none)$/],
+      "list-style-type": [/^(disc|circle|square|decimal|decimal-leading-zero|lower-alpha|upper-alpha|lower-roman|upper-roman)$/],
     } },
     transformTags: {
       input: (_tag, attrs) => ({ tagName: "input", attribs: { type: "checkbox", ...(Object.hasOwn(attrs, "checked") && { checked: "" }), disabled: "" } }),
-      a: (_tag, attrs) => ({ tagName: "a", attribs: { ...attrs, rel: "noopener noreferrer" } }),
+      a: (_tag, attrs) => {
+        if (fileUrl && attrs.class?.split(/\s+/).includes("editor-inline-file-link")) {
+          const href = fileUrl(attrs.href || "");
+          return href
+            ? { tagName: "a", attribs: { ...attrs, href, rel: "noopener noreferrer" } }
+            : { tagName: "span", attribs: { class: "editor-inline-file-unavailable" } };
+        }
+        return { tagName: "a", attribs: { ...attrs, rel: "noopener noreferrer" } };
+      },
       img: (_tag, attrs) => {
         let src = attrs.src || "";
         try {

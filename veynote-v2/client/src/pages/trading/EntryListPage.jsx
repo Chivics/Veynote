@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
 import { EntryCard } from "./Dashboard";
 import { useApiQuery } from "../../hooks/useApiQuery";
+import NavigationIcon from "../../components/layout/NavigationIcon";
+import "./tradingJournal.css";
 
 // mode: "all" | "search"
 export default function EntryListPage({ mode }) {
@@ -13,9 +15,17 @@ export default function EntryListPage({ mode }) {
   const accountId = searchParams.get("accountId") || "";
   const [q, setQ] = useState(searchParams.get("q") || "");
   const [searchQuery, setSearchQuery] = useState(q);
+  const [outcome, setOutcome] = useState("ALL");
   useEffect(() => { const timer = setTimeout(() => setSearchQuery(q), 200); return () => clearTimeout(timer); }, [q]);
-  const result = useApiQuery("/trading/entries", { accountId, q: mode === "search" ? searchQuery : undefined });
+  const result = useApiQuery("/trading/entries", { accountId, q: searchQuery || undefined });
   const entries = result.data?.entries ?? null;
+  const visibleEntries = useMemo(() => (entries || []).filter(entry => outcome === "ALL" || entry.result === outcome), [entries, outcome]);
+  const summary = useMemo(() => ({
+    open:(entries || []).filter(entry=>entry.result === "OPEN").length,
+    closed:(entries || []).filter(entry=>["WIN","LOSS","BREAK_EVEN"].includes(entry.result)).length,
+    wins:(entries || []).filter(entry=>entry.result === "WIN").length,
+    documented:(entries || []).filter(entry=>(entry.content || "").replace(/<[^>]+>/g," ").trim() || entry.preTradeEmotion || entry.postTradeEmotion).length,
+  }), [entries]);
 
   useEffect(() => {
     api.get("/accounts").then((data) => { setAccounts(data.accounts); setAccountsError(""); })
@@ -31,26 +41,25 @@ export default function EntryListPage({ mode }) {
   }, { replace: true });
 
   return (
-    <div>
+    <main className="trade-journal-page">
       {result.error && <p role="alert" className="text-danger mb-3">{result.error.message} <button onClick={() => result.refresh().catch(() => {})}>Retry</button></p>}
       {accountsError && <p role="alert" className="text-danger mb-3">{accountsError}</p>}
-      <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
+      <header className="trade-journal-header">
         <div className="min-w-0">
-          <span className="eyebrow">JOURNAL</span>
-          <h1 className="page-title text-[22px] sm:text-[30px] tracking-tight mt-1.5 mb-2 break-words">
-            {activeAccount ? activeAccount.name : mode === "search" ? "Search" : "All entries"}
-          </h1>
-          <p className="text-ink-muted m-0">{entries ? `${entries.length} total` : ""}</p>
+          <span className="eyebrow">TRADE JOURNAL · DECISION RECORD</span>
+          <h1 className="page-title">{activeAccount ? activeAccount.name : mode === "search" ? "Find a trading decision" : "Trades, evidence and review."}</h1>
+          <p>{activeAccount ? "This account’s trades remain isolated from every other performance record." : "Return to the thesis, execution, psychology and evidence behind every trade."}</p>
         </div>
-        <Link to="/trading/entries/new" className="btn-primary shrink-0">+ Log trade</Link>
-      </div>
+        <Link to={`/trading/entries/new${accountId ? `?accountId=${encodeURIComponent(accountId)}` : ""}`} className="btn-primary shrink-0"><NavigationIcon name="plus" size={16}/>Log trade</Link>
+      </header>
 
-      {mode === "search" && (
-        <div className="input flex items-center gap-2 mb-6">
-          ◎
+      <section className="trade-journal-summary"><div><span>Total records</span><strong>{entries?.length ?? "—"}</strong><small>Across the current scope</small></div><div><span>Open</span><strong>{entries ? summary.open : "—"}</strong><small>Still in progress</small></div><div><span>Closed</span><strong>{entries ? summary.closed : "—"}</strong><small>{summary.closed ? `${summary.wins} wins` : "No outcomes yet"}</small></div><div><span>Evidence coverage</span><strong>{entries?.length ? `${Math.round(summary.documented/entries.length*100)}%` : "—"}</strong><small>With notes or psychology</small></div></section>
+
+      <section className="trade-journal-toolbar">
+        <div className="trade-journal-search">
+          <NavigationIcon name="search" size={17}/>
           <input
-            className="bg-transparent outline-none flex-1 text-ink placeholder:text-ink-muted"
-            placeholder="Search by title, asset, notes…"
+            placeholder="Search instrument, setup, thesis or notes…"
             value={q}
             onChange={(e) => {
               setQ(e.target.value);
@@ -58,36 +67,32 @@ export default function EntryListPage({ mode }) {
               e.target.value ? next.set("q", e.target.value) : next.delete("q");
               setSearchParams(next);
             }}
-            autoFocus
+            autoFocus={mode === "search"}
           />
         </div>
-      )}
+        <select aria-label="Trading account filter" value={accountId} onChange={event=>setAccount(event.target.value)}><option value="">All accounts</option>{accounts.map(account=><option value={account.id} key={account.id}>{account.name}</option>)}</select>
+      </section>
 
-      <div className="flex gap-2 mb-5 flex-wrap">
-        <FilterChip active={!accountId} onClick={() => setAccount("")}>All</FilterChip>
-        {accounts.map((a) => (
-          <FilterChip key={a.id} active={accountId === a.id} onClick={() => setAccount(a.id)}>
-            {a.name}
-          </FilterChip>
-        ))}
+      <div className="trade-journal-filters">
+        {[['ALL','All records'],['OPEN','Open'],['WIN','Wins'],['LOSS','Losses'],['BREAK_EVEN','Break-even']].map(([value,label])=><FilterChip key={value} active={outcome===value} onClick={()=>setOutcome(value)}>{label}</FilterChip>)}
       </div>
 
       {entries === null ? (
         !result.error && <p className="collection-inline-status" role="status">Checking trade history…</p>
-      ) : entries.length === 0 ? (
+      ) : visibleEntries.length === 0 ? (
         <EmptyState
           icon="📈"
-          title={mode === "search" && searchQuery ? "No matching trades" : activeAccount ? `No entries in ${activeAccount.name} yet.` : "No trades yet"}
-          description={mode === "search" && searchQuery ? "Try a different search phrase or account." : "Log your first trade to start tracking performance."}
+          title={searchQuery || outcome !== "ALL" ? "No matching trading records" : activeAccount ? `No entries in ${activeAccount.name} yet.` : "No trades yet"}
+          description={searchQuery || outcome !== "ALL" ? "Try a broader phrase, outcome, or account scope." : "Log your first trade to begin a reliable decision history."}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {entries.map((e) => (
+          {visibleEntries.map((e) => (
             <EntryCard key={e.id} entry={e} />
           ))}
         </div>
       )}
-    </div>
+    </main>
   );
 }
 

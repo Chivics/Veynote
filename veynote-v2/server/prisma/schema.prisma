@@ -68,10 +68,12 @@ model User {
   sessionGeneration Int @default(0)
   sessions AuthSession[]
   noteCreationRequests NoteCreationRequest[]
+  writingTemplates WritingTemplate[]
   authEmailChallenges AuthEmailChallenge[]
 
   folders         Folder[]
   notes           Note[]
+  noteComments    NoteComment[]
   tags            Tag[]
   tradingAccounts TradingAccount[]
   tradingEntries  TradingEntry[]
@@ -82,6 +84,7 @@ model User {
   attachments     Attachment[]
   tradeImages     TradeImage[]
   tradeAnalysisBlocks TradeAnalysisBlock[]
+  tradingReportShares TradingReportShare[]
   fileNodes       FileNode[]
   webauthnCredentials WebAuthnCredential[]
   will             Will?
@@ -93,11 +96,28 @@ model User {
   willDocuments   WillDocument[]
   willActivities  WillActivity[]
   willAssetAllocations WillAssetAllocation[]
+  willLiabilities WillLiability[]
+  vaultSecurityEvents VaultSecurityEvent[]
   ownedBusinessWorkspaces BusinessWorkspace[] @relation("BusinessWorkspaceOwner")
   businessMemberships BusinessMember[]
   businessCustomersCreated BusinessCustomer[] @relation("BusinessCustomerCreator")
   businessInteractions BusinessInteraction[] @relation("BusinessInteractionActor")
   businessOpportunitiesCreated BusinessOpportunity[] @relation("BusinessOpportunityCreator")
+}
+
+model VaultSecurityEvent {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope       String   @db.VarChar(32)
+  action      String   @db.VarChar(64)
+  method      String   @db.VarChar(32)
+  outcome     String   @db.VarChar(24)
+  deviceLabel String?  @db.VarChar(100)
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, scope, createdAt])
 }
 
 enum AuthEmailPurpose {
@@ -287,10 +307,27 @@ model Tag {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   name   String
+  isVisibleInIndex Boolean @default(false)
 
   notes NoteTag[]
 
   @@unique([userId, name])
+}
+
+model WritingTemplate {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String    @db.VarChar(120)
+  description String    @default("") @db.VarChar(500)
+  category    String    @default("Personal") @db.VarChar(60)
+  content     String    @db.LongText
+  isTrashed   Boolean   @default(false)
+  trashedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, isTrashed, updatedAt])
 }
 
 enum NoteKind {
@@ -306,8 +343,16 @@ model Note {
   folder     Folder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
   title      String
   content    String    @db.LongText
+  // Small, server-maintained list metadata keeps manuscript bodies out of
+  // Overview/Today/collection queries. Full HTML remains on the detail route.
+  contentPreview String @default("") @db.VarChar(512)
+  wordCount      Int    @default(0)
   mood       String?
   kind       NoteKind  @default(NOTE)
+  // Journal records keep their prose in content while purpose-built fields
+  // remain queryable for decisions, mood check-ins, lessons and reviews.
+  journalType String?  @db.VarChar(40)
+  journalData Json?
   isFavorite Boolean   @default(false)
   isPinned   Boolean   @default(false)
   isArchived Boolean   @default(false)
@@ -333,6 +378,8 @@ model Note {
   calendarEvents CalendarEvent[]
   attachments    Attachment[]
   versions       NoteVersion[]
+  documentRevisions NoteDocumentRevision[]
+  comments       NoteComment[]
   creationRequest NoteCreationRequest?
   linksFrom      NoteLink[]      @relation("LinksFrom") // [[links]] this note contains, pointing at other notes
   linksTo        NoteLink[]      @relation("LinksTo")   // other notes that [[link]] to this one — i.e. its backlinks
@@ -340,6 +387,7 @@ model Note {
   @@index([userId])
   @@index([folderId])
   @@index([userId, kind, entryDate])
+  @@index([userId, kind, journalType, entryDate])
 }
 
 // A snapshot of a note's title/content at a point in time, so edits can
@@ -416,8 +464,29 @@ model TradingAccount {
 
   entries TradingEntry[]
   rules TradingRule[]
+  reportShares TradingReportShare[]
 
   @@index([userId])
+}
+
+model TradingReportShare {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId       String?
+  account         TradingAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  token           String   @unique @db.VarChar(64)
+  title           String   @db.VarChar(140)
+  fromDate        DateTime?
+  toDate          DateTime?
+  showPnl         Boolean  @default(false)
+  showAccountName Boolean  @default(false)
+  enabled         Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([accountId])
 }
 
 model TradingEntry {
@@ -487,6 +556,13 @@ model CalendarEvent {
   date           DateTime
   title          String
   time           String? // optional clock time, free text e.g. "6:00 PM"
+  startsAtUtc    DateTime? // null on legacy day/time records until edited
+  endsAtUtc      DateTime?
+  timeZone       String? // IANA zone selected by the creator
+  allDay         Boolean?
+  recurrenceRule String? // DAILY, WEEKLY, MONTHLY; null means one occurrence
+  recurrenceUntil DateTime?
+  reminderMinutes Json? // offsets before a timed occurrence, not fake notifications
   linkedNoteId   String?
   linkedNote     Note?    @relation(fields: [linkedNoteId], references: [id], onDelete: SetNull)
   linkedTradeId  String?
@@ -494,6 +570,41 @@ model CalendarEvent {
   createdAt      DateTime @default(now())
 
   @@index([userId, mode, date])
+  @@index([userId, startsAtUtc])
+}
+
+// Immutable, bounded pieces of a future large-document revision. A revision
+// cannot replace a Note until every piece has been verified against the same
+// base version; existing inline documents remain the authoritative format.
+model NoteDocumentRevision {
+  id                String @id @default(cuid())
+  noteId            String
+  note              Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  userId            String
+  clientRequestId   String @db.VarChar(36)
+  expectedUpdatedAt DateTime
+  totalBytes        Int
+  chunkCount        Int
+  sha256            String @db.Char(64)
+  status            String @default("STAGING") @db.VarChar(16)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  chunks            NoteDocumentChunk[]
+
+  @@unique([userId, clientRequestId])
+  @@index([noteId, status, createdAt])
+}
+
+model NoteDocumentChunk {
+  id         String @id @default(cuid())
+  revisionId String
+  revision   NoteDocumentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  ordinal    Int
+  sizeBytes  Int
+  sha256     String @db.Char(64)
+  bytes      Bytes @db.MediumBlob
+
+  @@unique([revisionId, ordinal])
 }
 
 // ---------------------------------------------------------------------
@@ -530,6 +641,7 @@ model LibraryItem {
   category   String? // Type (Reading) / Category (Goals, Bucket, Ideas, Projects)
   status     String?
   priority   String?
+  isFavorite Boolean         @default(false)
   notes      String?         @db.Text
   link       String?
   coverStoredName   String? @unique
@@ -537,10 +649,29 @@ model LibraryItem {
   coverMimeType     String?
   coverSizeBytes    Int?
   properties Json? // database-specific extra fields — see client/src/data/libraryConfig.js
+  deletedAt  DateTime?
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
 
   @@index([userId, database])
+  @@index([userId, deletedAt])
+  @@index([userId, isFavorite, deletedAt])
+}
+
+model NoteComment {
+  id         String   @id @default(cuid())
+  noteId     String
+  note       Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body       String   @db.Text
+  quote      String?  @db.Text
+  resolvedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([noteId, resolvedAt, createdAt])
+  @@index([userId, createdAt])
 }
 
 enum TaskStatus {
@@ -561,11 +692,13 @@ model Task {
   tags        String? // comma-separated
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+  deletedAt   DateTime?
 
   subtasks TaskSubtask[]
   comments TaskComment[]
 
   @@index([userId])
+  @@index([userId, deletedAt])
 }
 
 model TaskSubtask {
@@ -673,10 +806,12 @@ model Attachment {
   mimeType     String
   sizeBytes    Int
   createdAt    DateTime       @default(now())
+  deletedAt    DateTime?
 
   @@index([noteId])
   @@index([tradingEntryId])
   @@index([userId])
+  @@index([userId, deletedAt])
 }
 
 // A device-folder upload tree. When someone uploads an entire folder
@@ -698,14 +833,17 @@ model FileNode {
 
   // Only set when isDirectory is false.
   storedName  String?    // randomized filename on disk
+  uploadSessionId String? @unique @db.VarChar(40)
   mimeType    String?
   sizeBytes   Int?
 
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+  deletedAt   DateTime?
 
   @@index([userId])
   @@index([parentId])
+  @@index([userId, deletedAt])
 }
 
 // A registered device credential with separately consented account and vault
@@ -755,6 +893,7 @@ model Will {
   documents     WillDocument[]
   activities    WillActivity[]
   assetAllocations WillAssetAllocation[]
+  liabilities   WillLiability[]
 }
 
 model WillDetail {
@@ -801,6 +940,7 @@ model WillAsset {
   documents     WillDocument[]
   beneficiaries WillBeneficiary[]
   allocations   WillAssetAllocation[]
+  liabilities   WillLiability[]
 
   @@index([willId])
   @@index([userId])
@@ -848,6 +988,7 @@ model WillContact {
   notes     String?  @db.Text
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  documents WillDocument[]
 
   @@index([willId])
   @@index([userId])
@@ -869,6 +1010,7 @@ model WillExecutor {
   createdAt    DateTime @default(now())
   updatedAt   DateTime @updatedAt
   responsibleAssets WillAsset[] @relation("ResponsibleExecutor")
+  documents WillDocument[]
 
   @@index([willId])
   @@index([userId])
@@ -921,6 +1063,33 @@ model WillAssetAllocation {
   @@index([userId])
 }
 
+model WillLiability {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  willId           String
+  will             Will      @relation(fields: [willId], references: [id], onDelete: Cascade)
+  assetId          String?
+  asset             WillAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  name              String
+  type              String    @default("Other")
+  lender            String?
+  amount            String?
+  currency          String?
+  accountReference  String?
+  dueDate           DateTime?
+  status            String    @default("ACTIVE")
+  notes             String?   @db.Text
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  documents         WillDocument[]
+
+  @@index([willId])
+  @@index([userId])
+  @@index([assetId])
+  @@index([status])
+}
+
 model WillDocument {
   id            String           @id @default(cuid())
   userId        String
@@ -933,6 +1102,12 @@ model WillDocument {
   asset         WillAsset?       @relation(fields: [assetId], references: [id], onDelete: Cascade)
   beneficiaryId String?
   beneficiary   WillBeneficiary? @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
+  contactId     String?
+  contact       WillContact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  executorId    String?
+  executor      WillExecutor?    @relation(fields: [executorId], references: [id], onDelete: Cascade)
+  liabilityId   String?
+  liability     WillLiability?   @relation(fields: [liabilityId], references: [id], onDelete: Cascade)
   originalName  String
   storedName    String
   mimeType      String
@@ -944,6 +1119,9 @@ model WillDocument {
   @@index([detailId])
   @@index([assetId])
   @@index([beneficiaryId])
+  @@index([contactId])
+  @@index([executorId])
+  @@index([liabilityId])
 }
 
 model WillActivity {

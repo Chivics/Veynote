@@ -15,7 +15,7 @@ const model = name => ({ async findMany(query) {
   if (failure?.model === name) throw failure.error;
   return [];
 } });
-const db = Object.fromEntries(["user", "authSession", "noteCreationRequest", "webAuthnCredential", "webAuthnLoginChallenge", "authEmailChallenge", "authEmailJob"].map(name => [name, model(name)]));
+const db = Object.fromEntries(["user", "authSession", "noteCreationRequest", "note", "noteDocumentRevision", "noteDocumentChunk", "webAuthnCredential", "webAuthnLoginChallenge", "authEmailChallenge", "authEmailJob", "writingTemplate", "tag", "fileNode", "attachment", "noteComment", "task", "willLiability", "vaultSecurityEvent"].map(name => [name, model(name)]));
 const prismaPath = require.resolve("../src/lib/prisma");
 require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: db };
 // Boot the real application, middleware and routes. Importing it must not
@@ -65,5 +65,31 @@ test("readiness failures preserve liveness and reach safe diagnostics through re
     const health = await fetch(`${origin}/api/health`);
     assert.equal(health.status, 200);
     assert.deepEqual(await health.json(), { ok: true });
+  } finally { failure = null; console.error = previous; }
+});
+
+test("the HTTP readiness route reports missing content lifecycle migrations", async () => {
+  const previous = console.error;
+  console.error = () => {};
+  try {
+    for (const [modelName, check, code] of [
+      ["note", "note_list_summaries", "P2022"],
+      ["noteDocumentRevision", "document_revisions", "P2021"],
+      ["noteDocumentChunk", "document_chunks", "P2021"],
+      ["fileNode", "file_trash", "P2022"],
+      ["attachment", "attachment_trash", "P2022"],
+      ["noteComment", "note_comments", "P2021"],
+      ["task", "task_trash", "P2022"],
+      ["willLiability", "estate_liabilities", "P2021"],
+      ["vaultSecurityEvent", "vault_security_activity", "P2021"],
+    ]) {
+      failure = { model: modelName, error: Object.assign(new Error("private database details"), { code }) };
+      const response = await fetch(`${origin}/api/ready`);
+      assert.equal(response.status, 503);
+      const body = await response.json();
+      assert.equal(body.code, "DATABASE_SCHEMA_MISSING");
+      assert.equal(body.check, check);
+      assert.equal(JSON.stringify(body).includes("private database details"), false);
+    }
   } finally { failure = null; console.error = previous; }
 });

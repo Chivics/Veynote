@@ -1,80 +1,69 @@
-// The same option list drives both the toolbar's "+" Insert menu and the
-// "/" slash command popup, so choosing "Heading" from either place does
-// exactly the same thing — one implementation, two entry points.
+import { useEffect, useId, useRef, useState } from "react";
+import NavigationIcon from "./layout/NavigationIcon";
+import { INSERT_BLOCKS, INSERT_GROUPS, searchInsertBlocks } from "../utils/insertCommands.js";
+import "./editorToolbar.css";
 
-function calloutHTML(variant, icon) {
-  return (
-    `<div class="callout callout-${variant}"><span class="callout-icon" contenteditable="false">${icon}</span>` +
-    `<span class="callout-text" data-focus-target>Type something…</span></div><p><br></p>`
-  );
+export { INSERT_BLOCKS };
+
+function optionIcon(block) {
+  if (block.key === "image") return <NavigationIcon name="image" size={19} />;
+  if (block.key === "file") return <NavigationIcon name="files" size={19} />;
+  if (block.key === "table") return <NavigationIcon name="grid" size={19} />;
+  if (block.key === "checklist") return <NavigationIcon name="tasks" size={19} />;
+  return block.icon;
 }
 
-export const INSERT_BLOCKS = [
-  { key: "text", label: "Text", icon: "¶", action: (ed) => ed.exec("formatBlock", "P") },
-  { key: "heading", label: "Heading", icon: "H2", action: (ed) => ed.exec("formatBlock", "H2") },
-  { key: "subheading", label: "Subheading", icon: "H3", action: (ed) => ed.exec("formatBlock", "H3") },
-  { key: "bullet", label: "Bullet list", icon: "☰", action: (ed) => ed.exec("insertUnorderedList") },
-  { key: "numbered", label: "Numbered list", icon: "☰1", action: (ed) => ed.exec("insertOrderedList") },
-  {
-    key: "checklist",
-    label: "Checklist",
-    icon: "☑",
-    action: (ed) =>
-      ed.insertHTML(
-        '<div class="cl-item" data-checked="false"><span class="cl-box" contenteditable="false">☐</span><span>New item</span></div><div><br></div>'
-      ),
-  },
-  { key: "quote", label: "Quote", icon: "❝", action: (ed) => ed.exec("formatBlock", "BLOCKQUOTE") },
-  { key: "code", label: "Code", icon: "{ }", action: (ed) => ed.exec("formatBlock", "PRE") },
-  { key: "divider", label: "Divider", icon: "—", action: (ed) => ed.insertHTML('<hr class="editor-divider"/><div><br></div>') },
-  { key: "table", label: "Table", icon: "▦", action: (ed) => ed.insertBlock(
-    '<table class="note-table"><tbody>' +
-    '<tr><td data-focus-target>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>' +
-    '<tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>' +
-    '<tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>' +
-    '</tbody></table><p><br></p>'
-  ) },
-  { key: "callout-info", label: "Callout: Info", icon: "💡", action: (ed) => ed.insertBlock(calloutHTML("info", "💡")) },
-  { key: "callout-warning", label: "Callout: Warning", icon: "⚠️", action: (ed) => ed.insertBlock(calloutHTML("warning", "⚠️")) },
-  { key: "callout-success", label: "Callout: Success", icon: "✅", action: (ed) => ed.insertBlock(calloutHTML("success", "✅")) },
-  { key: "callout-important", label: "Callout: Important", icon: "❌", action: (ed) => ed.insertBlock(calloutHTML("important", "❌")) },
-  // "image" and "file" are handled specially by NoteEditor (they open a
-  // file picker + upload), so they're marked here rather than given an
-  // `action` — the menu component checks for `needsFilePicker`.
-  { key: "image", label: "Image", icon: "🖼", needsFilePicker: "image" },
-  { key: "file", label: "File", icon: "📎", needsFilePicker: "file" },
-];
-
-const MENU_WIDTH = 190;
-const MENU_HEIGHT_ESTIMATE = 420; // roughly 13 rows tall — used only for viewport clamping
-
 export default function InsertMenu({ x, y, onPick, onClose }) {
-  // Clamp so the menu never renders partially (or fully) off-screen —
-  // important on phones where the caret can sit near any screen edge.
-  const clampedX = Math.min(Math.max(8, x), window.innerWidth - MENU_WIDTH - 8);
-  const clampedY = Math.min(Math.max(8, y), window.innerHeight - Math.min(MENU_HEIGHT_ESTIMATE, window.innerHeight - 16));
+  const dialog = useRef(null), searchInput = useRef(null), optionRefs = useRef(new Map()), heading = useId();
+  const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
+  const visible = searchInsertBlocks(query);
+  const selected = Math.min(active, visible.length - 1);
+  const hasQuery = Boolean(query.trim());
 
-  return (
-    <>
-      <div className="fixed inset-0 z-30" onMouseDown={onClose} />
-      <div
-        style={{ position: "fixed", left: clampedX, top: clampedY, width: MENU_WIDTH, maxHeight: "80vh" }}
-        className="z-40 bg-app-panel border border-app-border rounded-xl shadow-2xl overflow-y-auto py-1.5"
-      >
-        {INSERT_BLOCKS.map((b) => (
-          <button
-            key={b.key}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              onPick(b);
-            }}
-            className="w-full flex items-center gap-2.5 text-left px-3 py-2 max-sm:py-3 text-[12px] max-sm:text-[13px] text-ink hover:bg-app-panel2"
-          >
-            <span className="w-5 text-center text-ink-muted text-[11px]">{b.icon}</span>
-            {b.label}
-          </button>
-        ))}
-      </div>
-    </>
-  );
+  useEffect(() => {
+    if (!dialog.current.open) dialog.current.showModal();
+    searchInput.current?.focus();
+    return () => { if (dialog.current?.open) dialog.current.close(); };
+  }, []);
+  useEffect(() => {
+    optionRefs.current.get(visible[selected]?.key)?.scrollIntoView({ block: "nearest" });
+  }, [selected, query]);
+
+  function close() {
+    if (dialog.current?.open) dialog.current.close();
+    onClose();
+  }
+  function choose(block) {
+    if (dialog.current?.open) dialog.current.close();
+    onPick(block);
+  }
+  function move(delta) {
+    if (!visible.length) return;
+    setActive(index => (index + delta + visible.length) % visible.length);
+  }
+
+  const menuWidth = Math.min(390, window.innerWidth - 24);
+  const menuHeight = Math.min(580, window.innerHeight - 24);
+  const left = Math.max(12, Math.min(x, window.innerWidth - menuWidth - 12));
+  const top = y + menuHeight <= window.innerHeight - 12
+    ? Math.max(12, y)
+    : Math.max(12, Math.min(y - menuHeight - 10, window.innerHeight - menuHeight - 12));
+  const sections = hasQuery
+    ? [["Results", visible]]
+    : INSERT_GROUPS.map(group => [group, visible.filter(block => block.group === group)]);
+
+  return <dialog ref={dialog} className="writing-format-dialog writing-insert-dialog" style={{ "--insert-x": left + "px", "--insert-y": top + "px" }} aria-labelledby={heading} onCancel={event => { event.preventDefault(); close(); }} onClick={event => {
+    if (event.target !== event.currentTarget) return;
+    const rect = dialog.current.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close();
+  }}>
+    <header><div><span className="writing-insert-eyebrow">Writing tools</span><h2 id={heading}>Insert a block</h2></div><button type="button" aria-label="Close insert menu" onClick={close}><NavigationIcon name="close" size={20} /></button></header>
+    <label className="writing-insert-search"><NavigationIcon name="search" size={17} /><input ref={searchInput} role="combobox" aria-label="Find a block" aria-autocomplete="list" aria-expanded="true" aria-controls={heading + "-options"} aria-activedescendant={visible[selected] ? heading + "-" + visible[selected].key : undefined} value={query} onChange={event => { setQuery(event.target.value); setActive(0); }} onKeyDown={event => {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); move(event.key === "ArrowDown" ? 1 : -1); }
+      if (event.key === "Enter" && visible[selected]) { event.preventDefault(); choose(visible[selected]); }
+    }} placeholder="Search blocks, tasks, images…" /></label>
+    <div className="writing-format-body" id={heading + "-options"} role="listbox" aria-label="Document blocks">{sections.map(([label, blocks]) => blocks.length > 0 && <section key={label} role="group" aria-label={label}><h3>{label}</h3><div className="writing-insert-options">{blocks.map(block => <button type="button" role="option" id={heading + "-" + block.key} aria-selected={visible[selected]?.key === block.key} key={block.key} ref={element => { if (element) optionRefs.current.set(block.key, element); else optionRefs.current.delete(block.key); }} onMouseEnter={() => setActive(visible.findIndex(option => option.key === block.key))} onClick={() => choose(block)}><span aria-hidden="true" className="writing-insert-symbol">{optionIcon(block)}</span><span className="writing-insert-copy"><strong>{block.label}</strong><small>{block.description}</small></span></button>)}</div></section>)}{!visible.length && <p className="writing-insert-empty" role="status">No matching blocks. Try “heading”, “table”, “task”, or “image”.</p>}</div>
+    <footer className="writing-insert-hint"><span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span><span><kbd>↵</kbd> Insert</span><span><kbd>Esc</kbd> Close</span></footer>
+  </dialog>;
 }

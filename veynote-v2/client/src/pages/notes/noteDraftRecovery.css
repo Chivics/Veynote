@@ -1,0 +1,15 @@
+.note-draft-recovery {
+  width: min(100% - 2rem, 680px);
+  margin: clamp(3rem, 12vh, 8rem) auto;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+  border: 1px solid rgb(var(--app-border));
+  border-radius: 20px;
+  background: rgb(var(--app-panel));
+  color: rgb(var(--ink));
+  box-shadow: 0 20px 60px rgb(0 0 0 / 8%);
+}
+
+.note-draft-recovery h1 { margin: .6rem 0 1rem; font-size: clamp(1.7rem, 4vw, 2.3rem); line-height: 1.15; }
+.note-draft-recovery p { max-width: 56ch; line-height: 1.6; }
+.note-draft-recovery-time { color: rgb(var(--ink-muted)); font-size: .88rem; }
+.note-draft-recovery-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.5rem; }

@@ -4,6 +4,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 
 import Login from "./pages/auth/Login";
 import SharedNote from "./pages/SharedNote";
+import PublicTradingReport from "./pages/PublicTradingReport";
 import Signup from "./pages/auth/Signup";
 import PickMode from "./pages/auth/PickMode";
 import AuthCallback from "./pages/auth/AuthCallback";
@@ -38,6 +39,7 @@ function AppContent() {
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/shared/:token" element={<SharedNote />} />
+        <Route path="/performance/:token" element={<PublicTradingReport />} />
         <Route
           path="/pick-mode"
           element={

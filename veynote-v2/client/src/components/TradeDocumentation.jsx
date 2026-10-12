@@ -16,7 +16,13 @@ const ANALYSIS_FIELDS = [
   ["notes", "Notes", "Additional context or invalidation"],
 ];
 
-export default function TradeDocumentation({ entryId, ensureEntryId }) {
+function mergeRecords(current, incoming) {
+  const records = new Map(current.map((item) => [item.id, item]));
+  incoming.forEach((item) => records.set(item.id, { ...records.get(item.id), ...item }));
+  return [...records.values()];
+}
+
+export default function TradeDocumentation({ entryId, ensureEntryId, onTimeframesChange }) {
   const [images, setImages] = useState([]);
   const [attachments, setAttachments] = useState([]);
   const [fileUploading, setFileUploading] = useState([]);
@@ -49,9 +55,17 @@ export default function TradeDocumentation({ entryId, ensureEntryId }) {
     ])
       .then(([imgRes, fileRes, analysisRes]) => {
         if (cancelled) return;
-        if (imgRes.status === "fulfilled") setImages(imgRes.value?.images || []);
-        if (fileRes.status === "fulfilled") setAttachments(fileRes.value?.attachments || []);
-        if (analysisRes.status === "fulfilled") setAnalysisBlocks(analysisRes.value?.blocks || []);
+        // A new trade receives its id while the first analysis block or upload is
+        // already being created. These hydration requests can therefore resolve
+        // after the mutation. Merge their result instead of replacing local state,
+        // otherwise the freshly-created evidence disappears until a hard refresh.
+        if (imgRes.status === "fulfilled") setImages((current) => mergeRecords(current, imgRes.value?.images || []));
+        if (fileRes.status === "fulfilled") setAttachments((current) => mergeRecords(current, fileRes.value?.attachments || []));
+        if (analysisRes.status === "fulfilled") {
+          setAnalysisBlocks((current) =>
+            mergeRecords(current, analysisRes.value?.blocks || []).sort((a, b) => a.position - b.position)
+          );
+        }
       })
       .finally(() => {
         if (!cancelled) setLoaded(true);
@@ -94,6 +108,9 @@ export default function TradeDocumentation({ entryId, ensureEntryId }) {
     const orderedBlocks = [...analysisBlocks].sort((a, b) => a.position - b.position).map((block) => block.timeframe);
     return [...new Set([...orderedBlocks, ...selectedTimeframes, ...fromImages])];
   }, [analysisBlocks, selectedTimeframes, setupImages]);
+  useEffect(() => {
+    if (loaded) onTimeframesChange?.(activeTimeframes);
+  }, [activeTimeframes, loaded, onTimeframesChange]);
 
   async function handleUpload(stage, tf, files) {
     const id = entryId || (await ensureEntryId());

@@ -1,27 +1,75 @@
-// Derives word/character/reading-time stats directly from the note's
-// HTML, using a real (detached) DOM parse rather than regex-stripping
-// tags — that handles entities and nested markup correctly, which a
-// naive replace(/<[^>]*>/g, "") would get wrong for anything with an
-// escaped "&lt;" in it.
-export function computeStats(html) {
-  const empty = { words: 0, characters: 0, charactersNoSpaces: 0, readingMinutes: 0, headings: 0, tasks: 0, tasksDone: 0 };
-  if (!html) return empty;
+const wordSegmenter = typeof Intl.Segmenter === "function" ? new Intl.Segmenter(undefined, { granularity: "word" }) : null;
+const sentenceSegmenter = typeof Intl.Segmenter === "function" ? new Intl.Segmenter(undefined, { granularity: "sentence" }) : null;
+function tokens(text) {
+  if (wordSegmenter) return [...wordSegmenter.segment(text)].filter(part => part.isWordLike).map(part => part.segment);
+  return text.match(/[\p{L}\p{N}]+(?:[’'-][\p{L}\p{N}]+)*/gu) || [];
+}
+function sentenceParts(text) {
+  if (!text.trim()) return [];
+  const parts = sentenceSegmenter ? [...sentenceSegmenter.segment(text)].map(part => part.segment) : text.split(/(?<=[.!?。！？])\s*/u);
+  return parts.map(part => part.trim()).filter(part => tokens(part).length > 0);
+}
 
-  const container = document.createElement("div");
-  container.innerHTML = html;
+const PARAGRAPH_BOUNDARIES = new Set(["P", "LI", "BLOCKQUOTE", "PRE", "DIV", "SECTION", "FIGURE", "FIGCAPTION", "TD", "TH"]);
+// Read DOM nodes in document order, retaining text before/after nested blocks.
+// Inline formatting does not create another paragraph; headings are structure.
+export function paragraphTextFromNodes(root) {
+  const paragraphs = [];
+  let run = "";
+  const flush = () => { const text = run.replace(/[\u200B\uFEFF]/g, "").trim(); if (text) paragraphs.push(text); run = ""; };
+  function visit(node) {
+    if (node.nodeType === 3) { run += node.textContent || ""; return; }
+    if (node.nodeType !== 1 && node.nodeType !== 11) return;
+    if (node.tagName === "BR") { run += "\n"; return; }
+    const heading = /^H[1-6]$/.test(node.tagName || ""), boundary = heading || PARAGRAPH_BOUNDARIES.has(node.tagName);
+    if (boundary) flush();
+    if (!heading) [...node.childNodes].forEach(visit);
+    if (boundary) flush();
+  }
+  visit(root); flush(); return paragraphs;
+}
 
-  const headings = container.querySelectorAll("h1, h2, h3, h4, h5, h6").length;
-  const items = container.querySelectorAll(".cl-item");
-  const tasks = items.length;
-  const tasksDone = Array.from(items).filter((i) => i.dataset.checked === "true").length;
+// Pure measurements keep language/counting rules testable independently of
+// DOM extraction. No score or activity duration is inferred from dates.
+export function measureWriting(text = "", structure = {}) {
+  const clean = text.trim(), words = tokens(clean), parts = sentenceParts(clean);
+  const paragraphs = (structure.paragraphTexts || (clean ? clean.split(/\n+/) : [])).filter(part => part.trim());
+  const lengths = parts.map(part => tokens(part).length);
+  const longest = lengths.reduce((best, length, index) => best < 0 || length > lengths[best] ? index : best, -1);
+  const shortest = lengths.reduce((best, length, index) => best < 0 || length < lengths[best] ? index : best, -1);
+  const tasks = structure.tasks || 0, tasksDone = Math.min(tasks, structure.tasksDone || 0);
+  return {
+    words: words.length, characters: Array.from(clean).length, charactersNoSpaces: Array.from(clean.replace(/\s/gu, "")).length,
+    sentences: parts.length, paragraphs: paragraphs.length,
+    readingMinutes: words.length ? Math.max(1, Math.ceil(words.length / 220)) : 0,
+    speakingMinutes: words.length ? Math.max(1, Math.ceil(words.length / 130)) : 0,
+    averageWordLength: words.length ? words.reduce((sum, word) => sum + Array.from(word).length, 0) / words.length : 0,
+    averageSentenceLength: parts.length ? lengths.reduce((sum, size) => sum + size, 0) / parts.length : 0,
+    averageParagraphLength: paragraphs.length ? paragraphs.reduce((sum, part) => sum + tokens(part).length, 0) / paragraphs.length : 0,
+    longestSentence: longest < 0 ? null : { text: parts[longest], words: lengths[longest] },
+    shortestSentence: shortest < 0 ? null : { text: parts[shortest], words: lengths[shortest] },
+    headingsOutline: structure.headingsOutline || [], headings: structure.headingsOutline?.length || 0,
+    links: structure.links || 0, images: structure.images || 0, tasks, tasksDone,
+    checklistCompletion: tasks ? Math.round(tasksDone / tasks * 100) : null, documentBytes: structure.documentBytes || 0,
+  };
+}
 
-  const plainText = (container.textContent || "").replace(/\u00a0/g, " ").trim();
-  const words = plainText.length ? plainText.split(/\s+/).length : 0;
-  const characters = plainText.length;
-  const charactersNoSpaces = plainText.replace(/\s/g, "").length;
-  const readingMinutes = words === 0 ? 0 : Math.max(1, Math.round(words / 200));
-
-  return { words, characters, charactersNoSpaces, readingMinutes, headings, tasks, tasksDone };
+export function computeStats(html = "") {
+  if (!html) return measureWriting();
+  const template = document.createElement("template"); template.innerHTML = html;
+  const root = template.content;
+  root.querySelectorAll("script,style,iframe,object,embed,[hidden]").forEach(node => node.remove());
+  const paragraphTexts = paragraphTextFromNodes(root);
+  root.querySelectorAll("br").forEach(node => node.replaceWith(document.createTextNode("\n")));
+  const blockSelector = "p,li,blockquote,pre,div,section,figure,figcaption,h1,h2,h3,h4,h5,h6,td,th";
+  const blocks = [...root.querySelectorAll(blockSelector)];
+  const headingsOutline = [...root.querySelectorAll("h1,h2,h3,h4,h5,h6")].map(node => ({ level: Number(node.tagName.slice(1)), text: (node.textContent || "").trim() }));
+  const items = [...root.querySelectorAll(".cl-item")], looseChecks = [...root.querySelectorAll('input[type="checkbox"]')].filter(node => !node.closest(".cl-item"));
+  const tasksDone = items.filter(node => node.dataset.checked === "true" || node.querySelector('input[type="checkbox"]')?.checked).length + looseChecks.filter(node => node.checked).length;
+  const links = root.querySelectorAll("a[href]").length, images = root.querySelectorAll("img").length;
+  blocks.forEach(node => { node.prepend(document.createTextNode("\n")); node.append(document.createTextNode("\n")); });
+  const text = (root.textContent || "").replace(/[\u200B\uFEFF]/g, "").replace(/[^\S\n]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{2,}/g, "\n").trim();
+  return measureWriting(text, { paragraphTexts, headingsOutline, links, images, tasks: items.length + looseChecks.length, tasksDone, documentBytes: new TextEncoder().encode(html).byteLength });
 }
 
 export function formatStats(stats) {

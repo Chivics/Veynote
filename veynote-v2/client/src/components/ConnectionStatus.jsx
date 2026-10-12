@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import NavigationIcon from "./layout/NavigationIcon.jsx";
+import "./connectionStatus.css";
 export default function ConnectionStatus() {
   const [offline, setOffline] = useState(!navigator.onLine);
   const [updateReady, setUpdateReady] = useState(false);
@@ -11,7 +13,9 @@ export default function ConnectionStatus() {
     return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); window.removeEventListener("veynote:update-ready", waiting); };
   }, []);
   if (!offline && !updateReady) return null;
-  return <div role="status" className="bg-app-panel2 border-b border-app-border px-4 py-2 text-sm text-ink">
-    {offline ? "You’re offline. Keep unsaved work open until you reconnect." : "An update is ready. Save your work, then close all Veynote windows and reopen to update."}
-  </div>;
+  return <aside role="status" aria-live="polite" className={`connection-status${offline ? " is-offline" : " is-update"}`}>
+    <span className="connection-status-symbol"><NavigationIcon name={offline ? "cloud" : "sparkle"} size={18} /></span>
+    <div><strong>{offline ? "Working without a connection" : "A Veynote update is ready"}</strong><p>{offline ? "Keep this window open. Local editor recovery will protect active writing until Veynote can reconnect." : "Save active work, then close every Veynote window and reopen the app to use the update."}</p></div>
+    {offline && <button type="button" onClick={() => window.location.reload()}>Retry connection</button>}
+  </aside>;
 }

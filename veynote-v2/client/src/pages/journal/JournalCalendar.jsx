@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import NavigationIcon from "../../components/layout/NavigationIcon";
-import { dayKey, MOODS, stripHtml, useJournalEntries } from "./journalUtils";
+import { dayKey, journalExcerpt, MOODS } from "./journalUtils";
+import { useJournalEntries } from "./useJournalEntries";
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -64,7 +65,7 @@ export default function JournalCalendar() {
       </section>
       <aside className="journal-day-panel" aria-label="Selected day entries">
         <header><span className="eyebrow">SELECTED DAY</span><h2>{selectedDate.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</h2><p>{entries === null ? "Checking your journal…" : `${selectedEntries.length} ${selectedEntries.length === 1 ? "entry" : "entries"}`}</p></header>
-        {selectedEntries.length ? <div className="journal-day-entries">{selectedEntries.map(item => <Link key={item.id} to={`/journal/entries/${item.id}`}><span className="journal-day-mood">{MOODS[item.mood]?.symbol || "✦"}</span><span><strong>{item.title || "Untitled reflection"}</strong><small>{stripHtml(item.content).slice(0, 110) || "Open this entry"}</small></span><NavigationIcon name="chevron" size={15} /></Link>)}</div> : entries !== null && <div className="journal-day-empty"><span>✦</span><strong>No entry for this day</strong><p>Some days are quiet. Add a reflection whenever you are ready.</p><Link to="/journal/new">Write an entry <span aria-hidden="true">→</span></Link></div>}
+        {selectedEntries.length ? <div className="journal-day-entries">{selectedEntries.map(item => <Link key={item.id} to={`/journal/entries/${item.id}`}><span className="journal-day-mood">{MOODS[item.mood]?.symbol || "✦"}</span><span><strong>{item.title || "Untitled reflection"}</strong><small>{journalExcerpt(item).slice(0, 110) || "Open this entry"}</small></span><NavigationIcon name="chevron" size={15} /></Link>)}</div> : entries !== null && <div className="journal-day-empty"><span>✦</span><strong>No entry for this day</strong><p>Some days are quiet. Add a reflection whenever you are ready.</p><Link to="/journal/new">Write an entry <span aria-hidden="true">→</span></Link></div>}
       </aside>
     </div>
   </div>;

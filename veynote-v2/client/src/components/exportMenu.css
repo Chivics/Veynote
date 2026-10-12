@@ -1,0 +1,31 @@
+.document-export-trigger { display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:0 12px;border:1px solid rgb(var(--app-border));border-radius:10px;background:rgb(var(--app-panel));color:rgb(var(--ink-soft));font-size:11px;font-weight:700;transition:background .16s ease,border-color .16s ease,color .16s ease; }
+.document-export-trigger.is-compact { width:40px;padding:0; }
+.document-export-trigger:hover,.document-export-trigger[aria-expanded="true"] { border-color:rgb(var(--accent-notes) / .4);background:rgb(var(--accent-notes) / .08);color:rgb(var(--ink)); }
+.document-export-trigger:focus-visible,.document-export-dialog button:focus-visible { outline:2px solid rgb(var(--accent-notes));outline-offset:3px; }
+.document-export-dialog { width:min(490px,calc(100vw - 32px));max-width:none;max-height:min(720px,calc(100dvh - 32px));margin:auto;padding:0;overflow:auto;border:1px solid rgb(var(--app-border));border-radius:20px;background:rgb(var(--app-panel));color:rgb(var(--ink));box-shadow:var(--shadow-elevated); }
+.document-export-dialog[open] { animation:export-arrive .18s cubic-bezier(.2,.8,.2,1); }
+.document-export-dialog::backdrop { background:rgb(3 5 11 / .61);backdrop-filter:blur(4px); }
+.document-export-dialog header { display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:27px 29px 22px;border-bottom:1px solid rgb(var(--app-border)); }
+.document-export-dialog h2 { margin:9px 0 5px;font-family:var(--font-display),Georgia,serif;font-size:29px;line-height:1.18;letter-spacing:-.045em; }
+.document-export-dialog header p { margin:0;color:rgb(var(--ink-muted));font-size:12px; }
+.document-export-dialog header button { display:grid;place-items:center;width:40px;height:40px;flex:none;border-radius:9px;color:rgb(var(--ink-muted)); }
+.document-export-dialog header button:hover { background:rgb(var(--app-panel2));color:rgb(var(--ink)); }
+.document-export-body { padding:23px 29px 26px; }
+.document-export-body > .eyebrow { display:block;margin-bottom:12px; }
+.document-export-formats { display:grid;gap:8px; }
+.document-export-formats button,.document-export-print { display:flex;align-items:center;gap:13px;width:100%;min-height:67px;padding:11px 13px;text-align:left;border:1px solid rgb(var(--app-border));border-radius:12px;background:rgb(var(--app-panel2) / .46);transition:background .16s ease,border-color .16s ease,transform .16s ease; }
+.document-export-formats button:hover,.document-export-print:hover { border-color:rgb(var(--accent-notes) / .48);background:rgb(var(--accent-notes) / .07);transform:translateY(-1px); }
+.document-export-icon { display:grid;place-items:center;width:39px;height:39px;flex:none;border-radius:10px;background:rgb(var(--accent-notes) / .1);color:rgb(var(--accent-notes)); }
+.document-export-copy,.document-export-print > span { display:grid;gap:3px;min-width:0;flex:1; }
+.document-export-copy strong,.document-export-print strong { color:rgb(var(--ink));font-size:12px;font-weight:700; }
+.document-export-copy small,.document-export-print small { color:rgb(var(--ink-muted));font-size:11px;line-height:1.45; }
+.document-export-suffix { flex:none;color:rgb(var(--ink-muted));font-size:10px;font-weight:650; }
+.document-export-print { margin-top:14px; }
+.document-export-print > svg:first-child { flex:none;margin:0 10px;color:rgb(var(--accent-notes)); }
+.document-export-print > svg:last-child { color:rgb(var(--ink-muted)); }
+.document-export-error { margin:15px 0 0;padding:10px 12px;border-radius:9px;background:rgb(var(--danger) / .08);color:rgb(var(--danger));font-size:11px;line-height:1.6; }
+.document-export-dialog footer { display:flex;align-items:flex-start;gap:9px;padding:17px 29px max(17px,env(safe-area-inset-bottom));border-top:1px solid rgb(var(--app-border));background:rgb(var(--app-panel2) / .35);color:rgb(var(--ink-muted));font-size:10px;line-height:1.55; }
+.document-export-dialog footer svg { flex:none;color:rgb(var(--accent-notes)); }
+@keyframes export-arrive { from { opacity:0;transform:translateY(10px) scale(.98); } to { opacity:1;transform:translateY(0) scale(1); } }
+@media(max-width:640px) { .document-export-dialog { max-height:calc(100dvh - 16px);border-radius:19px; } .document-export-dialog header { padding:24px 21px 19px; } .document-export-body { padding:21px; } .document-export-dialog footer { padding-inline:21px; } }
+@media(prefers-reduced-motion:reduce) { .document-export-dialog[open] { animation:none; } .document-export-formats button,.document-export-print { transition:none; } }

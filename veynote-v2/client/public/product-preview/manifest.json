@@ -1,0 +1,1162 @@
+{
+  "screenCount": 228,
+  "screens": [
+    {
+      "id": "home",
+      "title": "Notes Home",
+      "group": "Personal"
+    },
+    {
+      "id": "tasks",
+      "title": "Tasks · Today",
+      "group": "Personal"
+    },
+    {
+      "id": "tasks-upcoming",
+      "title": "Tasks · Upcoming",
+      "group": "Personal"
+    },
+    {
+      "id": "tasks-board",
+      "title": "Tasks · Board",
+      "group": "Personal"
+    },
+    {
+      "id": "tasks-completed",
+      "title": "Tasks · Completed",
+      "group": "Personal"
+    },
+    {
+      "id": "task-detail",
+      "title": "Task detail & assignment",
+      "group": "Personal"
+    },
+    {
+      "id": "calendar",
+      "title": "Calendar",
+      "group": "Personal"
+    },
+    {
+      "id": "calendar-day",
+      "title": "Calendar · Day detail",
+      "group": "Personal"
+    },
+    {
+      "id": "library",
+      "title": "Library",
+      "group": "Personal"
+    },
+    {
+      "id": "reading",
+      "title": "Reading list",
+      "group": "Personal"
+    },
+    {
+      "id": "reading-saved",
+      "title": "Saved reading",
+      "group": "Personal"
+    },
+    {
+      "id": "reading-finished",
+      "title": "Finished reading",
+      "group": "Personal"
+    },
+    {
+      "id": "highlights",
+      "title": "Reading highlights",
+      "group": "Personal"
+    },
+    {
+      "id": "library-detail",
+      "title": "Library record",
+      "group": "Personal"
+    },
+    {
+      "id": "goals",
+      "title": "Goals & progress",
+      "group": "Personal"
+    },
+    {
+      "id": "files",
+      "title": "Files & attachments",
+      "group": "Personal"
+    },
+    {
+      "id": "login",
+      "title": "Login",
+      "group": "Authentication"
+    },
+    {
+      "id": "signup",
+      "title": "Signup",
+      "group": "Authentication"
+    },
+    {
+      "id": "recovery",
+      "title": "Account recovery",
+      "group": "Authentication"
+    },
+    {
+      "id": "verification",
+      "title": "Email verification",
+      "group": "Authentication"
+    },
+    {
+      "id": "passkey",
+      "title": "Passkey · Device handoff",
+      "group": "Authentication"
+    },
+    {
+      "id": "passkey-success",
+      "title": "Passkey · Success",
+      "group": "Authentication"
+    },
+    {
+      "id": "passkey-unavailable",
+      "title": "Passkey · Unavailable",
+      "group": "Authentication"
+    },
+    {
+      "id": "passkey-cancelled",
+      "title": "Passkey · Cancelled",
+      "group": "Authentication"
+    },
+    {
+      "id": "auth-error",
+      "title": "Authentication error",
+      "group": "Authentication"
+    },
+    {
+      "id": "trusted-device",
+      "title": "Trusted device",
+      "group": "Authentication"
+    },
+    {
+      "id": "session-timeout",
+      "title": "Session timeout",
+      "group": "Authentication"
+    },
+    {
+      "id": "reauth",
+      "title": "Reauthentication",
+      "group": "Authentication"
+    },
+    {
+      "id": "account-locked",
+      "title": "Account locked",
+      "group": "Authentication"
+    },
+    {
+      "id": "session-expired",
+      "title": "Session expired",
+      "group": "Authentication"
+    },
+    {
+      "id": "install-desktop",
+      "title": "Install · Desktop",
+      "group": "PWA"
+    },
+    {
+      "id": "install-android",
+      "title": "Install · Android",
+      "group": "PWA"
+    },
+    {
+      "id": "install-ios",
+      "title": "Install · iPhone / iPad",
+      "group": "PWA"
+    },
+    {
+      "id": "install-dismissed",
+      "title": "Install · Dismissed",
+      "group": "PWA"
+    },
+    {
+      "id": "install-complete",
+      "title": "Installed launch",
+      "group": "PWA"
+    },
+    {
+      "id": "app-update",
+      "title": "Update available",
+      "group": "PWA"
+    },
+    {
+      "id": "all-notes",
+      "title": "All Notes",
+      "group": "Notes"
+    },
+    {
+      "id": "recent",
+      "title": "Recent",
+      "group": "Notes"
+    },
+    {
+      "id": "favorites",
+      "title": "Favorites",
+      "group": "Notes"
+    },
+    {
+      "id": "folder",
+      "title": "Folder · Writing",
+      "group": "Notes"
+    },
+    {
+      "id": "tags",
+      "title": "Tags",
+      "group": "Notes"
+    },
+    {
+      "id": "archive",
+      "title": "Archive",
+      "group": "Notes"
+    },
+    {
+      "id": "trash",
+      "title": "Trash",
+      "group": "Notes"
+    },
+    {
+      "id": "note-detail",
+      "title": "Note details",
+      "group": "Notes"
+    },
+    {
+      "id": "quick-note",
+      "title": "Quick note",
+      "group": "Notes"
+    },
+    {
+      "id": "editor",
+      "title": "Note editor",
+      "group": "Notes"
+    },
+    {
+      "id": "typography",
+      "title": "Editor · Typography",
+      "group": "Notes"
+    },
+    {
+      "id": "insert",
+      "title": "Editor · Insert & slash menu",
+      "group": "Notes"
+    },
+    {
+      "id": "selection",
+      "title": "Editor · Selection actions",
+      "group": "Notes"
+    },
+    {
+      "id": "note-security",
+      "title": "Editor · Security",
+      "group": "Notes"
+    },
+    {
+      "id": "versions",
+      "title": "Version history",
+      "group": "Notes"
+    },
+    {
+      "id": "manuscript",
+      "title": "Manuscript workspace",
+      "group": "Writing"
+    },
+    {
+      "id": "focus",
+      "title": "Focus mode",
+      "group": "Writing"
+    },
+    {
+      "id": "reading-mode",
+      "title": "Reading mode",
+      "group": "Writing"
+    },
+    {
+      "id": "print",
+      "title": "Print layout",
+      "group": "Writing"
+    },
+    {
+      "id": "document-info",
+      "title": "Outline & document information",
+      "group": "Writing"
+    },
+    {
+      "id": "journal",
+      "title": "Journal · Today",
+      "group": "Journal"
+    },
+    {
+      "id": "journal-entry",
+      "title": "New journal entry",
+      "group": "Journal"
+    },
+    {
+      "id": "journal-timeline",
+      "title": "Journal timeline",
+      "group": "Journal"
+    },
+    {
+      "id": "decision",
+      "title": "Decision provenance",
+      "group": "Journal"
+    },
+    {
+      "id": "calibration",
+      "title": "Confidence calibration",
+      "group": "Journal"
+    },
+    {
+      "id": "weekly",
+      "title": "Weekly retrospective",
+      "group": "Journal"
+    },
+    {
+      "id": "monthly",
+      "title": "Monthly retrospective",
+      "group": "Journal"
+    },
+    {
+      "id": "annual",
+      "title": "Annual retrospective",
+      "group": "Journal"
+    },
+    {
+      "id": "search",
+      "title": "Universal search",
+      "group": "Intelligence"
+    },
+    {
+      "id": "command",
+      "title": "Global command palette",
+      "group": "Intelligence"
+    },
+    {
+      "id": "ask",
+      "title": "Ask Veynote",
+      "group": "Intelligence"
+    },
+    {
+      "id": "precedent",
+      "title": "Precedent",
+      "group": "Intelligence"
+    },
+    {
+      "id": "resurfacing",
+      "title": "Resurfaced records",
+      "group": "Intelligence"
+    },
+    {
+      "id": "related",
+      "title": "Related & duplicate review",
+      "group": "Intelligence"
+    },
+    {
+      "id": "activity",
+      "title": "Global timeline",
+      "group": "Intelligence"
+    },
+    {
+      "id": "summarize",
+      "title": "AI · Summarize",
+      "group": "Intelligence"
+    },
+    {
+      "id": "rephrase",
+      "title": "AI · Rephrase",
+      "group": "Intelligence"
+    },
+    {
+      "id": "ai-review",
+      "title": "AI · Rewrite review",
+      "group": "Intelligence"
+    },
+    {
+      "id": "ai-actions",
+      "title": "AI · Contextual actions",
+      "group": "Intelligence"
+    },
+    {
+      "id": "ai-privacy",
+      "title": "AI privacy",
+      "group": "Intelligence"
+    },
+    {
+      "id": "trading",
+      "title": "Trading overview",
+      "group": "Trading"
+    },
+    {
+      "id": "trades",
+      "title": "Trading journal",
+      "group": "Trading"
+    },
+    {
+      "id": "trade-editor",
+      "title": "New trade · Setup",
+      "group": "Trading"
+    },
+    {
+      "id": "trade-risk",
+      "title": "Trade editor · Risk & execution",
+      "group": "Trading"
+    },
+    {
+      "id": "trade-analysis",
+      "title": "Trade editor · Analysis",
+      "group": "Trading"
+    },
+    {
+      "id": "trade-context",
+      "title": "Trade editor · Top-Down Analysis",
+      "group": "Trading"
+    },
+    {
+      "id": "trade-result",
+      "title": "Trade editor · Result & review",
+      "group": "Trading"
+    },
+    {
+      "id": "trade-detail",
+      "title": "Trade detail · Case study",
+      "group": "Trading"
+    },
+    {
+      "id": "analytics",
+      "title": "Trading analytics",
+      "group": "Trading"
+    },
+    {
+      "id": "analytics-execution",
+      "title": "Analytics · Execution quality",
+      "group": "Trading"
+    },
+    {
+      "id": "accounts",
+      "title": "Trading accounts",
+      "group": "Trading"
+    },
+    {
+      "id": "account-edit",
+      "title": "Add / edit account",
+      "group": "Trading"
+    },
+    {
+      "id": "rules",
+      "title": "Trading rules",
+      "group": "Trading"
+    },
+    {
+      "id": "rule-detail",
+      "title": "Rule detail",
+      "group": "Trading"
+    },
+    {
+      "id": "trading-calendar",
+      "title": "Trading calendar",
+      "group": "Trading"
+    },
+    {
+      "id": "trading-day",
+      "title": "Trading calendar · Day",
+      "group": "Trading"
+    },
+    {
+      "id": "trade-report",
+      "title": "Trading report builder",
+      "group": "Trading"
+    },
+    {
+      "id": "trading-review",
+      "title": "Trading retrospective",
+      "group": "Trading"
+    },
+    {
+      "id": "public-trading",
+      "title": "Public trading profile",
+      "group": "Trading"
+    },
+    {
+      "id": "business",
+      "title": "Business dashboard",
+      "group": "Business"
+    },
+    {
+      "id": "customers",
+      "title": "Customers / CRM",
+      "group": "Business"
+    },
+    {
+      "id": "customer",
+      "title": "Customer profile & timeline",
+      "group": "Business"
+    },
+    {
+      "id": "pipeline",
+      "title": "Sales pipeline",
+      "group": "Business"
+    },
+    {
+      "id": "sales",
+      "title": "Sales",
+      "group": "Business"
+    },
+    {
+      "id": "records",
+      "title": "Business records",
+      "group": "Business"
+    },
+    {
+      "id": "expense",
+      "title": "New expense / record",
+      "group": "Business"
+    },
+    {
+      "id": "suppliers",
+      "title": "Suppliers",
+      "group": "Business"
+    },
+    {
+      "id": "documents",
+      "title": "Business documents",
+      "group": "Business"
+    },
+    {
+      "id": "business-editor",
+      "title": "Business document editor",
+      "group": "Business"
+    },
+    {
+      "id": "marketing",
+      "title": "Marketing campaigns",
+      "group": "Business"
+    },
+    {
+      "id": "campaign",
+      "title": "Campaign & customer journey",
+      "group": "Business"
+    },
+    {
+      "id": "content-plan",
+      "title": "Content plan",
+      "group": "Business"
+    },
+    {
+      "id": "team",
+      "title": "Team & organization",
+      "group": "Business"
+    },
+    {
+      "id": "business-report",
+      "title": "Business report",
+      "group": "Business"
+    },
+    {
+      "id": "investors",
+      "title": "Investor relationships",
+      "group": "Business"
+    },
+    {
+      "id": "investor-builder",
+      "title": "Investor view builder",
+      "group": "Business"
+    },
+    {
+      "id": "investor-preview",
+      "title": "Investor recipient preview",
+      "group": "Business"
+    },
+    {
+      "id": "public-investor",
+      "title": "Investor public view",
+      "group": "Business"
+    },
+    {
+      "id": "data-room",
+      "title": "Investor data room",
+      "group": "Business"
+    },
+    {
+      "id": "data-room-access",
+      "title": "Data room permissions",
+      "group": "Business"
+    },
+    {
+      "id": "scheduled",
+      "title": "Scheduled reports",
+      "group": "Business"
+    },
+    {
+      "id": "brand",
+      "title": "Report branding",
+      "group": "Business"
+    },
+    {
+      "id": "shared",
+      "title": "Shared with me",
+      "group": "Collaboration"
+    },
+    {
+      "id": "collaborations",
+      "title": "Collaborations",
+      "group": "Collaboration"
+    },
+    {
+      "id": "invite",
+      "title": "Invite collaborators",
+      "group": "Collaboration"
+    },
+    {
+      "id": "invite-role",
+      "title": "Invitation permissions",
+      "group": "Collaboration"
+    },
+    {
+      "id": "joined",
+      "title": "Member joined",
+      "group": "Collaboration"
+    },
+    {
+      "id": "live",
+      "title": "Live co-editing",
+      "group": "Collaboration"
+    },
+    {
+      "id": "comments",
+      "title": "Comment thread",
+      "group": "Collaboration"
+    },
+    {
+      "id": "merge",
+      "title": "Compare & merge",
+      "group": "Collaboration"
+    },
+    {
+      "id": "approval",
+      "title": "Document approval",
+      "group": "Collaboration"
+    },
+    {
+      "id": "invitations",
+      "title": "Invitations",
+      "group": "Collaboration"
+    },
+    {
+      "id": "share",
+      "title": "Share center",
+      "group": "Collaboration"
+    },
+    {
+      "id": "permissions",
+      "title": "Share permissions",
+      "group": "Collaboration"
+    },
+    {
+      "id": "recipient",
+      "title": "Recipient preview",
+      "group": "Collaboration"
+    },
+    {
+      "id": "publish",
+      "title": "Link ready",
+      "group": "Collaboration"
+    },
+    {
+      "id": "public-note",
+      "title": "Public note",
+      "group": "Collaboration"
+    },
+    {
+      "id": "share-password",
+      "title": "Password-protected share",
+      "group": "Collaboration"
+    },
+    {
+      "id": "access",
+      "title": "Sharing & access manager",
+      "group": "Collaboration"
+    },
+    {
+      "id": "audit",
+      "title": "Access audit",
+      "group": "Collaboration"
+    },
+    {
+      "id": "image-builder",
+      "title": "Share as image · Builder",
+      "group": "Export"
+    },
+    {
+      "id": "image-preview",
+      "title": "Share as image · Preview",
+      "group": "Export"
+    },
+    {
+      "id": "image-result",
+      "title": "Share as image · Result",
+      "group": "Export"
+    },
+    {
+      "id": "pdf-builder",
+      "title": "PDF export · Options",
+      "group": "Export"
+    },
+    {
+      "id": "pdf-preview",
+      "title": "PDF export · Preview",
+      "group": "Export"
+    },
+    {
+      "id": "data-export",
+      "title": "Data export",
+      "group": "Export"
+    },
+    {
+      "id": "qr",
+      "title": "QR share",
+      "group": "Export"
+    },
+    {
+      "id": "present",
+      "title": "Presentation mode",
+      "group": "Export"
+    },
+    {
+      "id": "share-templates",
+      "title": "Saved share templates",
+      "group": "Export"
+    },
+    {
+      "id": "locked",
+      "title": "Locked Notes",
+      "group": "Vault"
+    },
+    {
+      "id": "unlock",
+      "title": "Unlock one note",
+      "group": "Vault"
+    },
+    {
+      "id": "unlocked",
+      "title": "One note unlocked",
+      "group": "Vault"
+    },
+    {
+      "id": "relocked",
+      "title": "Note re-locked",
+      "group": "Vault"
+    },
+    {
+      "id": "will-locked",
+      "title": "Will & Inheritance · Locked",
+      "group": "Vault"
+    },
+    {
+      "id": "will",
+      "title": "Will & Inheritance",
+      "group": "Vault"
+    },
+    {
+      "id": "will-assets",
+      "title": "Inheritance · Assets",
+      "group": "Vault"
+    },
+    {
+      "id": "will-beneficiaries",
+      "title": "Inheritance · Beneficiaries",
+      "group": "Vault"
+    },
+    {
+      "id": "will-executors",
+      "title": "Inheritance · Executors",
+      "group": "Vault"
+    },
+    {
+      "id": "will-contacts",
+      "title": "Inheritance · Important contacts",
+      "group": "Vault"
+    },
+    {
+      "id": "will-legacy",
+      "title": "Inheritance · Digital legacy",
+      "group": "Vault"
+    },
+    {
+      "id": "will-documents",
+      "title": "Inheritance · Documents",
+      "group": "Vault"
+    },
+    {
+      "id": "will-activity",
+      "title": "Inheritance · Activity",
+      "group": "Vault"
+    },
+    {
+      "id": "settings",
+      "title": "Settings overview",
+      "group": "Settings"
+    },
+    {
+      "id": "profile",
+      "title": "Profile",
+      "group": "Settings"
+    },
+    {
+      "id": "account",
+      "title": "Account",
+      "group": "Settings"
+    },
+    {
+      "id": "security",
+      "title": "Security",
+      "group": "Settings"
+    },
+    {
+      "id": "passkeys",
+      "title": "Passkeys",
+      "group": "Settings"
+    },
+    {
+      "id": "sessions",
+      "title": "Active sessions",
+      "group": "Settings"
+    },
+    {
+      "id": "notification-settings",
+      "title": "Notification preferences",
+      "group": "Settings"
+    },
+    {
+      "id": "appearance",
+      "title": "Appearance",
+      "group": "Settings"
+    },
+    {
+      "id": "editor-settings",
+      "title": "Editor defaults",
+      "group": "Settings"
+    },
+    {
+      "id": "trading-settings",
+      "title": "Trading preferences",
+      "group": "Settings"
+    },
+    {
+      "id": "privacy",
+      "title": "Privacy",
+      "group": "Settings"
+    },
+    {
+      "id": "sharing-settings",
+      "title": "Sharing defaults",
+      "group": "Settings"
+    },
+    {
+      "id": "workspace-settings",
+      "title": "Workspace settings",
+      "group": "Settings"
+    },
+    {
+      "id": "integrations",
+      "title": "Integrations",
+      "group": "Settings"
+    },
+    {
+      "id": "templates",
+      "title": "Template library",
+      "group": "System"
+    },
+    {
+      "id": "template-editor",
+      "title": "Template editor",
+      "group": "System"
+    },
+    {
+      "id": "template-preview",
+      "title": "Template preview",
+      "group": "System"
+    },
+    {
+      "id": "notifications",
+      "title": "Notifications",
+      "group": "System"
+    },
+    {
+      "id": "create",
+      "title": "Contextual Create sheet",
+      "group": "System"
+    },
+    {
+      "id": "design-system",
+      "title": "Design system",
+      "group": "System"
+    },
+    {
+      "id": "empty",
+      "title": "Empty states",
+      "group": "States"
+    },
+    {
+      "id": "loading",
+      "title": "Missing-data skeletons",
+      "group": "States"
+    },
+    {
+      "id": "save-failed",
+      "title": "Save failed",
+      "group": "States"
+    },
+    {
+      "id": "upload-failed",
+      "title": "Upload failed",
+      "group": "States"
+    },
+    {
+      "id": "permission-denied",
+      "title": "Permission denied",
+      "group": "States"
+    },
+    {
+      "id": "share-expired",
+      "title": "Share expired",
+      "group": "States"
+    },
+    {
+      "id": "offline",
+      "title": "Offline · Local draft",
+      "group": "States"
+    },
+    {
+      "id": "conflict",
+      "title": "Sync conflict",
+      "group": "States"
+    },
+    {
+      "id": "server-unavailable",
+      "title": "Server unavailable",
+      "group": "States"
+    },
+    {
+      "id": "export-failed",
+      "title": "Export failed",
+      "group": "States"
+    },
+    {
+      "id": "link-disabled",
+      "title": "Public link disabled",
+      "group": "States"
+    },
+    {
+      "id": "sync-status",
+      "title": "Save & sync states",
+      "group": "States"
+    },
+    {
+      "id": "delete",
+      "title": "Delete confirmation",
+      "group": "States"
+    },
+    {
+      "id": "image-viewer",
+      "title": "Attachment image viewer",
+      "group": "States"
+    },
+    {
+      "id": "landing",
+      "title": "Landing page · Visual concept",
+      "group": "Introduction"
+    },
+    {
+      "id": "onboarding",
+      "title": "Onboarding · Workspace preferences",
+      "group": "Introduction"
+    },
+    {
+      "id": "customize-home",
+      "title": "Customize Home",
+      "group": "Personal"
+    },
+    {
+      "id": "reading-detail",
+      "title": "Book details",
+      "group": "Personal"
+    },
+    {
+      "id": "reading-edit",
+      "title": "Add / edit Book",
+      "group": "Personal"
+    },
+    {
+      "id": "films",
+      "title": "Films & Movies",
+      "group": "Personal"
+    },
+    {
+      "id": "films-detail",
+      "title": "Film details",
+      "group": "Personal"
+    },
+    {
+      "id": "films-edit",
+      "title": "Add / edit Film",
+      "group": "Personal"
+    },
+    {
+      "id": "bucket-list",
+      "title": "Bucket List",
+      "group": "Personal"
+    },
+    {
+      "id": "bucket-list-detail",
+      "title": "Bucket List details",
+      "group": "Personal"
+    },
+    {
+      "id": "bucket-list-edit",
+      "title": "Add / edit Bucket List",
+      "group": "Personal"
+    },
+    {
+      "id": "goals-detail",
+      "title": "Life Goal details",
+      "group": "Personal"
+    },
+    {
+      "id": "goals-edit",
+      "title": "Add / edit Life Goal",
+      "group": "Personal"
+    },
+    {
+      "id": "travel-plans",
+      "title": "Travel Plans",
+      "group": "Personal"
+    },
+    {
+      "id": "travel-plans-detail",
+      "title": "Travel Plan details",
+      "group": "Personal"
+    },
+    {
+      "id": "travel-plans-edit",
+      "title": "Add / edit Travel Plan",
+      "group": "Personal"
+    },
+    {
+      "id": "library-ideas",
+      "title": "Ideas",
+      "group": "Personal"
+    },
+    {
+      "id": "library-ideas-detail",
+      "title": "Idea details",
+      "group": "Personal"
+    },
+    {
+      "id": "library-ideas-edit",
+      "title": "Add / edit Idea",
+      "group": "Personal"
+    },
+    {
+      "id": "library-projects",
+      "title": "Projects",
+      "group": "Personal"
+    },
+    {
+      "id": "library-projects-detail",
+      "title": "Project details",
+      "group": "Personal"
+    },
+    {
+      "id": "library-projects-edit",
+      "title": "Add / edit Project",
+      "group": "Personal"
+    },
+    {
+      "id": "folders",
+      "title": "Folders",
+      "group": "Personal"
+    },
+    {
+      "id": "tag-detail",
+      "title": "Tag detail",
+      "group": "Personal"
+    },
+    {
+      "id": "will-allocation",
+      "title": "Inheritance · Allocation map",
+      "group": "Vault"
+    },
+    {
+      "id": "will-instructions",
+      "title": "Inheritance · Instructions",
+      "group": "Vault"
+    },
+    {
+      "id": "will-wishes",
+      "title": "Inheritance · Personal wishes",
+      "group": "Vault"
+    },
+    {
+      "id": "will-emergency",
+      "title": "Inheritance · Emergency plan",
+      "group": "Vault"
+    },
+    {
+      "id": "visual-editor",
+      "title": "Editor · Visual learning document",
+      "group": "Notes"
+    },
+    {
+      "id": "estate-asset-new",
+      "title": "Add estate asset",
+      "group": "Vault"
+    },
+    {
+      "id": "estate-asset",
+      "title": "Estate asset detail",
+      "group": "Vault"
+    },
+    {
+      "id": "estate-person",
+      "title": "Estate person detail",
+      "group": "Vault"
+    },
+    {
+      "id": "estate-liabilities",
+      "title": "Estate liabilities",
+      "group": "Vault"
+    },
+    {
+      "id": "account-dashboard",
+      "title": "Account performance",
+      "group": "Trading"
+    },
+    {
+      "id": "trade-psychology",
+      "title": "Trade editor · Psychology",
+      "group": "Trading"
+    },
+    {
+      "id": "trade-review-editor",
+      "title": "Trade editor · Post-trade review",
+      "group": "Trading"
+    }
+  ],
+  "sourceCatalogSha256": "e4c65659295deaf89cf4634ebcb8b86e6401b0be09b67d18b3dff8c0366e1409",
+  "variants": [
+    "desktop-dark",
+    "desktop-light",
+    "mobile-dark",
+    "mobile-light"
+  ],
+  "widths": [
+    320,
+    375,
+    414,
+    768,
+    1024,
+    1280,
+    1440,
+    1920
+  ]
+}

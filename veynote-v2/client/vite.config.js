@@ -6,8 +6,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": "http://localhost:4000",
-      "/uploads": "http://localhost:4000",
+      "/api": process.env.VEYNOTE_DEV_API_TARGET || "http://localhost:4000",
+      "/uploads": process.env.VEYNOTE_DEV_API_TARGET || "http://localhost:4000",
     },
   },
 });

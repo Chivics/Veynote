@@ -11,6 +11,7 @@ const prisma = require("../lib/prisma");
 const { requireAuth } = require("../middleware/auth");
 const { signVaultToken, signNoteToken } = require("../utils/jwt");
 const { hasValidVaultAccess } = require("../utils/vaultAccess");
+const { recordVaultSecurityActivity } = require("../utils/vaultSecurityActivity");
 
 const router = express.Router();
 router.use(requireAuth);
@@ -59,6 +60,7 @@ router.delete("/credentials/:id", asyncHandler(async (req, res) => {
   const credential = await prisma.webAuthnCredential.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!credential) return res.status(404).json({ error: "Not found." });
   await prisma.webAuthnCredential.delete({ where: { id: credential.id } });
+  await recordVaultSecurityActivity(prisma, { userId: req.userId, scope: "locked-notes", action: "device_removed", method: "device", outcome: "succeeded", deviceLabel: credential.deviceLabel });
   res.json({ ok: true });
 }));
 
@@ -81,6 +83,7 @@ router.post("/credentials/:id/enable-vault", asyncHandler(async (req, res) => {
   const credential = await prisma.webAuthnCredential.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!credential) return res.status(404).json({ error: "Passkey not found." });
   const updated = await prisma.webAuthnCredential.update({ where: { id: credential.id }, data: { vaultEnabled: true } });
+  await recordVaultSecurityActivity(prisma, { userId: req.userId, scope: "locked-notes", action: "device_enabled", method: "device", outcome: "succeeded", deviceLabel: updated.deviceLabel });
   res.json({ credential: { id: updated.id, deviceLabel: updated.deviceLabel, createdAt: updated.createdAt, accountEnabledAt: updated.accountEnabledAt, vaultEnabled: updated.vaultEnabled } });
 }));
 
@@ -156,6 +159,8 @@ router.post("/register/verify", asyncHandler(async (req, res) => {
     },
   });
 
+  await recordVaultSecurityActivity(prisma, { userId: req.userId, scope: "locked-notes", action: "device_registered", method: "device", outcome: "succeeded", deviceLabel: saved.deviceLabel });
+
   res.status(201).json({ credential: { id: saved.id, deviceLabel: saved.deviceLabel, createdAt: saved.createdAt, accountEnabledAt: saved.accountEnabledAt, vaultEnabled: saved.vaultEnabled } });
 }));
 
@@ -228,6 +233,7 @@ router.post("/authenticate/verify", asyncHandler(async (req, res) => {
   });
 
   const token = noteId ? signNoteToken(req.userId, noteId) : signVaultToken(req.userId, "vault");
+  await recordVaultSecurityActivity(prisma, { userId: req.userId, scope: "locked-notes", action: noteId ? "record_unlock_succeeded" : "collection_unlock_succeeded", method: "device", outcome: "succeeded", deviceLabel: stored.deviceLabel });
   res.json({ token });
 }));
 

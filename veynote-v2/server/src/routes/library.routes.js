@@ -5,13 +5,13 @@ const fs = require("fs");
 const crypto = require("crypto");
 const prisma = require("../lib/prisma");
 const { requireAuth } = require("../middleware/auth");
-const { LIBRARY_DATABASES, pickProperties } = require("../data/libraryConfig");
+const { LIBRARY_DATABASES, parseLibraryInput } = require("../data/libraryConfig");
 const { asyncHandler } = require("../middleware/asyncHandler");
 
 const router = express.Router();
 router.use(requireAuth);
 
-const UPLOAD_DIR = path.join(__dirname, "..", "..", "uploads");
+const { uploadRoot: UPLOAD_DIR } = require("../utils/storagePaths");
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/avif"]);
 const upload = multer({
@@ -60,22 +60,45 @@ function assertValidDatabase(req, res, next) {
 
 // GET /api/library/summary — real per-database counts for the Library
 // dashboard cards. Never hard-coded; a brand-new account gets all zeros.
-router.get("/summary", async (req, res) => {
-  const counts = await prisma.libraryItem.groupBy({
-    by: ["database"],
-    where: { userId: req.userId },
-    _count: { _all: true },
-  });
+router.get("/summary", asyncHandler(async (req, res) => {
+  const [counts, recent] = await Promise.all([
+    prisma.libraryItem.groupBy({
+      by: ["database"],
+      where: { userId: req.userId, deletedAt: null },
+      _count: { _all: true },
+    }),
+    prisma.libraryItem.findMany({
+      where: { userId: req.userId, deletedAt: null },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      take: 8,
+    }),
+  ]);
   const summary = Object.fromEntries(VALID_DATABASES.map((d) => [d, 0]));
   counts.forEach((c) => {
     summary[c.database] = c._count._all;
   });
-  res.json({ summary });
-});
+  res.json({ summary, recent: recent.map(serialize) });
+}));
+
+router.get("/trash", asyncHandler(async (req, res) => {
+  const items = await prisma.libraryItem.findMany({
+    where: { userId: req.userId, deletedAt: { not: null } },
+    orderBy: [{ deletedAt: "desc" }, { id: "desc" }],
+  });
+  res.json({ items: items.map(serialize) });
+}));
+
+router.get("/favorites", asyncHandler(async (req, res) => {
+  const items = await prisma.libraryItem.findMany({
+    where: { userId: req.userId, isFavorite: true, deletedAt: null },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+  });
+  res.json({ items: items.map(serialize) });
+}));
 
 router.get("/:database", assertValidDatabase, async (req, res) => {
   const { status, category } = req.query;
-  const where = { userId: req.userId, database: req.libraryDatabase };
+  const where = { userId: req.userId, database: req.libraryDatabase, deletedAt: null };
   if (status) where.status = status;
   if (category) where.category = category;
 
@@ -85,94 +108,126 @@ router.get("/:database", assertValidDatabase, async (req, res) => {
 
 router.get("/:database/:id", assertValidDatabase, async (req, res) => {
   const item = await prisma.libraryItem.findFirst({
-    where: { id: req.params.id, userId: req.userId, database: req.libraryDatabase },
+    where: { id: req.params.id, userId: req.userId, database: req.libraryDatabase, deletedAt: null },
   });
   if (!item) return res.status(404).json({ error: "Item not found." });
   res.json({ item: serialize(item) });
 });
 
-router.post("/:database", assertValidDatabase, async (req, res) => {
-  const { title, category, status, priority, notes, link } = req.body;
-  if (!title?.trim()) return res.status(400).json({ error: "Title is required." });
+router.post("/:database", assertValidDatabase, asyncHandler(async (req, res) => {
+  let input;
+  try { input = parseLibraryInput(req.libraryDatabase, req.body, { create: true }); }
+  catch (error) { return res.status(400).json({ error: error.message }); }
 
   const item = await prisma.libraryItem.create({
     data: {
       userId: req.userId,
       database: req.libraryDatabase,
-      title: title.trim(),
-      category: category || null,
-      status: status || null,
-      priority: priority || null,
-      notes: notes || null,
-      link: link || null,
-      properties: pickProperties(req.libraryDatabase, req.body),
+      ...input.data,
+      properties: input.properties,
     },
   });
   res.status(201).json({ item: serialize(item) });
-});
+}));
 
-router.patch("/:database/:id", assertValidDatabase, async (req, res) => {
+router.patch("/:database/:id", assertValidDatabase, asyncHandler(async (req, res) => {
   const existing = await prisma.libraryItem.findFirst({
-    where: { id: req.params.id, userId: req.userId, database: req.libraryDatabase },
+    where: { id: req.params.id, userId: req.userId, database: req.libraryDatabase, deletedAt: null },
   });
   if (!existing) return res.status(404).json({ error: "Item not found." });
 
-  const { title, category, status, priority, notes, link } = req.body;
-  const mergedProps = { ...(existing.properties || {}), ...pickProperties(req.libraryDatabase, req.body) };
+  let input;
+  try { input = parseLibraryInput(req.libraryDatabase, req.body); }
+  catch (error) { return res.status(400).json({ error: error.message }); }
+  const mergedProps = { ...(existing.properties || {}), ...input.properties };
 
-  const item = await prisma.libraryItem.update({
-    where: { id: existing.id },
+  const result = await prisma.libraryItem.updateMany({
+    where: { id: existing.id, userId: req.userId, database: req.libraryDatabase, deletedAt: null },
     data: {
-      ...(title !== undefined && { title }),
-      ...(category !== undefined && { category }),
-      ...(status !== undefined && { status }),
-      ...(priority !== undefined && { priority }),
-      ...(notes !== undefined && { notes }),
-      ...(link !== undefined && { link }),
+      ...input.data,
       properties: mergedProps,
     },
   });
+  if (!result.count) return res.status(404).json({ error: "Item not found." });
+  const item = await prisma.libraryItem.findFirst({
+    where: { id: existing.id, userId: req.userId, database: req.libraryDatabase, deletedAt: null },
+  });
+  if (!item) return res.status(404).json({ error: "Item not found." });
   res.json({ item: serialize(item) });
-});
+}));
 
 router.post("/:database/:id/cover", assertValidDatabase, upload.single("file"), asyncHandler(async (req, res) => {
-  const existing = await prisma.libraryItem.findFirst({ where: { id: req.params.id, userId: req.userId, database: req.libraryDatabase } });
+  const existing = await prisma.libraryItem.findFirst({ where: { id: req.params.id, userId: req.userId, database: req.libraryDatabase, deletedAt: null } });
   if (!existing) { if (req.file) removeStoredFile(req.file.filename); return res.status(404).json({ error: "Item not found." }); }
   if (!req.file) return res.status(400).json({ error: "Choose an image to upload." });
   let validImage = false;
   try { validImage = await hasImageSignature(req.file); }
   catch (error) { removeStoredFile(req.file.filename); throw error; }
   if (!validImage) { removeStoredFile(req.file.filename); return res.status(415).json({ error: "This file does not contain a valid supported image." }); }
+  let saved = false;
   try {
-    const item = await prisma.libraryItem.update({ where: { id: existing.id }, data: {
+    const result = await prisma.libraryItem.updateMany({ where: { id: existing.id, userId: req.userId, database: req.libraryDatabase, deletedAt: null }, data: {
       coverStoredName: req.file.filename, coverOriginalName: req.file.originalname.slice(0, 190),
       coverMimeType: req.file.mimetype, coverSizeBytes: req.file.size,
     } });
+    if (!result.count) { removeStoredFile(req.file.filename); return res.status(404).json({ error: "Item not found." }); }
+    saved = true;
+    const item = await prisma.libraryItem.findFirst({ where: { id: existing.id, userId: req.userId, database: req.libraryDatabase, deletedAt: null } });
     removeStoredFile(existing.coverStoredName);
+    if (!item) return res.status(404).json({ error: "Item not found." });
     res.json({ item: serialize(item) });
-  } catch (error) { removeStoredFile(req.file.filename); throw error; }
+  } catch (error) { if (!saved) removeStoredFile(req.file.filename); throw error; }
 }));
 
 router.delete("/:database/:id/cover", assertValidDatabase, asyncHandler(async (req, res) => {
-  const existing = await prisma.libraryItem.findFirst({ where: { id: req.params.id, userId: req.userId, database: req.libraryDatabase } });
+  const existing = await prisma.libraryItem.findFirst({ where: { id: req.params.id, userId: req.userId, database: req.libraryDatabase, deletedAt: null } });
   if (!existing) return res.status(404).json({ error: "Item not found." });
-  const item = await prisma.libraryItem.update({ where: { id: existing.id }, data: {
+  const result = await prisma.libraryItem.updateMany({ where: { id: existing.id, userId: req.userId, database: req.libraryDatabase, deletedAt: null }, data: {
     coverStoredName: null, coverOriginalName: null, coverMimeType: null, coverSizeBytes: null,
   } });
+  if (!result.count) return res.status(404).json({ error: "Item not found." });
+  const item = await prisma.libraryItem.findFirst({ where: { id: existing.id, userId: req.userId, database: req.libraryDatabase, deletedAt: null } });
   removeStoredFile(existing.coverStoredName);
+  if (!item) return res.status(404).json({ error: "Item not found." });
   res.json({ item: serialize(item) });
 }));
 
-router.delete("/:database/:id", assertValidDatabase, async (req, res) => {
+router.patch("/:database/:id/restore", assertValidDatabase, asyncHandler(async (req, res) => {
+  const result = await prisma.libraryItem.updateMany({
+    where: { id: req.params.id, userId: req.userId, database: req.libraryDatabase, deletedAt: { not: null } },
+    data: { deletedAt: null },
+  });
+  if (!result.count) return res.status(404).json({ error: "Item not found in Trash." });
+  const item = await prisma.libraryItem.findFirst({
+    where: { id: req.params.id, userId: req.userId, database: req.libraryDatabase, deletedAt: null },
+  });
+  if (!item) return res.status(404).json({ error: "Item not found." });
+  res.json({ item: serialize(item) });
+}));
+
+router.delete("/:database/:id/permanent", assertValidDatabase, asyncHandler(async (req, res) => {
   const existing = await prisma.libraryItem.findFirst({
     where: { id: req.params.id, userId: req.userId, database: req.libraryDatabase },
   });
   if (!existing) return res.status(404).json({ error: "Item not found." });
+  if (!existing.deletedAt) return res.status(409).json({ error: "Move the item to Trash before permanently deleting it." });
 
-  await prisma.libraryItem.delete({ where: { id: existing.id } });
+  const result = await prisma.libraryItem.deleteMany({
+    where: { id: existing.id, userId: req.userId, database: req.libraryDatabase, deletedAt: { not: null } },
+  });
+  if (!result.count) return res.status(409).json({ error: "Item is no longer in Trash." });
   removeStoredFile(existing.coverStoredName);
   res.json({ ok: true });
-});
+}));
+
+router.delete("/:database/:id", assertValidDatabase, asyncHandler(async (req, res) => {
+  const result = await prisma.libraryItem.updateMany({
+    where: { id: req.params.id, userId: req.userId, database: req.libraryDatabase, deletedAt: null },
+    data: { deletedAt: new Date() },
+  });
+  if (!result.count) return res.status(404).json({ error: "Item not found." });
+  res.json({ ok: true });
+}));
 
 router.use((error, _req, res, next) => {
   if (error?.status === 415) return res.status(415).json({ error: error.message });

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { collectionState, collectionParams, collectWriting, collectionPage, nextTasks } from "../src/utils/noteCollection.js";
+import { collectionState, collectionParams, collectWriting, collectionPage, nextTasks, noteExcerpt, noteWordCount } from "../src/utils/noteCollection.js";
 
 test("collection navigation retains filter, view, sort, and unrelated URL context", () => {
   const initial = new URLSearchParams("q=decision&view=grid&sort=created&folder=f1&tag=research&page=3&source=home");
@@ -9,7 +9,7 @@ test("collection navigation retains filter, view, sort, and unrelated URL contex
   assert.equal(next.get("source"), "home");
   assert.equal(initial.get("q"), "decision");
   const restored = collectionState(new URLSearchParams(next.toString()), "all");
-  assert.deepEqual(restored, { q:"review", view:"grid", sort:"created", folder:"f1", tag:"research", kind:"NOTE", page:1 });
+  assert.deepEqual(restored, { q:"review", view:"grid", sort:"created", folder:"f1", tag:"research", kind:"NOTE", focus:"all", page:1 });
   assert.equal(collectionParams(next, { page:2 }).get("q"), "review");
 });
 
@@ -37,6 +37,33 @@ test("collection filters intersect and never expose protected writing", () => {
 test("creation order uses persisted creation time rather than a backdated journal date", () => {
   assert.deepEqual(collectWriting(notes, { kind:"ALL", sort:"created", q:"" }).map(n => n.id), ["1", "2"]);
 });
+
+test("Trash defaults to deletion time and keeps explicit sort choices", () => {
+  assert.equal(collectionState(new URLSearchParams(), "trash").sort, "deleted");
+  assert.equal(collectionState(new URLSearchParams("sort=title"), "trash").sort, "title");
+  const deleted = [
+    { id:"older", kind:"NOTE", title:"Older", createdAt:"2026-01-01", updatedAt:"2026-09-28", trashedAt:"2026-09-29" },
+    { id:"newer", kind:"JOURNAL", title:"Newer", createdAt:"2026-01-02", updatedAt:"2026-09-26", trashedAt:"2026-09-30" },
+  ];
+  assert.deepEqual(collectWriting(deleted, { kind:"ALL", sort:"deleted", q:"" }).map(n => n.id), ["newer", "older"]);
+});
+
+test("Favorites opens as a visual collection while preserving an explicit list choice", () => {
+  assert.equal(collectionState(new URLSearchParams(), "favorites").view, "grid");
+  assert.equal(collectionState(new URLSearchParams("view=list"), "favorites").view, "list");
+});
+
+test("pinned and shared views intersect filters and preserve return context", () => {
+  const records = [...notes, { ...notes[0], id:"pinned", isPinned:true, shareEnabled:true }, { ...notes[0], id:"hidden", isLocked:true, isPinned:true, shareEnabled:true }];
+  const initial = new URLSearchParams("q=review&folder=f1&view=grid&page=3");
+  const selected = collectionParams(initial, { focus:"pinned" });
+  assert.equal(selected.get("page"), null);
+  const filters = collectionState(selected,"all");
+  assert.deepEqual(collectWriting(records, filters).map(note=>note.id), ["pinned"]);
+  assert.deepEqual(collectWriting(records, {...filters, focus:"shared"}).map(note=>note.id), ["pinned"]);
+  assert.equal(filters.view,"grid");
+  assert.equal(collectionState(new URLSearchParams("focus=private"),"all").focus,"all");
+});
 test("deleted last-page records clamp pagination without hiding remaining writing", () => {
   const records = Array.from({length:25}, (_,id) => ({id}));
   assert.equal(collectionPage(records, 2).records.length, 1);
@@ -54,4 +81,12 @@ test("next actions favor overdue dates, preserve date-only meaning, and omit com
     {id:"undated",status:"TODO"},
   ];
   assert.deepEqual(nextTasks(tasks,"2026-09-26").map(t=>t.id),["overdue","today","later","working","undated"]);
+});
+
+test("collection summaries retain excerpts and full counts without a document body", () => {
+  const summary = { id:"large", title:"Long manuscript", contentPreview:"A bounded opening excerpt", wordCount:382140, kind:"NOTE" };
+  assert.equal(noteExcerpt(summary), "A bounded opening excerpt");
+  assert.equal(noteWordCount(summary), 382140);
+  assert.deepEqual(collectWriting([summary], { kind:"NOTE", sort:"updated", q:"bounded" }).map(note => note.id), ["large"]);
+  assert.equal(noteExcerpt({ content:"<p>Short text</p>" }), "Short text");
 });

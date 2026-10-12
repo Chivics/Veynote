@@ -5,6 +5,8 @@ const bcrypt = require("bcryptjs");
 const prisma = require("../lib/prisma");
 const { requireAuth } = require("../middleware/auth");
 const { signVaultToken, signNoteToken } = require("../utils/jwt");
+const { hasValidVaultAccess } = require("../utils/vaultAccess");
+const { recordVaultSecurityActivity } = require("../utils/vaultSecurityActivity");
 
 const router = express.Router();
 router.use(requireAuth);
@@ -31,6 +33,25 @@ router.get("/status", asyncHandler(async (req, res) => {
   });
 }));
 
+// The Vault activity ledger contains access-control events only. It never
+// stores document titles, filenames, IP addresses, note identifiers, or
+// content. Collection proof is required before the ledger can be read.
+router.get("/activity", asyncHandler(async (req, res) => {
+  if (!hasValidVaultAccess(req, "vault")) {
+    return res.status(401).json({ error: "Unlock Protected Notes before reviewing security activity.", requiresVault: "locked-notes" });
+  }
+  const scope = req.query.scope;
+  if (scope !== undefined && !["locked-notes", "will"].includes(scope)) return res.status(400).json({ error: "Unknown security scope." });
+  const events = await prisma.vaultSecurityEvent.findMany({
+    where: { userId: req.userId, ...(scope && { scope }) },
+    select: { id: true, scope: true, action: true, method: true, outcome: true, deviceLabel: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  });
+  res.set("Cache-Control", "no-store");
+  res.json({ events });
+}));
+
 // POST /api/security/:vault/password  { currentPassword?, newPassword }
 // Sets the password on first use; requires the current one to change it.
 router.post("/:vault/password", asyncHandler(async (req, res) => {
@@ -55,6 +76,7 @@ router.post("/:vault/password", asyncHandler(async (req, res) => {
 
   const newHash = await bcrypt.hash(newPassword, 12);
   await prisma.user.update({ where: { id: req.userId }, data: { [config.field]: newHash } });
+  await recordVaultSecurityActivity(prisma, { userId: req.userId, scope: req.params.vault, action: existingHash ? "protection_changed" : "protection_created", method: "password", outcome: "succeeded" });
   res.json({ ok: true });
 }));
 
@@ -79,9 +101,13 @@ router.post("/:vault/verify", asyncHandler(async (req, res) => {
   }
 
   const matches = await bcrypt.compare(req.body.password || "", user[config.field]);
-  if (!matches) return res.status(401).json({ error: "Incorrect password." });
+  if (!matches) {
+    await recordVaultSecurityActivity(prisma, { userId: req.userId, scope: req.params.vault, action: "unlock_denied", method: "password", outcome: "denied" });
+    return res.status(401).json({ error: "Incorrect password." });
+  }
 
   const token = noteId ? signNoteToken(req.userId, noteId) : signVaultToken(req.userId, config.purpose);
+  await recordVaultSecurityActivity(prisma, { userId: req.userId, scope: req.params.vault, action: noteId ? "record_unlock_succeeded" : "collection_unlock_succeeded", method: "password", outcome: "succeeded" });
   res.json({ token });
 }));
 

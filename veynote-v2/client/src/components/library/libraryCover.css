@@ -1,0 +1,23 @@
+.library-cover-fallback.library-cover-art { position:relative; display:flex; flex-direction:column; align-items:flex-start; justify-content:space-between; gap:14px; width:100%; height:100%; padding:18px; color:#f1e9dc; isolation:isolate; }
+.library-cover-art::before { position:absolute; inset:10px; content:""; border:1px solid rgb(235 218 186 / .19); pointer-events:none; }
+.library-cover-art > .library-cover-mark { display:grid; place-items:center; flex:none; width:38px; height:38px; border:1px solid rgb(235 218 186 / .26); border-radius:8px; color:#d9bc86; background:rgb(0 0 0 / .13); font-size:initial; filter:none; }
+.library-cover-lettering { position:relative; z-index:1; display:grid; gap:6px; min-width:0; max-width:100%; }
+.library-cover-lettering small { color:#ddbe88; font:750 9px/1.3 Inter,system-ui,sans-serif; letter-spacing:.13em; text-transform:uppercase; }
+.library-cover-lettering strong { overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; font-size:clamp(13px,1.6vw,21px); font-weight:720; letter-spacing:-.035em; line-height:1.17; }
+.library-cover-lettering i { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:rgb(255 255 255 / .68); font:500 10px/1.4 Inter,system-ui,sans-serif; }
+.reading-feature-cover.library-cover-art,.library-overview-cover.library-cover-art { padding:13px 9px; }
+.reading-feature-cover.library-cover-art .library-cover-mark,.library-overview-cover.library-cover-art .library-cover-mark { width:30px; height:30px; }
+.reading-feature-cover.library-cover-art .library-cover-mark svg,.library-overview-cover.library-cover-art .library-cover-mark svg { width:17px; height:17px; }
+.reading-feature-cover.library-cover-art .library-cover-lettering strong,.library-overview-cover.library-cover-art .library-cover-lettering strong { font-size:12px; }
+.reading-feature-cover.library-cover-art .library-cover-lettering i,.library-overview-cover.library-cover-art .library-cover-lettering i { display:none; }
+.library-overview-featured-cover.library-cover-art { padding:23px; }
+.library-overview-recent-cover.library-cover-art { padding:7px; }
+.library-overview-recent-cover.library-cover-art::before { inset:4px; }
+.library-overview-recent-cover.library-cover-art .library-cover-mark { width:100%; height:100%; border:0; background:transparent; }
+.library-overview-recent-cover.library-cover-art .library-cover-mark svg { width:19px; }
+.library-overview-recent-cover.library-cover-art .library-cover-lettering { display:none; }
+.reading-records.is-list .reading-record-cover.library-cover-art,.reading-record.is-compact .reading-record-cover.library-cover-art { padding:8px; }
+.reading-records.is-list .reading-record-cover.library-cover-art::before,.reading-record.is-compact .reading-record-cover.library-cover-art::before { inset:4px; }
+.reading-records.is-list .reading-record-cover.library-cover-art .library-cover-lettering,.reading-record.is-compact .reading-record-cover.library-cover-art .library-cover-lettering { display:none; }
+.reading-records.is-list .reading-record-cover.library-cover-art .library-cover-mark,.reading-record.is-compact .reading-record-cover.library-cover-art .library-cover-mark { width:100%; height:100%; border:0; background:transparent; }
+.reading-records.is-list .reading-record-cover.library-cover-art .library-cover-mark svg,.reading-record.is-compact .reading-record-cover.library-cover-art .library-cover-mark svg { width:21px; }

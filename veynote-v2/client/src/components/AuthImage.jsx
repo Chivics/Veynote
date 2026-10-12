@@ -369,13 +369,7 @@ export default function AuthImage({
         setFailed(false);
         setLoading(false);
       })
-      .catch((error) => {
-        console.error("AuthImage failed:", {
-          src,
-          error,
-          candidates: urls,
-        });
-
+      .catch(() => {
         if (!cancelled) {
           setFailed(true);
           setLoading(false);
@@ -405,7 +399,7 @@ export default function AuthImage({
           width: "100%",
           height: "100%",
           minHeight: 160,
-          background: "#0c0f13",
+          background: "rgb(var(--app-panel2))",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -417,8 +411,8 @@ export default function AuthImage({
           style={{
             width: 22,
             height: 22,
-            border: "2px solid rgba(255,255,255,0.12)",
-            borderTopColor: "rgba(255,255,255,0.65)",
+            border: "2px solid rgb(var(--ink) / .12)",
+            borderTopColor: "rgb(var(--ink) / .65)",
             borderRadius: "50%",
             animation: "spin 0.8s linear infinite",
           }}
@@ -446,8 +440,8 @@ export default function AuthImage({
           alignItems: "center",
           justifyContent: "center",
           gap: 6,
-          background: "#0c0f13",
-          color: "#8d96a5",
+          background: "rgb(var(--app-panel2))",
+          color: "rgb(var(--ink-muted))",
           padding: 16,
           textAlign: "center",
           ...style,

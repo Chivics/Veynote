@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
+import NavigationIcon from "../../components/layout/NavigationIcon";
+import "./tradingAccounts.css";
 
 const STATUSES = ["EVALUATION", "FUNDED", "PERSONAL", "BREACHED"];
 const ACCOUNT_TYPES = ["Personal", "Prop firm challenge", "Funded", "Demo", "Brokerage"];
@@ -47,18 +49,23 @@ export default function Accounts() {
     setCreating(false);
     load();
   }
+  const currencies = new Set((accounts || []).map(account => account.currency).filter(Boolean));
+  const totalR = (accounts || []).reduce((sum, account) => sum + (Number(account.stats?.totalR) || 0), 0);
+  const totalTrades = (accounts || []).reduce((sum, account) => sum + (Number(account.stats?.entryCount) || 0), 0);
 
   return (
-    <div>
-      <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
+    <main className="trading-accounts-page">
+      <header className="trading-accounts-header">
         <div className="min-w-0">
-          <span className="eyebrow">WORKSPACES</span>
-          <h1 className="page-title text-[22px] sm:text-[30px] tracking-tight mt-1.5 mb-2">Accounts</h1>
-          <p className="text-ink-muted m-0">{accounts ? `${accounts.length} accounts` : ""}</p>
+          <span className="eyebrow">ACCOUNT PORTFOLIO</span>
+          <h1 className="page-title">Independent books. One operating view.</h1>
+          <p>Keep every broker, personal account and evaluation isolated while retaining a complete portfolio perspective.</p>
         </div>
-        <button onClick={() => setCreating((c) => !c)} className="btn-primary shrink-0">+ Add account</button>
-      </div>
+        <button onClick={() => setCreating((c) => !c)} className="btn-primary shrink-0"><NavigationIcon name="plus" size={16}/>Add account</button>
+      </header>
       {loadError && <div className="inline-error" role="alert"><span>{loadError}</span><button type="button" onClick={load}>Retry</button></div>}
+
+      <section className="trading-accounts-summary"><div><span>Account workspaces</span><strong>{accounts?.length ?? "—"}</strong><small>Independent performance books</small></div><div><span>Currencies</span><strong>{accounts?.length ? currencies.size : "—"}</strong><small>{[...currencies].join(" · ") || "No currency recorded"}</small></div><div><span>Portfolio R</span><strong className={totalR>=0?"text-success":"text-danger"}>{accounts?.length ? `${totalR>0?"+":""}${Number(totalR.toFixed(2))}R` : "—"}</strong><small>{totalTrades} journal entries</small></div><div><span>Active mandates</span><strong>{accounts?.filter(item=>item.status!=="BREACHED").length ?? "—"}</strong><small>Personal, funded or evaluating</small></div></section>
 
       {creating && (
         <form onSubmit={createAccount} className="card account-setup-panel mb-5">
@@ -93,25 +100,23 @@ export default function Accounts() {
           action={<button onClick={() => setCreating(true)} className="btn-primary">Add your first account</button>}
         />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="trading-account-grid">
           {accounts.map((a) => (
             <Link
               key={a.id}
               to={`/trading/accounts/${a.id}`}
-              className="card p-4 flex flex-col gap-2 hover:border-ink-muted transition"
+              className="trading-account-card"
             >
-              <div className="w-9 h-9 rounded-lg bg-accent-trade-soft text-[#7db9ff] flex items-center justify-center mb-2 text-base">◆</div>
-              <span
-                className={`self-start text-[9.5px] font-bold px-2 py-0.5 rounded-full ${
+              <div className="trading-account-card-top"><span className="trading-account-icon"><NavigationIcon name="brief" size={18}/></span><span
+                className={`trading-account-status ${
                   a.status === "FUNDED" ? "bg-success/15 text-success" : a.status === "EVALUATION" ? "bg-warning/15 text-warning" : "bg-app-panel2 text-ink-muted"
                 }`}
               >
                 {a.status.charAt(0) + a.status.slice(1).toLowerCase()}
-              </span>
-              <h3 className="text-[14.5px] m-0">{a.name}</h3>
-              {a.broker && <span className="text-[11px] text-ink-muted mb-1">{a.broker}</span>}
-              {a.startingBalance != null && <span className="text-[11px] text-ink-soft">{new Intl.NumberFormat(undefined, { style: "currency", currency: a.currency || "USD", maximumFractionDigits: 0 }).format(a.currentBalance ?? a.startingBalance)}</span>}
-              <div className="flex gap-4 mt-1">
+              </span></div>
+              <div><h3>{a.name}</h3>{a.broker && <p>{a.broker}</p>}</div>
+              {a.startingBalance != null && <strong className="trading-account-balance">{new Intl.NumberFormat(undefined, { style: "currency", currency: a.currency || "USD", maximumFractionDigits: 0 }).format(a.currentBalance ?? a.startingBalance)}</strong>}
+              <div className="trading-account-metrics">
                 <div>
                   <small className="block text-[9.5px] text-ink-muted">Entries</small>
                   <b className="text-[13px]">{a.stats.entryCount}</b>
@@ -126,11 +131,11 @@ export default function Accounts() {
                     {a.stats.totalR >= 0 ? "+" : ""}{a.stats.totalR}R
                   </b>
                 </div>
-              </div>
+              </div><footer><span>{a.accountType || "Trading account"}</span><NavigationIcon name="chevron" size={14}/></footer>
             </Link>
           ))}
         </div>
       )}
-    </div>
+    </main>
   );
 }

@@ -9,17 +9,31 @@ const tags = [
   { id: "source", userId: "alice", name: "research" },
   { id: "target", userId: "alice", name: "work" },
   { id: "foreign", userId: "bob", name: "private" },
+  { id: "hidden", userId: "alice", name: "estate", isVisibleInIndex: false },
 ];
 const links = [{ noteId: "n1", tagId: "source" }, { noteId: "n2", tagId: "source" }, { noteId: "n2", tagId: "target" }];
 
 const db = {
   tag: {
+    async findMany({ where }) {
+      assert.equal(where.userId, "alice");
+      assert.equal(where.OR[0].isVisibleInIndex, true);
+      assert.equal(where.OR[1].notes.some.note.isLocked, false);
+      return tags.filter(tag => tag.userId === "alice" && (tag.isVisibleInIndex || links.some(link => link.tagId === tag.id)))
+        .map(tag => ({ ...tag, _count: { notes: links.filter(link => link.tagId === tag.id).length } }));
+    },
     async findFirst({ where }) {
       return tags.find(tag => tag.id === where.id && tag.userId === where.userId)
         || tags.find(tag => tag.userId === where.userId && tag.name === where.name && (!where.id?.not || tag.id !== where.id.not))
         || null;
     },
     async update({ where, data }) { const tag = tags.find(item => item.id === where.id); Object.assign(tag, data); return { ...tag }; },
+    async upsert({ where, create, update }) {
+      let tag = tags.find(item => item.userId === where.userId_name.userId && item.name === where.userId_name.name);
+      if (tag) Object.assign(tag, update);
+      else { tag = { id: `tag-${tags.length + 1}`, ...create }; tags.push(tag); }
+      return { ...tag };
+    },
     async delete({ where }) { const index = tags.findIndex(item => item.id === where.id); return tags.splice(index, 1)[0]; },
   },
   noteTag: {
@@ -56,4 +70,18 @@ test("merging moves unique note relationships and removes only the source tag", 
   assert.equal(tags.some(tag => tag.id === "source"), false);
   assert.deepEqual(links.filter(link => link.tagId === "target").map(link => link.noteId).sort(), ["n1", "n2"]);
   assert.equal(tags.some(tag => tag.id === "foreign"), true);
+});
+
+test("standalone subjects appear at zero use without surfacing hidden protected-only tags", async () => {
+  const before = await (await fetch(base, { headers })).json();
+  assert.equal(before.tags.some(tag => tag.name === "estate"), false);
+  const created = await fetch(base, { method: "POST", headers, body: JSON.stringify({ name: "  Strategy  " }) });
+  assert.equal(created.status, 201);
+  assert.equal((await created.json()).tag.name, "strategy");
+  const after = await (await fetch(base, { headers })).json();
+  assert.equal(after.tags.find(tag => tag.name === "strategy").count, 0);
+  const repeated = await fetch(base, { method: "POST", headers, body: JSON.stringify({ name: "strategy" }) });
+  assert.equal(repeated.status, 409);
+  const foreign = await fetch(base, { method: "POST", headers: { Authorization: `Bearer ${signToken("bob")}`, "Content-Type": "application/json" }, body: JSON.stringify({ name: "estate" }) });
+  assert.equal(foreign.status, 201);
 });

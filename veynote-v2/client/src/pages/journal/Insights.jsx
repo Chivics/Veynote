@@ -1,13 +1,14 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import NavigationIcon from "../../components/layout/NavigationIcon";
-import { computeStreaks, MOODS, stripHtml, useJournalEntries } from "./journalUtils";
+import { computeStreaks, MOODS } from "./journalUtils";
+import { useJournalEntries } from "./useJournalEntries";
 
 export default function Insights() {
   const { entries, error, refresh } = useJournalEntries();
   const insight = useMemo(() => {
     const list = entries || [], streak = computeStreaks(list);
-    const words = list.reduce((sum, item) => sum + stripHtml(item.content).split(/\s+/).filter(Boolean).length, 0);
+    const words = list.reduce((sum, item) => sum + (Number(item.wordCount) || 0), 0);
     const moods = list.reduce((map, item) => { if (item.mood) map[item.mood] = (map[item.mood] || 0) + 1; return map; }, {});
     const months = list.reduce((map, item) => { const key = item.entryDate.slice(0, 7); map[key] = (map[key] || 0) + 1; return map; }, {});
     const maxMonth = Math.max(1, ...Object.values(months));

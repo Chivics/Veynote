@@ -1,4 +1,5 @@
 const express = require("express");
+const crypto = require("crypto");
 const prisma = require("../lib/prisma");
 const { requireAuth } = require("../middleware/auth");
 const { ownedReference } = require("../middleware/ownedReference");
@@ -8,13 +9,61 @@ const router = express.Router();
 router.use(requireAuth);
 router.use(sanitizeContent);
 
-// GET /api/trading/entries?accountId=&result=&q=
+function reportBoundary(value, end = false) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return null;
+  const parsed = new Date(`${value}T${end ? "23:59:59.999" : "00:00:00.000"}Z`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+router.get("/report-share", async (req, res) => {
+  const share = await prisma.tradingReportShare.findFirst({
+    where: { userId: req.userId, enabled: true },
+    include: { account: { select: { id: true, name: true } } },
+    orderBy: { updatedAt: "desc" },
+  });
+  res.json({ share });
+});
+
+router.post("/report-share", async (req, res) => {
+  const accountId = req.body.accountId || null;
+  if (accountId) {
+    const account = await prisma.tradingAccount.findFirst({ where: { id: accountId, userId: req.userId }, select: { id: true } });
+    if (!account) return res.status(400).json({ error: "Choose one of your trading accounts." });
+  }
+  const fromDate = req.body.from ? reportBoundary(req.body.from) : null;
+  const toDate = req.body.to ? reportBoundary(req.body.to, true) : null;
+  if ((req.body.from && !fromDate) || (req.body.to && !toDate) || (fromDate && toDate && fromDate > toDate)) return res.status(400).json({ error: "Choose a valid report date range." });
+  const title = String(req.body.title || "Verified trading performance").trim().slice(0, 140);
+  if (!title) return res.status(400).json({ error: "Give the public report a title." });
+  const token = crypto.randomBytes(24).toString("hex");
+  const share = await prisma.$transaction(async (tx) => {
+    await tx.tradingReportShare.updateMany({ where: { userId: req.userId, enabled: true }, data: { enabled: false } });
+    return tx.tradingReportShare.create({ data: {
+      userId: req.userId, accountId, token, title, fromDate, toDate,
+      showPnl: Boolean(req.body.showPnl), showAccountName: Boolean(req.body.showAccountName),
+    }, include: { account: { select: { id: true, name: true } } } });
+  });
+  res.status(201).json({ share });
+});
+
+router.delete("/report-share", async (req, res) => {
+  await prisma.tradingReportShare.updateMany({ where: { userId: req.userId, enabled: true }, data: { enabled: false } });
+  res.json({ ok: true });
+});
+
+// GET /api/trading/entries?accountId=&result=&q=&from=&to=
 router.get("/entries", async (req, res) => {
-  const { accountId, result, q } = req.query;
+  const { accountId, result, q, from, to } = req.query;
 
   const where = { userId: req.userId };
   if (accountId) where.accountId = accountId;
   if (result) where.result = result;
+  if (from || to) {
+    const fromDate = from ? reportBoundary(from) : null;
+    const toDate = to ? reportBoundary(to, true) : null;
+    if ((from && !fromDate) || (to && !toDate) || (fromDate && toDate && fromDate > toDate)) return res.status(400).json({ error:"Choose a valid report date range." });
+    where.entryDate = { ...(fromDate && { gte:fromDate }), ...(toDate && { lte:toDate }) };
+  }
   if (q) {
     where.OR = [{ title: { contains: q } }, { content: { contains: q } }, { asset: { contains: q } }];
   }
@@ -45,9 +94,17 @@ function computeRR(entry, direction) {
   return Number((reward / risk).toFixed(2));
 }
 
+function entryDate(value) {
+  if (value === undefined || value === null || value === "") return value === "" ? null : undefined;
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(String(value)) ? new Date(`${value}T12:00:00.000Z`) : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 router.post("/entries", ownedReference(prisma.tradingAccount, "accountId"), async (req, res) => {
   const body = req.body;
   if (!body.title?.trim()) return res.status(400).json({ error: "Title is required." });
+  const parsedEntryDate = entryDate(body.entryDate);
+  if (body.entryDate && !parsedEntryDate) return res.status(400).json({ error: "Trade date must be a valid calendar date." });
 
   const riskReward = computeRR(body, body.direction);
 
@@ -82,7 +139,7 @@ router.post("/entries", ownedReference(prisma.tradingAccount, "accountId"), asyn
       postTradeWentRight: body.postTradeWentRight || null,
       postTradeWentWrong: body.postTradeWentWrong || null,
       postTradeLesson: body.postTradeLesson || null,
-      entryDate: body.entryDate ? new Date(body.entryDate) : new Date(),
+      entryDate: parsedEntryDate || new Date(),
     },
   });
 
@@ -94,6 +151,8 @@ router.patch("/entries/:id", ownedReference(prisma.tradingAccount, "accountId"),
   if (!existing) return res.status(404).json({ error: "Entry not found." });
 
   const body = req.body;
+  const parsedEntryDate = entryDate(body.entryDate);
+  if (body.entryDate !== undefined && !parsedEntryDate) return res.status(400).json({ error: "Trade date must be a valid calendar date." });
   const merged = { ...existing, ...body };
   const riskReward = computeRR(merged, merged.direction);
 
@@ -112,6 +171,7 @@ router.patch("/entries/:id", ownedReference(prisma.tradingAccount, "accountId"),
       ...(body.riskAmount !== undefined && { riskAmount: body.riskAmount }),
       ...(body.profitLoss !== undefined && { profitLoss: body.profitLoss }),
       ...(body.session !== undefined && { session: body.session || null }),
+      ...(body.entryDate !== undefined && { entryDate: parsedEntryDate }),
       riskReward,
       ...(body.setupTypes !== undefined && {
         setupTypes: Array.isArray(body.setupTypes) ? body.setupTypes.join(",") : body.setupTypes,

@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
 import ImageLightbox from "../../components/ImageLightbox";
 import DocumentContent from "../../components/DocumentContent";
+import ConfirmDialog from "../../components/ConfirmDialog";
+import NavigationIcon from "../../components/layout/NavigationIcon";
 
 
 export default function TradeDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [entry, setEntry] = useState(() => api.peek(`/trading/entries/${id}`)?.entry ?? null);
   const [images, setImages] = useState([]);
   const [analysisBlocks, setAnalysisBlocks] = useState([]);
@@ -14,6 +17,9 @@ export default function TradeDetail() {
   const [error, setError] = useState("");
   const [mediaError, setMediaError] = useState("");
   const [mediaLoading, setMediaLoading] = useState(true);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const requestGeneration = useRef(0);
 
   function openLightbox(image) {
@@ -57,7 +63,7 @@ export default function TradeDetail() {
     return () => { requestGeneration.current += 1; };
   }, [id]);
 
-  if (!entry || String(entry.id) !== String(id)) return <div className="max-w-[900px] mx-auto"><span className="eyebrow">TRADING JOURNAL</span><h1 className="page-title mt-1.5">Trade detail</h1>{error ? <div className="inline-error mt-5" role="alert"><span>{error}</span><button type="button" onClick={() => loadEntry(true)}>Retry</button></div> : <p className="collection-inline-status mt-5" role="status">Opening this trade…</p>}<Link className="btn-outline inline-block mt-5" to="/trading/entries">← Back to Journal</Link></div>;
+  if (!entry || String(entry.id) !== String(id)) return <div className="trade-detail-page"><span className="eyebrow">TRADING JOURNAL</span><h1 className="page-title mt-1.5">Trade detail</h1>{error ? <div className="inline-error mt-5" role="alert"><span>{error}</span><button type="button" onClick={() => loadEntry(true)}>Retry</button></div> : <p className="collection-inline-status mt-5" role="status">Opening this trade…</p>}</div>;
 
   const resultTone = entry.result === "WIN" ? "text-success" : entry.result === "LOSS" ? "text-danger" : "text-ink";
   const setupTypes = (entry.setupTypes || "").split(",").filter(Boolean);
@@ -68,15 +74,21 @@ export default function TradeDetail() {
   const hasPostTradeReview =
     entry.postTradeWhatHappened || entry.postTradeWentRight || entry.postTradeWentWrong || entry.postTradeLesson;
 
+  async function removeTrade() {
+    setDeleteBusy(true); setDeleteError("");
+    try { await api.delete(`/trading/entries/${id}`); navigate("/trading/entries", { replace:true }); }
+    catch (requestError) { setDeleteError(requestError.message || "This trade could not be deleted."); setDeleteBusy(false); }
+  }
+
   return (
-    <div>
+    <div className="trade-detail-page">
       {error && <div className="inline-error mb-4" role="alert"><span>{error} Showing the last available copy.</span><button type="button" onClick={() => loadEntry(true)}>Retry</button></div>}
       {mediaError && <div className="inline-error mb-4" role="alert"><span>{mediaError}</span><button type="button" onClick={() => loadMedia(true)}>Retry media</button></div>}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <span className="eyebrow">
           {entry.account?.name || "No account"} · {entry.result}
         </span>
-        <Link to={`/trading/entries/${id}/edit`} className="btn-outline">✎ Edit</Link>
+        <div className="flex gap-2"><Link to={`/trading/entries/${id}/edit`} className="btn-outline"><NavigationIcon name="edit" size={16} /> Edit</Link><button type="button" className="btn-outline text-danger" onClick={() => setDeleteOpen(true)}><NavigationIcon name="trash" size={16} /> Delete</button></div>
       </div>
 
       <h1 className="page-title text-[26px] tracking-tight mb-6">{entry.title}</h1>
@@ -195,6 +207,7 @@ export default function TradeDetail() {
       {lightboxIndex !== null && (
         <ImageLightbox images={images} startIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
       )}
+      <ConfirmDialog open={deleteOpen} title="Delete this trade?" description="This removes the trade, its screenshots, analysis blocks, and attachments. This action cannot be undone." error={deleteError} confirmLabel="Delete trade" busy={deleteBusy} onClose={() => { if (!deleteBusy) { setDeleteOpen(false); setDeleteError(""); } }} onConfirm={removeTrade} />
     </div>
   );
 }

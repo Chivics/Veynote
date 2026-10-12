@@ -1,0 +1,22 @@
+.note-actions-dialog { position:fixed; inset:0; margin:auto; width:min(420px,calc(100vw - 32px)); max-width:none; max-height:calc(100dvh - 32px); overflow:auto; padding:0; border:1px solid rgb(var(--app-border)); border-radius:19px; background:rgb(var(--app-panel)); color:rgb(var(--ink)); box-shadow:var(--shadow-elevated); }
+.note-actions-dialog::backdrop { background:rgb(3 5 11 / .55); backdrop-filter:blur(4px); }
+.note-actions-dialog[open] { animation:note-actions-enter .18s cubic-bezier(.2,.8,.2,1); }
+.note-actions-dialog header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; padding:23px 21px 18px; border-bottom:1px solid rgb(var(--app-border)); }
+.note-actions-dialog .eyebrow { font-size:9px; color:rgb(var(--ink-muted)); letter-spacing:.1em; }
+.note-actions-dialog h2 { margin:7px 0 0; font-size:19px; line-height:1.4; font-weight:700; letter-spacing:-.035em; overflow-wrap:anywhere; }
+.note-actions-dialog header > button { flex:none; display:grid; place-items:center; width:44px; height:44px; border-radius:10px; color:rgb(var(--ink-muted)); }
+.note-actions-list { padding:9px; }
+.note-actions-dialog .note-actions-list > button { display:flex; align-items:center; justify-content:flex-start; gap:13px; width:100%; min-height:54px; padding:12px; border-radius:10px; text-align:left; font-size:13px; font-weight:600; }
+.note-actions-list > button > svg { color:rgb(var(--ink-muted)); flex:none; }
+.note-actions-list small { display:block; margin-top:3px; font-size:11px; font-weight:400; line-height:1.7; color:rgb(var(--ink-muted)); }
+.note-actions-list .is-danger { margin-top:6px; border-top:1px solid rgb(var(--app-border)); border-radius:0 0 10px 10px; color:rgb(var(--danger)); }
+.note-actions-list .is-danger > svg { color:inherit; }
+.note-actions-dialog button:hover { background:rgb(var(--app-panel2)); }
+.note-actions-dialog button:focus-visible { outline:2px solid rgb(var(--accent-notes)); outline-offset:-2px; }
+.note-actions-dialog footer { display:flex; align-items:center; gap:7px; padding:15px 21px; font-size:11px; color:rgb(var(--ink-muted)); border-top:1px solid rgb(var(--app-border)); }
+@keyframes note-actions-enter { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+@media(max-width:640px) { .note-actions-dialog { inset:auto 12px max(12px,env(safe-area-inset-bottom)); margin:0; width:calc(100vw - 24px); max-height:85dvh; border-radius:22px; } }
+@media(prefers-reduced-motion:reduce) { .note-actions-dialog[open] { animation:none; } }
+.note-manage-trigger { display:inline-flex; align-items:center; justify-content:center; flex:none; width:44px; height:44px; border-radius:9px; color:rgb(var(--ink-muted)); }
+.note-manage-trigger:hover { background:rgb(var(--app-panel2)); color:rgb(var(--ink)); }
+.note-manage-trigger:focus-visible { outline:2px solid rgb(var(--accent-notes)); outline-offset:2px; }

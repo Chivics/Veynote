@@ -1,5 +1,5 @@
 import WillRecordDetail from "./WillRecordDetail";
 
-export default function WillContactDetail() {
-  return <WillRecordDetail kind="contact" />;
+export default function WillExecutorDetail() {
+  return <WillRecordDetail kind="executor" />;
 }

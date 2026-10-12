@@ -1,0 +1,22 @@
+.veynote-back-navigation {
+  display:inline-flex; align-items:center; gap:8px; min-height:44px; max-width:100%;
+  padding:0 6px 0 0; margin:0; border:0; border-radius:7px; background:transparent;
+  color:rgb(var(--ink-soft)); box-shadow:none; text-decoration:none; font-family:var(--font-ui,Inter,sans-serif);
+  font-size:13px; line-height:1.3; font-weight:750; transition:color .16s ease;
+}
+.veynote-back-navigation svg { flex:0 0 18px; color:rgb(var(--ink-muted)); transition:color .16s ease,transform .16s ease; }
+.veynote-back-navigation strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:750; }
+.veynote-back-navigation:hover { color:rgb(var(--ink)); background:transparent; box-shadow:none; }
+.veynote-back-navigation:hover svg { color:rgb(var(--accent-notes)); transform:translateX(-2px); }
+.veynote-back-navigation:active { opacity:.72; }
+.veynote-back-navigation:focus-visible { outline:2px solid rgb(var(--accent-notes)); outline-offset:4px; }
+.veynote-back-navigation:disabled { opacity:.5; cursor:wait; }
+.veynote-context-navigation { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:0 0 20px; }
+.veynote-context-navigation>div { display:flex; align-items:center; gap:18px; min-width:0; }
+.veynote-context-current { padding-left:18px; border-left:1px solid rgb(var(--app-border)); font-size:11px; color:rgb(var(--ink-muted)); }
+.veynote-context-options { display:grid; place-items:center; flex:0 0 44px; width:44px; height:44px; border:0; border-radius:50%; background:transparent; color:rgb(var(--ink-muted)); transition:background .16s ease,color .16s ease; }
+.veynote-context-options:hover { background:rgb(var(--app-panel2)); color:rgb(var(--ink)); }
+.veynote-context-options:focus-visible { outline:2px solid rgb(var(--accent-notes)); outline-offset:3px; }
+@media(min-width:768px) { .veynote-context-navigation { margin-bottom:26px; } }
+@media(max-width:767px) { .veynote-context-current { display:none; } }
+@media(prefers-reduced-motion:reduce) { .veynote-back-navigation,.veynote-back-navigation svg,.veynote-context-options { transition:none; } }

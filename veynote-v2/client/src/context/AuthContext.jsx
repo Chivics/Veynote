@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { api } from "../api/client";
 import { clearNoteGrant } from "../utils/noteGrant";
+import { clearAllNoteDrafts } from "../utils/noteDraftRecovery";
 import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
 
 export const AuthContext = createContext(null);
@@ -79,6 +80,7 @@ export function AuthProvider({ children }) {
     loadMe({ block: true });
     const syncSession = event => {
       if (event.key !== "veynote_token" && event.key !== null) return;
+      if (event.newValue === null) clearAllNoteDrafts();
       clearProtectedAccess(); acceptSession(null); setUser(null); loadMe({ block: true });
     };
     window.addEventListener("storage", syncSession);
@@ -159,6 +161,7 @@ export function AuthProvider({ children }) {
 
   function logout() {
     api.post("/sessions/logout", {}).catch(() => {});
+    clearAllNoteDrafts();
     clearNoteGrant();
     api.clearCache();
     setSessionError("");

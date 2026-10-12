@@ -1,3 +1,5 @@
+import { escapeHtml, safeHtml } from "./safeHtml";
+
 // Converts the editor's known HTML vocabulary (headings, bold/italic/
 // underline/strike, lists, checklists, blockquote, code, callouts,
 // tables, links, images, hr) into Markdown. Hand-rolled rather than
@@ -7,6 +9,7 @@
 function inline(node) {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent;
   if (node.nodeType !== Node.ELEMENT_NODE) return "";
+  if (node.classList?.contains("cl-box")) return "";
 
   const children = Array.from(node.childNodes).map(inline).join("");
   const tag = node.tagName.toLowerCase();
@@ -86,6 +89,11 @@ function blockToMarkdown(node, listDepth = 0) {
     const text = node.querySelector(".callout-text")?.textContent || inline(node);
     return `> ${icon} ${text.trim()}\n\n`;
   }
+  if (node.classList?.contains("editor-inline-file")) {
+    const link = node.querySelector("a.editor-inline-file-link");
+    if (!link) return "";
+    return `[${link.querySelector("strong")?.textContent || "Attached file"}](${link.getAttribute("href") || ""})\n\n`;
+  }
   if (tag === "table") {
     const rows = Array.from(node.querySelectorAll("tr")).map((tr) =>
       Array.from(tr.children).map((cell) => inline(cell).trim() || " ")
@@ -144,11 +152,11 @@ function downloadBlob(filename, content, mimeType) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 function safeFilename(title) {
-  return (title || "Untitled").replace(/[/\\?%*:|"<>]/g, "-").slice(0, 80);
+  return (title || "Untitled").replace(/[\x00-\x1f/\\?%*:|"<>]/g, "-").trim().slice(0, 80) || "Untitled";
 }
 
 export function exportNote(note, format) {
@@ -159,7 +167,8 @@ export function exportNote(note, format) {
   } else if (format === "txt") {
     downloadBlob(`${name}.txt`, `${note.title || "Untitled"}\n\n${htmlToPlainText(note.content)}`, "text/plain");
   } else if (format === "html") {
-    const doc = `<!doctype html><html><head><meta charset="utf-8"><title>${note.title || "Untitled"}</title></head><body><h1>${note.title || "Untitled"}</h1>${note.content || ""}</body></html>`;
+    const title = escapeHtml(note.title || "Untitled");
+    const doc = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https:; style-src 'unsafe-inline'"><title>${title}</title><style>body{max-width:760px;margin:48px auto;padding:0 24px;color:#162036;font:17px/1.7 Georgia,serif}h1,h2,h3,h4,h5,h6{font-family:Arial,sans-serif;line-height:1.25}img{max-width:100%;height:auto}table{border-collapse:collapse;width:100%}td,th{border:1px solid #cbd1dc;padding:8px}blockquote{border-left:3px solid #8d7eff;padding-left:16px;color:#4a5262}@media print{body{margin:0;max-width:none}}</style></head><body><h1>${title}</h1>${safeHtml(note.content || "")}</body></html>`;
     downloadBlob(`${name}.html`, doc, "text/html");
   } else if (format === "json") {
     downloadBlob(

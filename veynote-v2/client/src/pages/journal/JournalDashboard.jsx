@@ -1,7 +1,9 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import NavigationIcon from "../../components/layout/NavigationIcon";
-import { computeStreaks, dayKey, MOODS, stripHtml, useJournalEntries } from "./journalUtils";
+import { computeStreaks, dayKey, entryDayDate, journalExcerpt, MOODS } from "./journalUtils";
+import { useJournalEntries } from "./useJournalEntries";
+import "./journalReviewWorkspace.css";
 
 const prompts = [
   "What felt important today, even if it looked small?",
@@ -16,7 +18,8 @@ export default function JournalDashboard() {
   const prompt = prompts[new Date().getDate() % prompts.length];
   const today = entries?.find(entry => dayKey(entry.entryDate) === dayKey(new Date()));
   const streak = computeStreaks(entries || []);
-  const recent = (entries || []).filter(entry => entry.id !== today?.id).slice(0, 4);
+  const recent = (entries || []).filter(entry => entry.id !== today?.id)
+    .sort((a, b) => dayKey(b.entryDate).localeCompare(dayKey(a.entryDate)) || new Date(b.updatedAt) - new Date(a.updatedAt)).slice(0, 4);
   const firstName = user?.name?.split(" ")[0] || "there";
 
   return <div className="journal-page journal-home">
@@ -29,7 +32,7 @@ export default function JournalDashboard() {
     <>
       <section className="journal-capture-stage">
         <div className="journal-date-rail"><span>{new Date().toLocaleDateString(undefined, { month: "short" })}</span><strong>{new Date().getDate()}</strong><small>{new Date().toLocaleDateString(undefined, { weekday: "long" })}</small></div>
-        <div className="journal-capture-copy"><span className="eyebrow">{today ? "CONTINUE TODAY" : `GOOD ${new Date().getHours() < 12 ? "MORNING" : new Date().getHours() < 18 ? "AFTERNOON" : "EVENING"}, ${firstName.toUpperCase()}`}</span><h2>{today?.title || prompt}</h2><p>{today ? stripHtml(today.content).slice(0, 190) || "Your entry is ready for the rest of the story." : "Write without arranging everything first. Veynote will keep the date, mood, context, and history together."}</p><Link to={today ? `/journal/entries/${today.id}` : "/journal/new"}>{today ? "Continue writing" : "Begin today’s entry"} <NavigationIcon name="chevron" size={14} /></Link></div>
+        <div className="journal-capture-copy"><span className="eyebrow">{today ? "CONTINUE TODAY" : `GOOD ${new Date().getHours() < 12 ? "MORNING" : new Date().getHours() < 18 ? "AFTERNOON" : "EVENING"}, ${firstName.toUpperCase()}`}</span><h2>{today?.title || prompt}</h2><p>{today ? journalExcerpt(today).slice(0, 190) || "Your entry is ready for the rest of the story." : "Write without arranging everything first. Veynote will keep the date, mood, context, and history together."}</p><Link to={today ? `/journal/entries/${today.id}` : "/journal/new"}>{today ? "Continue writing" : "Begin today’s entry"} <NavigationIcon name="chevron" size={14} /></Link></div>
         <div className="journal-streak"><span>Continuity</span><strong>{entries === null ? "—" : streak.current}</strong><small>day{streak.current === 1 ? "" : "s"} current</small><i /><p>{entries === null ? "Checking your history…" : `${streak.longest} longest · ${streak.total} days recorded`}</p></div>
       </section>
 
@@ -39,9 +42,14 @@ export default function JournalDashboard() {
         <Link to="/journal/calendar" className="journal-overview-card"><span><NavigationIcon name="calendar" size={19} /></span><div><small>DAYS IN CONTEXT</small><h2>Calendar</h2><p>See consistency without turning reflection into a score.</p></div><NavigationIcon name="chevron" size={16} /></Link>
       </section>
 
+      <section className="journal-practice-strip" aria-label="Journal practices">
+        <div><span className="eyebrow">DEEPER PRACTICE</span><h2>Reflection with a longer memory.</h2><p>Use considered structures when the record needs more than a daily entry.</p></div>
+        <nav><Link to="/journal/reflections"><NavigationIcon name="book" size={18} /><span><strong>Reflections</strong><small>Experience into perspective</small></span><NavigationIcon name="chevron" size={15} /></Link><Link to="/journal/decisions"><NavigationIcon name="tasks" size={18} /><span><strong>Decision records</strong><small>Context, evidence, outcome</small></span><NavigationIcon name="chevron" size={15} /></Link><Link to="/journal/mood"><NavigationIcon name="sun" size={18} /><span><strong>Mood & energy</strong><small>Context without diagnosis</small></span><NavigationIcon name="chevron" size={15} /></Link><Link to="/journal/lessons"><NavigationIcon name="sparkle" size={18} /><span><strong>Lessons</strong><small>Reusable evidence from experience</small></span><NavigationIcon name="chevron" size={15} /></Link><Link to="/journal/reviews"><NavigationIcon name="calendar" size={18} /><span><strong>Retrospectives</strong><small>Week, month, quarter, year</small></span><NavigationIcon name="chevron" size={15} /></Link><Link to="/journal/related"><NavigationIcon name="link" size={18} /><span><strong>Related records</strong><small>Context across your work</small></span><NavigationIcon name="chevron" size={15} /></Link></nav>
+      </section>
+
       <section className="journal-recent-section">
         <div className="section-heading"><div><span className="eyebrow">RECENT MEMORY</span><h2>Previous entries</h2></div><Link to="/journal/timeline">Open timeline <NavigationIcon name="chevron" size={13} /></Link></div>
-        {recent.length ? <div className="journal-entry-list">{recent.map(entry => <Link key={entry.id} to={`/journal/entries/${entry.id}`} className="journal-entry-row"><time><strong>{new Date(entry.entryDate).getDate()}</strong><span>{new Date(entry.entryDate).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</span></time><div><h3>{entry.title || "Untitled reflection"}</h3><p>{stripHtml(entry.content).slice(0, 150) || "A quiet entry without preview text."}</p><small>{MOODS[entry.mood]?.symbol} {MOODS[entry.mood]?.label || "No mood recorded"}</small></div><NavigationIcon name="chevron" size={16} /></Link>)}</div> : entries === null ? <p className="journal-inline-status" role="status">Checking recent entries…</p> : <div className="journal-empty"><span>✦</span><h2>Your history begins with one honest entry.</h2><p>No streak pressure and no performance score. Record what matters when it matters.</p><Link className="btn-primary" to="/journal/new">Write the first entry</Link></div>}
+        {recent.length ? <div className="journal-entry-list">{recent.map(entry => <Link key={entry.id} to={`/journal/entries/${entry.id}`} className="journal-entry-row"><time><strong>{entryDayDate(entry.entryDate).getDate()}</strong><span>{entryDayDate(entry.entryDate).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</span></time><div><h3>{entry.title || "Untitled reflection"}</h3><p>{journalExcerpt(entry).slice(0, 150) || "A quiet entry without preview text."}</p><small>{MOODS[entry.mood]?.symbol} {MOODS[entry.mood]?.label || "No mood recorded"}</small></div><NavigationIcon name="chevron" size={16} /></Link>)}</div> : entries === null ? <p className="journal-inline-status" role="status">Checking recent entries…</p> : <div className="journal-empty"><span>✦</span><h2>Your history begins with one honest entry.</h2><p>No streak pressure and no performance score. Record what matters when it matters.</p><Link className="btn-primary" to="/journal/new">Write the first entry</Link></div>}
       </section>
     </>
   </div>;

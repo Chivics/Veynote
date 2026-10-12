@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
 import ContextualNavigation from "../ContextualNavigation";
@@ -123,7 +124,9 @@ function GlobalControls({ onNavigate, onDismiss }) {
     {onNavigate && <span className="drawer-global-label">Your Veynote</span>}
     <div className="global-controls-items">
     {onNavigate && <button type="button" onClick={event => go(event, "/settings?tab=Profile")}><NavigationIcon name="account" size={18} /><span>Account</span></button>}
+    {onNavigate && <button type="button" onClick={event => go(event, "/activity")}><NavigationIcon name="bell" size={18} /><span>Activity</span></button>}
     <button type="button" onClick={event => go(event, "/settings")}><NavigationIcon name="settings" size={18} /><span>Settings</span></button>
+    {import.meta.env.DEV && <button type="button" onClick={event => go(event, "/product-preview")}><NavigationIcon name="preview" size={18} /><span>Product Preview</span><small>Design</small></button>}
     <button type="button" onClick={changeTheme}><NavigationIcon name="sun" size={18} /><span>Appearance</span><small>{user?.theme || "System"}</small></button>
     {onNavigate && <button type="button" onClick={event => go(event, "/settings?tab=Security")}><NavigationIcon name="shield" size={18} /><span>Security</span></button>}
     {installable && <button type="button" onClick={() => { onDismiss?.(); window.dispatchEvent(new Event("veynote:request-install")); }}><NavigationIcon name="download" size={18} /><span>Install Veynote</span></button>}
@@ -184,11 +187,12 @@ function MobileDrawer({ open, closing, workspace, selectedWorkspace, onWorkspace
 function MobileBottomNavigation({ workspace }) {
   const location = useLocation();
   const selected = activeNavigationIndex(location.pathname, location.search, QUICK_NAV[workspace]);
-  return <nav aria-label={`${workspace} shortcuts`} className="mobile-bottom-nav print:hidden">
+  // Keep viewport navigation outside transformed/scrolling application containers.
+  return createPortal(<nav aria-label={`${workspace} shortcuts`} className="mobile-bottom-nav print:hidden" style={{ "--workspace-accent": workspace === "Trading" ? "var(--accent-trade)" : ["Library", "Vault"].includes(workspace) ? "var(--accent-gold)" : "var(--accent-notes)" }}>
     {QUICK_NAV[workspace].map(([label, to, icon], index) => <Link key={`${workspace}-${to}-${label}`} to={to} aria-current={index === selected ? "page" : undefined} onMouseEnter={() => prefetchPage(to)} onFocus={() => prefetchPage(to)} className={`mobile-bottom-link ${index === selected ? "is-active" : ""} ${index === 2 ? "is-create" : ""}`}>
       <span><NavigationIcon name={icon} size={index === 2 ? 22 : 20} /></span><small>{label}</small>
     </Link>)}
-  </nav>;
+  </nav>, document.body);
 }
 
 export default function AppShell() {
@@ -196,12 +200,13 @@ export default function AppShell() {
   const location = useLocation();
   const { mode } = useMode();
   const { user, sessionLocked } = useAuth();
-  const lastWorkspace = useRef(currentWorkspace(location.pathname, mode));
-  const workspace = location.pathname === "/settings" ? lastWorkspace.current : currentWorkspace(location.pathname, mode);
+  const workspaceLocation = `${location.pathname}${location.search}`;
+  const lastWorkspace = useRef(currentWorkspace(workspaceLocation, mode));
+  const workspace = ["/settings", "/activity", "/product-preview"].includes(location.pathname) ? lastWorkspace.current : currentWorkspace(workspaceLocation, mode);
   useEffect(() => { lastWorkspace.current = workspace; }, [workspace]);
   const noteSegment = location.pathname.match(/^\/notes\/([^/]+)$/)?.[1];
   const journalEditor = /^\/journal\/(new|entries\/[^/]+)$/.test(location.pathname);
-  const immersiveEditor = journalEditor || Boolean(noteSegment && !new Set(["today", "all", "favorites", "folders", "files", "tasks", "calendar", "search", "tags", "archive", "trash", "locked", "library", "will"]).has(noteSegment));
+  const immersiveEditor = journalEditor || Boolean(noteSegment && !new Set(["today", "all", "favorites", "shared", "folders", "files", "templates", "tasks", "calendar", "search", "tags", "archive", "trash", "locked", "library", "will"]).has(noteSegment));
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerClosing, setDrawerClosing] = useState(false);
   const [drawerWorkspace, setDrawerWorkspace] = useState(workspace);
@@ -304,10 +309,10 @@ export default function AppShell() {
       </header>
       <div className="desktop-topbar print:hidden">
         <button type="button" onClick={() => navigate(WORKSPACES[workspace].search)}><NavigationIcon name="search" size={17} /><span>Search {workspace}</span><kbd>⌘ K</kbd></button>
-        <div><span className={`sync-indicator ${online ? "" : "is-offline"}`} role="status"><i /> {online ? "Online" : "Offline"}</span><button type="button" className="desktop-avatar" aria-label="Open account settings" onClick={() => navigate("/settings")}>{initials(user)}</button></div>
+        <div><span className={`sync-indicator ${online ? "" : "is-offline"}`} role="status"><i /> {online ? "Online" : "Offline"}</span><button type="button" className="desktop-activity" aria-label="Open activity" onClick={() => navigate("/activity")}><NavigationIcon name="bell" size={17} /></button><button type="button" className="desktop-avatar" aria-label="Open account settings" onClick={() => navigate("/settings")}>{initials(user)}</button></div>
       </div>
       <div className="app-content"><ContextualNavigation /><Outlet /></div>
     </main>
-    <MobileBottomNavigation workspace={workspace} />
+    {!immersiveEditor && <MobileBottomNavigation workspace={workspace} />}
   </div>;
 }

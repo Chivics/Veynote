@@ -15,7 +15,10 @@ function fixture() {
       },
       async update({ where, data }) { Object.assign(requests.get(where.id), data); },
     },
-    note: { async findMany({ where }) { return [...notes.values()].filter(note => note.userId === where.userId && (!where.kind || note.kind === where.kind)).map(note => structuredClone(note)); }, async findFirst({ where }) {
+    note: { async findMany({ where }) { return [...notes.values()].filter(note => note.userId === where.userId && (!where.kind || note.kind === where.kind) &&
+      (where.isLocked === undefined || Boolean(note.isLocked) === where.isLocked) &&
+      (where.isWill === undefined || Boolean(note.isWill) === where.isWill) &&
+      (where.isTrashed === undefined || Boolean(note.isTrashed) === where.isTrashed)).map(note => structuredClone(note)); }, async findFirst({ where }) {
       const note = notes.get(where.id);
       return note?.userId === where.userId ? structuredClone(note) : null;
     } },
@@ -69,16 +72,31 @@ test("replay refuses changed payloads, edited notes, protected notes and deletio
   assert.equal(f.notes().size, 0);
 });
 
+test("an authorized protected creation can replay its idempotent result", async () => {
+  const f = fixture();
+  const first = await createNoteOnce(f.db, input(), async () => {
+    const note = await f.create(); f.notes().get(note.id).isLocked = true; return { ...note, isLocked: true };
+  }, { allowProtectedReplay: true });
+  const retry = await createNoteOnce(f.db, input(), () => { throw Error("must not create twice"); }, { allowProtectedReplay: true });
+  assert.equal(first.note.id, retry.note.id);
+  assert.equal(retry.note.isLocked, true);
+  assert.equal(retry.replayed, true);
+});
+
 test("creation validation canonicalizes retry hashes and rejects malformed data", () => {
   const a = noteCreationInput({ title: " Note ", tags: ["A", "b", "a"], clientRequestId: key });
   const b = noteCreationInput({ title: "Note", tags: ["b", "a"], clientRequestId: key });
   assert.equal(a.hash, b.hash); assert.equal(a.key, key);
   assert.equal(noteCreationInput({ title: "An ordinary note" }).payload.kind, "NOTE");
   assert.equal(noteCreationInput({ title: "A reflection", kind: "JOURNAL" }).payload.kind, "JOURNAL");
+  assert.deepEqual(noteCreationInput({ title: "A decision", kind: "JOURNAL", journalType:"decision", journalData:{ confidence:72, status:"Decided" } }).payload.journalData, { confidence:72, status:"Decided" });
+  assert.equal(noteCreationInput({ title: "Ordinary", kind:"NOTE", journalType:"decision", journalData:{ confidence:72 } }).payload.journalType, null);
   assert.notEqual(noteCreationInput({ title: "One record", kind: "NOTE" }).hash, noteCreationInput({ title: "One record", kind: "JOURNAL" }).hash);
   for (const body of [{ title: {} }, { tags: "tag" }, { mood: [] }, { kind: "WILL" }, { clientRequestId: "bad" }, { entryDate: "yesterday" }, { draftForAttachment: "yes" }]) {
     assert.throws(() => noteCreationInput(body), { status: 400, code: "NOTE_CREATE_INVALID" });
   }
+  assert.throws(() => noteCreationInput({ kind:"JOURNAL", journalType:"unknown" }), { status:400, code:"JOURNAL_TYPE_INVALID" });
+  assert.throws(() => noteCreationInput({ kind:"JOURNAL", journalData:["not","a","record"] }), { status:400, code:"JOURNAL_DATA_INVALID" });
 });
 
 test("HTTP creation returns one persisted note on retry and rejects malformed requests", async () => {
@@ -94,7 +112,7 @@ test("HTTP creation returns one persisted note on retry and rejects malformed re
   f.db.noteLink = { async findMany() { return []; } };
   const prismaPath = require.resolve("../src/lib/prisma");
   require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: f.db };
-  const { signToken } = require("../src/utils/jwt");
+  const { signToken, signVaultToken, verifyNoteToken } = require("../src/utils/jwt");
   const app = express(); app.use(express.json()); app.use("/notes", require("../src/routes/notes.routes"));
   app.use(require("../src/middleware/errorHandler").errorHandler);
   let server;
@@ -105,10 +123,23 @@ test("HTTP creation returns one persisted note on retry and rejects malformed re
     const body = { title: "My first note", content: "<p>Saved once</p>", clientRequestId: key };
     const first = await post(body); assert.equal(first.status, 201);
     const created = await first.json();
+    assert.equal(created.note.contentPreview, "Saved once");
+    assert.equal(created.note.wordCount, 2);
     const retry = await post(body); assert.equal(retry.status, 200);
     const recovered = await retry.json();
     assert.equal(created.note.id, recovered.note.id); assert.equal(recovered.replayed, true);
     assert.equal((await post({ ...body, content: "different" })).status, 409);
+    const protectedBody = { title: "Private record", content: "<p>Protected from creation</p>", clientRequestId: "1f7d6dd8-5af7-41c8-8c50-48354956f5a8" };
+    const protectedPost = (extraHeaders = {}) => fetch(`http://127.0.0.1:${server.address().port}/notes/locked`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${signToken("alice")}`, ...extraHeaders }, body: JSON.stringify(protectedBody) });
+    const deniedProtected = await protectedPost(); assert.equal(deniedProtected.status, 401);
+    const createdProtectedResponse = await protectedPost({ "X-Vault-Token": signVaultToken("alice", "vault") });
+    assert.equal(createdProtectedResponse.status, 201);
+    const createdProtected = await createdProtectedResponse.json();
+    assert.equal(createdProtected.note.isLocked, true);
+    assert.equal(verifyNoteToken(createdProtected.noteToken, "alice", createdProtected.note.id).noteId, createdProtected.note.id);
+    const retriedProtected = await protectedPost({ "X-Vault-Token": signVaultToken("alice", "vault") });
+    assert.equal(retriedProtected.status, 200);
+    assert.equal((await retriedProtected.json()).note.id, createdProtected.note.id);
     const journal = await post({ title: "A journal day", content: "What happened", kind: "JOURNAL" });
     assert.equal(journal.status, 201);
     const fetchList = kind => fetch(`http://127.0.0.1:${server.address().port}/notes?scope=all&kind=${kind}`, { headers: { Authorization: `Bearer ${signToken("alice")}` } });
@@ -120,6 +151,12 @@ test("HTTP creation returns one persisted note on retry and rejects malformed re
     assert.equal(everyRecord.notes.length, 2);
     assert.equal(journalEntries.notes[0].kind, "JOURNAL");
     assert.equal((await fetchList("UNKNOWN")).status, 400);
-    assert.equal(f.notes().size, 2);
+    assert.equal(f.notes().size, 3);
+    // Visual lecture/research documents need not have a title or plain text.
+    for (const content of ['<img src="https://example.invalid/diagram.png" alt="Diagram">', '<table><tbody><tr><td></td></tr></tbody></table>']) {
+      const visual = await post({ content }); assert.equal(visual.status, 201);
+      assert.ok((await visual.json()).note.content.length > 0);
+    }
+    assert.equal((await post({ content: "<p><br></p>" })).status, 400);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });

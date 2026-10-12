@@ -17,10 +17,27 @@ export async function resolveMediaUrl(value) {
   return new URL(url, apiOrigin()).href;
 }
 
+export async function downloadMedia(value, name) {
+  const href = await resolveMediaUrl(value);
+  const anchor = document.createElement("a");
+  anchor.href = href; anchor.download = name || "download";
+  anchor.rel = "noreferrer"; anchor.target = "_blank";
+  document.body.appendChild(anchor); anchor.click(); anchor.remove();
+}
+
 // Preview grants are temporary presentation state and must never be saved
 // inside a document or exported as durable attachment references.
 export function persistentHTML(element) {
   const copy = element.cloneNode(true);
+  copy.querySelectorAll(".cl-box").forEach(box => {
+    ["role", "tabindex", "aria-label", "aria-checked", "contenteditable"].forEach(name => box.removeAttribute(name));
+  });
+  copy.querySelectorAll(".editor-media").forEach(media => {
+    ["role", "tabindex", "aria-label", "aria-description", "contenteditable"].forEach(name => media.removeAttribute(name));
+    media.querySelectorAll(".editor-caption").forEach(caption => {
+      ["contenteditable", "aria-label"].forEach(name => caption.removeAttribute(name));
+    });
+  });
   copy.querySelectorAll("img[src]").forEach((img) => {
     const name = storedMediaName(img.getAttribute("src"));
     if (name) img.setAttribute("src", `/uploads/${name}`);

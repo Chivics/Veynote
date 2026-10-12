@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { resolveMediaUrl } from "../utils/media";
+import { downloadMedia } from "../utils/media";
 
 export default function FileDownload({ url, name, className, children = "Download" }) {
   const [busy, setBusy] = useState(false);
@@ -7,11 +7,7 @@ export default function FileDownload({ url, name, className, children = "Downloa
   async function download() {
     setBusy(true); setError("");
     try {
-      const href = await resolveMediaUrl(url);
-      const anchor = document.createElement("a");
-      anchor.href = href; anchor.download = name || "download";
-      anchor.rel = "noreferrer"; anchor.target = "_blank";
-      document.body.appendChild(anchor); anchor.click(); anchor.remove();
+      await downloadMedia(url, name);
     } catch (err) { setError(err.message || "Could not access this file. Please try again."); }
     finally { setBusy(false); }
   }

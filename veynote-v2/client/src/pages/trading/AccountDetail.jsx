@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
 import StatCard from "../../components/StatCard";
+import ConfirmDialog from "../../components/ConfirmDialog";
+import NavigationIcon from "../../components/layout/NavigationIcon";
 import { EntryCard } from "./Dashboard";
 
 function money(value, currency = "USD") {
@@ -36,6 +38,7 @@ function AccountCalendar({ days = [], accountId }) {
 
 export default function AccountDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const accountPath = `/accounts/${id}`;
   const analyticsPath = `/analytics/trading?accountId=${id}`;
   const [payload, setPayload] = useState(() => api.peek(accountPath) ?? null);
@@ -45,6 +48,9 @@ export default function AccountDetail() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -82,6 +88,17 @@ export default function AccountDetail() {
     finally { setSaving(false); }
   }
 
+  async function removeAccount() {
+    setDeleteBusy(true); setDeleteError("");
+    try {
+      await api.delete(accountPath);
+      navigate("/trading/accounts", { replace: true });
+    } catch (requestError) {
+      setDeleteError(requestError.message || "This account could not be removed.");
+      setDeleteBusy(false);
+    }
+  }
+
   if (!account) return <section className="account-workspace account-workspace-pending">
     <span className="eyebrow">ACCOUNT WORKSPACE</span><h1 className="page-title">Trading account</h1>
     {error ? <EmptyState icon="!" title="Account unavailable" description={error} action={<Link className="btn-outline" to="/trading/accounts">Back to accounts</Link>} /> : <p role="status">Opening this account…</p>}
@@ -96,7 +113,7 @@ export default function AccountDetail() {
           <h1 className="page-title">{account.name}</h1>
           <p>{[account.broker, `${account.stats.entryCount} journal entries`].filter(Boolean).join(" · ")}</p>
         </div>
-        <div className="account-hero-actions"><Link to={`/trading/entries/new?accountId=${id}`} className="btn-primary">+ Log trade</Link><Link to={`/trading/entries?accountId=${id}`} className="btn-outline">Trade history</Link><button className="btn-outline" onClick={openSettings}>Settings</button></div>
+        <div className="account-hero-actions"><Link to={`/trading/entries/new?accountId=${id}`} className="btn-primary"><NavigationIcon name="plus" size={16} /> Log trade</Link><Link to={`/trading/entries?accountId=${id}`} className="btn-outline">Trade history</Link><button className="btn-outline" onClick={openSettings}><NavigationIcon name="settings" size={16} /> Settings</button></div>
         <div className="account-balance-panel">
           <span>Current balance</span><strong>{money(account.currentBalance ?? account.startingBalance, currency)}</strong>
           <small className={balanceChange == null ? "" : balanceChange >= 0 ? "text-success" : "text-danger"}>{balanceChange == null ? "Add balances in account settings" : `${balanceChange >= 0 ? "+" : ""}${money(balanceChange, currency)} from start`}</small>
@@ -154,6 +171,11 @@ export default function AccountDetail() {
         <div className="section-heading"><div><span className="eyebrow">ACCOUNT HISTORY</span><h2>Recent trades</h2></div><Link to={`/trading/entries?accountId=${id}`}>View all →</Link></div>
         {!payload.recentTrades?.length ? <EmptyState icon="↗" title="No trades in this account" description="Log the first trade and choose this account to begin its independent history." action={<Link className="btn-primary" to={`/trading/entries/new?accountId=${id}`}>Log a trade</Link>} /> : <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{payload.recentTrades.slice(0, 4).map((trade) => <EntryCard key={trade.id} entry={trade} />)}</div>}
       </section>
+      <section className="account-danger-zone" aria-labelledby="account-danger-title">
+        <div><span className="eyebrow">ACCOUNT LIFECYCLE</span><strong id="account-danger-title">Remove this account workspace</strong><p>Its trades and rules will be preserved and moved to an unassigned state.</p></div>
+        <button type="button" className="btn-outline text-danger" onClick={() => setDeleteOpen(true)}><NavigationIcon name="trash" size={16} /> Remove account</button>
+      </section>
+      <ConfirmDialog open={deleteOpen} title={`Remove ${account.name}?`} description="The account workspace will be deleted. Its trade history and trading rules will remain in Veynote and become unassigned, so no performance evidence is lost." confirmLabel="Remove account" tone="danger" busy={deleteBusy} error={deleteError} onClose={() => { if (!deleteBusy) { setDeleteOpen(false); setDeleteError(""); } }} onConfirm={removeAccount} />
     </div>
   );
 }

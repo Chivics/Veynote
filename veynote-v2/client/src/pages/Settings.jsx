@@ -6,13 +6,20 @@ import SessionPanel from "../components/SessionPanel";
 import AccountPasskeys from "../components/AccountPasskeys";
 import AccountEmailVerification from "../components/AccountEmailVerification";
 import SessionProtectionSettings from "../components/SessionProtectionSettings";
+import NavigationIcon from "../components/layout/NavigationIcon";
+import "./settingsWorkspace.css";
 
-const TABS = ["Profile", "Preferences", "Security"];
+const TABS = [
+  { id: "Profile", icon: "account", label: "Profile", description: "Identity and account details" },
+  { id: "Preferences", icon: "settings", label: "Preferences", description: "Appearance and writing defaults" },
+  { id: "Security", icon: "shield", label: "Security", description: "Access, devices and recovery" },
+];
+const TAB_IDS = TABS.map((item) => item.id);
 
 export default function Settings() {
   const { user, updateUser } = useAuth();
   const [params, setParams] = useSearchParams();
-  const tab = TABS.includes(params.get("tab")) ? params.get("tab") : "Profile";
+  const tab = TAB_IDS.includes(params.get("tab")) ? params.get("tab") : "Profile";
   const setTab = next => setParams(current => { const updated = new URLSearchParams(current); updated.set("tab", next); return updated; }, { replace: true });
   const [name, setName] = useState(user?.name || "");
   const [theme, setTheme] = useState(user?.theme || "dark");
@@ -42,72 +49,96 @@ export default function Settings() {
     setTimeout(() => setSaved(false), 1500);
   }
 
-  return (
-    <div>
-      <span className="eyebrow">ACCOUNT</span>
-      <h1 className="page-title text-[30px] tracking-tight my-1.5 mb-6">Settings</h1>
-      <div role="status" className="text-sm mb-3">{saving ? "Saving preferences…" : saved ? "Saved" : ""}</div>
-      {saveError && <p role="alert" className="text-danger mb-3">{saveError} Your preference was not saved. Try the control again.</p>}
+  const initials = (user?.name || user?.email || "V")
+    .split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 
-      <div className="flex gap-[22px] border-b border-app-border mb-6 overflow-x-auto">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`text-[12.5px] font-semibold pb-2.5 -mb-px border-b-2 transition whitespace-nowrap ${
-              tab === t ? "text-ink border-accent-notes" : "text-ink-muted border-transparent"
-            }`}
-          >
-            {t}
-          </button>
-        ))}
+  return (
+    <main className="settings-workspace">
+      <header className="settings-hero">
+        <div className="settings-hero-copy">
+          <span className="eyebrow">ACCOUNT CONSOLE</span>
+          <h1>Your workspace, governed with clarity.</h1>
+          <p>Control your identity, writing environment, trusted devices, and account protection from one private place.</p>
+        </div>
+        <div className="settings-identity-card" aria-label="Signed-in account">
+          <span className="settings-avatar">{initials}</span>
+          <span><strong>{user?.name || "Veynote member"}</strong><small>{user?.email}</small></span>
+          <span className="settings-account-state"><i /> Protected</span>
+        </div>
+      </header>
+
+      <div className="settings-feedback" aria-live="polite">
+        {saving ? "Saving changes…" : saved ? "Changes saved" : ""}
+        {saveError && <span role="alert">{saveError} Try the control again.</span>}
       </div>
 
-      <div className="card max-w-[640px] overflow-hidden">
+      <div className="settings-layout">
+        <nav className="settings-nav" aria-label="Settings sections">
+          <span className="settings-nav-label">Account settings</span>
+          {TABS.map((item) => (
+            <button key={item.id} type="button" aria-current={tab === item.id ? "page" : undefined}
+              onClick={() => setTab(item.id)} className={tab === item.id ? "is-active" : ""}>
+              <NavigationIcon name={item.icon} size={18} />
+              <span><strong>{item.label}</strong><small>{item.description}</small></span>
+              <NavigationIcon name="chevronRight" size={15} />
+            </button>
+          ))}
+          <div className="settings-nav-trust">
+            <NavigationIcon name="lock" size={17} />
+            <span><strong>Private by design</strong><small>Sensitive controls require your authenticated session.</small></span>
+          </div>
+        </nav>
+
+        <section className="settings-content">
+          <div className="settings-section-heading">
+            <span className="settings-section-icon"><NavigationIcon name={TABS.find((item) => item.id === tab)?.icon} size={20} /></span>
+            <div><span className="eyebrow">{tab.toUpperCase()}</span><h2>{TABS.find((item) => item.id === tab)?.description}</h2></div>
+          </div>
+
+          <div className="settings-card">
         {tab === "Profile" && (
-          <div className="p-5 flex flex-col gap-4">
-            <div>
-              <label className="text-[11px] text-ink-muted block mb-1.5">Full name</label>
+          <div className="settings-profile-panel">
+            <div className="settings-card-intro"><span className="settings-avatar settings-avatar-large">{initials}</span><div><h3>Your Veynote identity</h3><p>This information represents you across shared work and collaboration.</p></div></div>
+            <div className="settings-field-grid">
+            <div className="settings-field">
+              <label>Full name</label>
               <input aria-label="Full name" className="input" disabled={saving} value={name} onChange={(e) => setName(e.target.value)} onBlur={saveProfile} />
             </div>
-            <div>
-              <label className="text-[11px] text-ink-muted block mb-1.5">Email</label>
+            <div className="settings-field">
+              <label>Email address</label>
               <input className="input opacity-60" value={user?.email || ""} disabled />
             </div>
-            {saved && <p className="text-success text-[11px] m-0">Saved.</p>}
+            </div>
+            <div className="settings-profile-brief"><div><span>Workspace identity</span><strong>Personal</strong></div><div><span>Sign-in access</span><strong>{user?.hasPassword ? "Password + device" : "Device / connected account"}</strong></div></div>
           </div>
         )}
 
         {tab === "Preferences" && (
           <>
             <SettingRow title="Theme" desc="Choose your preferred interface theme.">
-              <div className="flex gap-1.5 flex-wrap">
+              <div className="settings-choice-grid theme-choices">
                 {["dark", "light", "system"].map((t) => (
                   <button
                     key={t}
                     disabled={saving}
                     onClick={() => saveTheme(t)}
-                    className={`text-[11px] rounded-lg px-2.5 py-1.5 border border-app-border capitalize ${
-                      theme === t ? "bg-ink text-app-bg" : "bg-app-panel2 text-ink"
-                    }`}
+                    className={theme === t ? "is-selected" : ""}
                   >
-                    {t}
+                    <span className={`theme-preview theme-preview-${t}`}><i /><i /><i /></span><strong>{t}</strong>
                   </button>
                 ))}
               </div>
             </SettingRow>
             <SettingRow title="Editor font size" desc="Choose the default reading size for your writing canvas.">
-              <div className="flex gap-1.5 flex-wrap">
+              <div className="settings-choice-grid type-choices">
                 {["small", "medium", "comfort", "large", "display", "xlarge"].map((s) => (
                   <button
                     key={s}
                     disabled={saving}
                     onClick={() => saveFontSize(s)}
-                    className={`text-[11px] rounded-lg px-2.5 py-1.5 border border-app-border capitalize ${
-                      fontSize === s ? "bg-ink text-app-bg" : "bg-app-panel2 text-ink"
-                    }`}
+                    className={fontSize === s ? "is-selected" : ""}
                   >
-                    {s}
+                    <span className="type-sample">Aa</span><strong>{s}</strong>
                   </button>
                 ))}
               </div>
@@ -115,9 +146,11 @@ export default function Settings() {
           </>
         )}
 
-        {tab === "Security" && <><AccountEmailVerification /><SessionProtectionSettings /><ChangePasswordSection hasPassword={user?.hasPassword} /><AccountPasskeys /><SettingRow title="Locked Notes passkeys" desc="Use a passkey to unlock protected notes. Locked Notes access is managed separately from account sign-in."><Link to="/notes/locked" className="btn-outline">Open Locked Notes</Link></SettingRow><SessionPanel /></>}
+        {tab === "Security" && <><AccountEmailVerification /><SessionProtectionSettings /><ChangePasswordSection hasPassword={user?.hasPassword} /><AccountPasskeys /><SettingRow title="Locked Notes passkeys" desc="Use a passkey to unlock protected notes. Locked Notes access is managed separately from account sign-in."><Link to="/vault/documents" className="btn-outline">Open Locked Notes</Link></SettingRow><SessionPanel /></>}
+          </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }
 
@@ -233,10 +266,10 @@ function ChangePasswordSection({ hasPassword }) {
 
 function SettingRow({ title, desc, children }) {
   return (
-    <div className="px-5 py-[18px] border-b border-app-border last:border-0 flex justify-between items-center gap-4 flex-wrap">
-      <div>
-        <b className="block text-[12.5px] mb-0.5">{title}</b>
-        <span className="text-[11px] text-ink-muted">{desc}</span>
+    <div className="settings-row">
+      <div className="settings-row-copy">
+        <strong>{title}</strong>
+        <span>{desc}</span>
       </div>
       {children}
     </div>

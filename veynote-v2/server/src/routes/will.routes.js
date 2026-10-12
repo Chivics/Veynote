@@ -12,10 +12,10 @@ const { normalizeAssetAllocations } = require("../utils/willAssetAllocations");
 const router = express.Router();
 router.use(requireAuth);
 
-const UPLOAD_DIR = path.join(__dirname, "..", "..", "private-will");
+const { willUploadRoot: UPLOAD_DIR } = require("../utils/storagePaths");
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const MAX_FILE_BYTES = 20 * 1024 * 1024;
+const MAX_FILE_BYTES = 200 * 1024 * 1024;
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
   filename: (_req, file, cb) => {
@@ -77,6 +77,9 @@ function serializeWill(will) {
     details: (will.details || []).map((item) => ({ ...item, documents: (item.documents || []).map(documentView) })),
     assets: (will.assets || []).map((item) => ({ ...item, documents: (item.documents || []).map(documentView) })),
     beneficiaries: (will.beneficiaries || []).map((item) => ({ ...item, documents: (item.documents || []).map(documentView) })),
+    contacts: (will.contacts || []).map((item) => ({ ...item, documents: (item.documents || []).map(documentView) })),
+    executors: (will.executors || []).map((item) => ({ ...item, documents: (item.documents || []).map(documentView) })),
+    liabilities: (will.liabilities || []).map((item) => ({ ...item, documents: (item.documents || []).map(documentView) })),
     documents: (will.documents || []).map(documentView),
   };
 }
@@ -116,8 +119,9 @@ async function ensureCoreDetails(will) {
           allocations: { include: { asset: { select: { id: true, name: true, type: true, estimatedValue: true, currency: true } } } },
         },
       },
-      contacts: { orderBy: { updatedAt: "desc" } },
-      executors: { orderBy: { updatedAt: "desc" } },
+      contacts: { orderBy: { updatedAt: "desc" }, include: { documents: true } },
+      executors: { orderBy: { updatedAt: "desc" }, include: { documents: true } },
+      liabilities: { orderBy: { updatedAt: "desc" }, include: { documents: true, asset: { select: { id: true, name: true, type: true } } } },
       documents: { orderBy: { createdAt: "desc" } },
       activities: { orderBy: { createdAt: "desc" }, take: 25 },
     },
@@ -408,9 +412,9 @@ router.patch("/beneficiaries/:id", async (req, res) => {
   if (req.body?.specificAssetId !== undefined && !(await validateSpecificAsset(req.userId, beneficiary.willId, req.body.specificAssetId))) {
     return res.status(400).json({ error: "Selected asset is not part of this Will." });
   }
-  const updated = await prisma.willBeneficiary.update({ where: { id: beneficiary.id }, data: beneficiaryData(req.body, true) });
+  const updated = await prisma.willBeneficiary.update({ where: { id: beneficiary.id }, data: beneficiaryData(req.body, true), include: { documents: true } });
   await logActivity(updated.willId, req.userId, "updated", "beneficiary", updated.id, `Beneficiary updated: ${updated.name}`);
-  res.json({ beneficiary: updated });
+  res.json({ beneficiary: { ...updated, documents: updated.documents.map(documentView) } });
 });
 
 router.delete("/beneficiaries/:id", async (req, res) => {
@@ -434,9 +438,9 @@ function contactData(body, partial = true) {
 
 router.get("/contacts/:id", async (req, res) => {
   if (!requireWillAccess(req, res)) return;
-  const contact = await prisma.willContact.findFirst({ where: { id: req.params.id, userId: req.userId } });
+  const contact = await prisma.willContact.findFirst({ where: { id: req.params.id, userId: req.userId }, include: { documents: true } });
   if (!contact) return res.status(404).json({ error: "Contact not found." });
-  res.json({ contact });
+  res.json({ contact: { ...contact, documents: contact.documents.map(documentView) } });
 });
 
 router.post("/contacts", async (req, res) => {
@@ -455,9 +459,9 @@ router.patch("/contacts/:id", async (req, res) => {
   const contact = await prisma.willContact.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!contact) return res.status(404).json({ error: "Contact not found." });
   if (req.body?.name !== undefined && !validateRequiredName(req.body.name, "Contact name", res)) return;
-  const updated = await prisma.willContact.update({ where: { id: contact.id }, data: contactData(req.body, true) });
+  const updated = await prisma.willContact.update({ where: { id: contact.id }, data: contactData(req.body, true), include: { documents: true } });
   await logActivity(updated.willId, req.userId, "updated", "contact", updated.id, `Important contact updated: ${updated.name}`);
-  res.json({ contact: updated });
+  res.json({ contact: { ...updated, documents: updated.documents.map(documentView) } });
 });
 
 router.delete("/contacts/:id", async (req, res) => {
@@ -481,9 +485,9 @@ function executorData(body, partial = true) {
 
 router.get("/executors/:id", async (req, res) => {
   if (!requireWillAccess(req, res)) return;
-  const executor = await prisma.willExecutor.findFirst({ where: { id: req.params.id, userId: req.userId } });
+  const executor = await prisma.willExecutor.findFirst({ where: { id: req.params.id, userId: req.userId }, include: { documents: true } });
   if (!executor) return res.status(404).json({ error: "Executor not found." });
-  res.json({ executor });
+  res.json({ executor: { ...executor, documents: executor.documents.map(documentView) } });
 });
 
 router.post("/executors", async (req, res) => {
@@ -500,9 +504,9 @@ router.patch("/executors/:id", async (req, res) => {
   const executor = await prisma.willExecutor.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!executor) return res.status(404).json({ error: "Executor not found." });
   if (req.body?.name !== undefined && !validateRequiredName(req.body.name, "Executor name", res)) return;
-  const updated = await prisma.willExecutor.update({ where: { id: executor.id }, data: executorData(req.body, true) });
+  const updated = await prisma.willExecutor.update({ where: { id: executor.id }, data: executorData(req.body, true), include: { documents: true } });
   await logActivity(updated.willId, req.userId, "updated", "executor", updated.id, `Executor updated: ${updated.name}`);
-  res.json({ executor: updated });
+  res.json({ executor: { ...updated, documents: updated.documents.map(documentView) } });
 });
 
 router.delete("/executors/:id", async (req, res) => {
@@ -511,6 +515,84 @@ router.delete("/executors/:id", async (req, res) => {
   if (!executor) return res.status(404).json({ error: "Executor not found." });
   await prisma.willExecutor.delete({ where: { id: executor.id } });
   await logActivity(executor.willId, req.userId, "deleted", "executor", executor.id, `Executor removed: ${executor.name}`);
+  res.json({ ok: true });
+});
+
+// -------------------- Liabilities / obligations --------------------
+const LIABILITY_FIELDS = ["name", "type", "lender", "amount", "currency", "accountReference", "assetId", "dueDate", "status", "notes"];
+function validLiabilityDate(value) {
+  if (value === undefined || value === null || value === "") return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return false;
+  const parsed = new Date(`${value}T12:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+function liabilityData(body, partial = true) {
+  const data = {};
+  for (const key of LIABILITY_FIELDS) {
+    if (partial && body[key] === undefined) continue;
+    if (key === "name" || key === "type" || key === "status") data[key] = text(body[key]);
+    else if (key === "dueDate") {
+      const value = clean(body[key]);
+      data[key] = value ? new Date(`${value}T12:00:00.000Z`) : null;
+    } else data[key] = clean(body[key]);
+  }
+  return data;
+}
+
+async function validateLiabilityAsset(userId, willId, assetId) {
+  if (!assetId) return true;
+  return Boolean(await prisma.willAsset.findFirst({ where: { id: assetId, userId, willId }, select: { id: true } }));
+}
+
+router.get("/liabilities/:id", async (req, res) => {
+  if (!requireWillAccess(req, res)) return;
+  const liability = await prisma.willLiability.findFirst({
+    where: { id: req.params.id, userId: req.userId },
+    include: { documents: true, asset: { select: { id: true, name: true, type: true } } },
+  });
+  if (!liability) return res.status(404).json({ error: "Liability not found." });
+  res.json({ liability: { ...liability, documents: liability.documents.map(documentView) } });
+});
+
+router.post("/liabilities", async (req, res) => {
+  if (!requireWillAccess(req, res)) return;
+  const will = await getOrCreateWill(req.userId);
+  if (!validateRequiredName(req.body?.name, "Liability name", res)) return;
+  if (!validLiabilityDate(req.body?.dueDate)) return res.status(400).json({ error: "Due date must be a real calendar date." });
+  if (!(await validateLiabilityAsset(req.userId, will.id, req.body?.assetId))) return res.status(400).json({ error: "The selected asset is not part of this estate." });
+  const data = liabilityData(req.body, false);
+  if (!data.type) data.type = "Other";
+  if (!data.status) data.status = "ACTIVE";
+  const liability = await prisma.willLiability.create({
+    data: { ...data, userId: req.userId, willId: will.id },
+    include: { documents: true, asset: { select: { id: true, name: true, type: true } } },
+  });
+  await logActivity(will.id, req.userId, "created", "liability", liability.id, `Liability added: ${liability.name}`);
+  res.status(201).json({ liability });
+});
+
+router.patch("/liabilities/:id", async (req, res) => {
+  if (!requireWillAccess(req, res)) return;
+  const liability = await prisma.willLiability.findFirst({ where: { id: req.params.id, userId: req.userId } });
+  if (!liability) return res.status(404).json({ error: "Liability not found." });
+  if (req.body?.name !== undefined && !validateRequiredName(req.body.name, "Liability name", res)) return;
+  if (!validLiabilityDate(req.body?.dueDate)) return res.status(400).json({ error: "Due date must be a real calendar date." });
+  if (req.body?.assetId !== undefined && !(await validateLiabilityAsset(req.userId, liability.willId, req.body.assetId))) return res.status(400).json({ error: "The selected asset is not part of this estate." });
+  const updated = await prisma.willLiability.update({
+    where: { id: liability.id },
+    data: liabilityData(req.body, true),
+    include: { asset: { select: { id: true, name: true, type: true } } },
+  });
+  await logActivity(updated.willId, req.userId, "updated", "liability", updated.id, `Liability updated: ${updated.name}`);
+  res.json({ liability: { ...updated, documents: updated.documents.map(documentView) } });
+});
+
+router.delete("/liabilities/:id", async (req, res) => {
+  if (!requireWillAccess(req, res)) return;
+  const liability = await prisma.willLiability.findFirst({ where: { id: req.params.id, userId: req.userId } });
+  if (!liability) return res.status(404).json({ error: "Liability not found." });
+  await prisma.willLiability.delete({ where: { id: liability.id } });
+  await logActivity(liability.willId, req.userId, "deleted", "liability", liability.id, `Liability removed: ${liability.name}`);
   res.json({ ok: true });
 });
 
@@ -528,6 +610,18 @@ async function resolveDocumentParent(userId, willId, scopeType, scopeId) {
   if (scopeType === "beneficiary") {
     const beneficiary = await prisma.willBeneficiary.findFirst({ where: { id: scopeId, userId, willId } });
     return beneficiary ? { ok: true, data: { willId, beneficiaryId: beneficiary.id } } : { ok: false };
+  }
+  if (scopeType === "contact") {
+    const contact = await prisma.willContact.findFirst({ where: { id: scopeId, userId, willId } });
+    return contact ? { ok: true, data: { willId, contactId: contact.id } } : { ok: false };
+  }
+  if (scopeType === "executor") {
+    const executor = await prisma.willExecutor.findFirst({ where: { id: scopeId, userId, willId } });
+    return executor ? { ok: true, data: { willId, executorId: executor.id } } : { ok: false };
+  }
+  if (scopeType === "liability") {
+    const liability = await prisma.willLiability.findFirst({ where: { id: scopeId, userId, willId } });
+    return liability ? { ok: true, data: { willId, liabilityId: liability.id } } : { ok: false };
   }
   return { ok: false };
 }
@@ -597,7 +691,7 @@ router.get("/activity", async (req, res) => {
 router.use((err, _req, res, next) => {
   if (err && err.message === "UNSUPPORTED_FILE_TYPE") return res.status(415).json({ error: "That file type isn't supported." });
   if (err instanceof multer.MulterError) {
-    if (err.code === "LIMIT_FILE_SIZE") return res.status(413).json({ error: "File is too large (20MB max)." });
+    if (err.code === "LIMIT_FILE_SIZE") return res.status(413).json({ error: "File is too large (200 MB max)." });
     return res.status(400).json({ error: err.message });
   }
   next(err);

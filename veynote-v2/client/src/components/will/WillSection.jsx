@@ -10,9 +10,9 @@ export function Field({ label, hint, children }) {
   );
 }
 
-export function Section({ eyebrow, title, description, count, action, children }) {
+export function Section({ id, eyebrow, title, description, count, action, children }) {
   return (
-    <section className="card">
+    <section id={id} className="card estate-section">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
         <div className="min-w-0">
           {eyebrow && <span className="eyebrow">{eyebrow}</span>}

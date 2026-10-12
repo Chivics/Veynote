@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("./utils/loadEnvironment");
 const express = require("express");
 const passport = require("passport");
 const prisma = require("./lib/prisma");
@@ -6,11 +6,14 @@ const { asyncHandler } = require("./middleware/asyncHandler");
 const { errorHandler } = require("./middleware/errorHandler");
 const { checkDatabaseReadiness } = require("./utils/databaseReadiness");
 const { mailConfig } = require("./utils/authEmail");
+const { requireAuth } = require("./middleware/auth");
+const { noteJsonBody } = require("./middleware/noteJsonBody");
 const authMailConfig = mailConfig();
 
 const { router: authRoutes } = require("./routes/auth.routes");
 const folderRoutes = require("./routes/folders.routes");
 const noteRoutes = require("./routes/notes.routes");
+const { createNoteCommentsRoutes } = require("./routes/noteComments.routes");
 const accountRoutes = require("./routes/accounts.routes");
 const tradingRoutes = require("./routes/trading.routes");
 const analyticsRoutes = require("./routes/analytics.routes");
@@ -30,6 +33,7 @@ const webauthnRoutes = require("./routes/webauthn.routes");
 const publicRoutes = require("./routes/public.routes");
 const willRoutes = require("./routes/will.routes");
 const businessRoutes = require("./routes/business.routes");
+const { router: writingTemplateRoutes } = require("./routes/writingTemplates.routes");
 
 const app = express();
 // Configure only known proxy networks; never trust arbitrary forwarded headers.
@@ -47,7 +51,11 @@ app.use(cors({
   credentials: true
 }));
 
-  app.use(express.json());
+// A document may be far larger than ordinary API JSON. Authenticate before
+// accepting the larger body; every other route retains Express's small
+// default limit. This is a bounded bridge while manuscript chunks are built.
+app.use("/api/notes", requireAuth, noteJsonBody);
+app.use(express.json());
 
 app.use(passport.initialize());
 
@@ -75,7 +83,10 @@ app.use("/api/sessions", require("./routes/sessions.routes"));
 app.use("/api/folders", folderRoutes);
 
 app.use("/api/notes", noteRoutes);
+app.use("/api/notes", require("./routes/noteDocumentRevisions.routes").createNoteDocumentRevisionRoutes({ db: prisma }));
+app.use("/api/notes", createNoteCommentsRoutes({ db: prisma }));
 app.use("/api/notes", noteAttachmentRoutes);
+app.use("/api/writing-templates", writingTemplateRoutes);
 
 app.use("/api/accounts", accountRoutes);
 

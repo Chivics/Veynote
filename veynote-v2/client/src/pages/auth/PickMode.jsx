@@ -44,14 +44,14 @@ export default function PickMode() {
     <div className="workspace-arrival-content">
       <div className="workspace-arrival-heading">
         <span className="eyebrow">YOUR WORK, CONNECTED</span>
-        <h1>Where will you begin?</h1>
+        <h1>Choose your workspace.</h1>
         <p>Welcome{user?.name ? `, ${user.name.trim().split(/\s+/)[0]}` : " back"}. Choose your starting workspace. Everything else stays within reach.</p>
       </div>
       <fieldset className="workspace-arrival-grid" disabled={loading}>
         <legend className="sr-only">Choose a starting workspace</legend>
-        {Object.entries(WORKSPACES).map(([name, workspace], index) => <label key={name} className={`workspace-destination ${picked === name ? "is-selected" : ""}`} style={{ "--workspace-accent": details[name].accent }}>
+        {Object.entries(WORKSPACES).map(([name, workspace]) => <label key={name} className={`workspace-destination ${picked === name ? "is-selected" : ""}`} style={{ "--workspace-accent": "var(--accent-notes)" }}>
           <input type="radio" name="workspace" value={name} checked={picked === name} onChange={() => { setPicked(name); setError(""); }} />
-          <div className="workspace-destination-top"><span className="workspace-destination-icon"><NavigationIcon name={workspace.icon} size={23} /></span><span className="workspace-selection-mark" aria-hidden="true">{picked === name ? "✓" : String(index + 1).padStart(2, "0")}</span></div>
+          <div className="workspace-destination-top"><span className="workspace-destination-icon"><NavigationIcon name={workspace.icon} size={23} /></span><span className="workspace-selection-mark" aria-hidden="true">{picked === name && <NavigationIcon name="check" size={14} />}</span></div>
           <strong>{name}</strong><p>{details[name].description}</p>
           <div className="workspace-destination-areas">{details[name].areas.map(area => <span key={area}>{area}</span>)}</div>
         </label>)}

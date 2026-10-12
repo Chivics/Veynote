@@ -56,6 +56,24 @@ export const EMPTY_EXECUTOR = {
   instructions: "",
 };
 
+export const EMPTY_LIABILITY = {
+  name: "",
+  type: "mortgage",
+  lender: "",
+  amount: "",
+  currency: "",
+  accountReference: "",
+  assetId: "",
+  dueDate: "",
+  status: "ACTIVE",
+  notes: "",
+};
+
+const LIABILITY_TYPES = [
+  ["mortgage", "Mortgage"], ["loan", "Loan"], ["credit", "Credit obligation"],
+  ["tax", "Tax liability"], ["business", "Business obligation"], ["other", "Other"],
+];
+
 export const DETAIL_TYPES = [
   ["personal-wishes", "Personal wishes"],
   ["funeral-wishes", "Funeral wishes"],
@@ -217,6 +235,35 @@ export function ExecutorForm({ initial = EMPTY_EXECUTOR, onSubmit, onCancel, bus
       <Field label="Notes"><textarea className={textareaClass} value={value.notes} onChange={(e) => setValue({ ...value, notes: e.target.value })} /></Field>
       <Field label="Instructions"><textarea className={textareaClass} value={value.instructions} onChange={(e) => setValue({ ...value, instructions: e.target.value })} /></Field>
       <Buttons busy={busy} saveLabel="Save executor" onCancel={onCancel} />
+    </FormShell>
+  );
+}
+
+export function LiabilityForm({ initial = EMPTY_LIABILITY, assets = [], onSubmit, onCancel, busy = false }) {
+  const prepared = { ...EMPTY_LIABILITY, ...initial, dueDate: initial?.dueDate ? String(initial.dueDate).slice(0, 10) : "" };
+  const [value, setValue] = useLocalValueObject(prepared);
+  return (
+    <FormShell onSubmit={(event) => { event.preventDefault(); onSubmit(value); }}>
+      <div className="estate-form-intro"><span>OBLIGATION RECORD</span><strong>Document what the estate must settle.</strong><p>Connect a mortgage, loan, tax liability, or other obligation to the asset it affects so the net position remains understandable.</p></div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Liability name"><input className={inputClass} value={value.name} onChange={(e) => setValue({ ...value, name: e.target.value })} placeholder="e.g. Victoria Island mortgage" required /></Field>
+        <Field label="Type"><select className={inputClass} value={value.type} onChange={(e) => setValue({ ...value, type: e.target.value })}>{LIABILITY_TYPES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Lender / creditor"><input className={inputClass} value={value.lender} onChange={(e) => setValue({ ...value, lender: e.target.value })} /></Field>
+        <Field label="Account / reference"><input className={inputClass} value={value.accountReference} onChange={(e) => setValue({ ...value, accountReference: e.target.value })} /></Field>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Field label="Outstanding amount"><input className={inputClass} inputMode="decimal" value={value.amount} onChange={(e) => setValue({ ...value, amount: e.target.value })} placeholder="0.00" /></Field>
+        <Field label="Currency"><input className={inputClass} value={value.currency} onChange={(e) => setValue({ ...value, currency: e.target.value.toUpperCase().slice(0, 3) })} placeholder="NGN" /></Field>
+        <Field label="Status"><select className={inputClass} value={value.status} onChange={(e) => setValue({ ...value, status: e.target.value })}><option value="ACTIVE">Active</option><option value="DISPUTED">Disputed</option><option value="SETTLED">Settled</option><option value="FORGIVEN">Forgiven</option></select></Field>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Related asset" hint="Optional. This relationship remains visible from the estate overview."><select className={inputClass} value={value.assetId || ""} onChange={(e) => setValue({ ...value, assetId: e.target.value })}><option value="">No specific asset</option>{assets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</select></Field>
+        <Field label="Due / review date"><input className={inputClass} type="date" value={value.dueDate || ""} onChange={(e) => setValue({ ...value, dueDate: e.target.value })} /></Field>
+      </div>
+      <Field label="Settlement notes" hint="Record practical instructions. Do not store online banking passwords, PINs, or security codes."><textarea className={textareaClass} value={value.notes} onChange={(e) => setValue({ ...value, notes: e.target.value })} /></Field>
+      <Buttons busy={busy} saveLabel="Save liability" onCancel={onCancel} />
     </FormShell>
   );
 }

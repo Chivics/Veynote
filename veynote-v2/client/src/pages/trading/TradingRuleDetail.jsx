@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import PageSkeleton from "../../components/PageSkeleton.jsx";
+import NavigationIcon from "../../components/layout/NavigationIcon";
 import { CATEGORIES, COMPLIANCE, PRIORITIES } from "./TradingRules";
 
 const STATUSES = ["Active", "Reviewing", "Retired"];
@@ -33,8 +34,12 @@ export default function TradingRuleDetail() {
     }
   }
 
-  async function remove() { await api.delete(`/trading-rules/${id}`); navigate("/trading/rules"); }
-  if (!rule) return error ? <div className="form-error">{error}</div> : <PageSkeleton title="Trading rule" />;
+  async function remove() {
+    setState("saving"); setError("");
+    try { await api.delete(`/trading-rules/${id}`); navigate("/trading/rules"); }
+    catch (requestError) { setError(requestError.message || "This rule could not be deleted."); setState("failed"); setConfirmDelete(false); }
+  }
+  if (!rule) return <div className="rule-detail-page">{error ? <div className="form-error">{error}</div> : <PageSkeleton title="Trading rule" />}</div>;
 
   return <div className="rule-detail-page">
     <header className="rule-detail-hero">
@@ -60,8 +65,8 @@ export default function TradingRuleDetail() {
     </div>
 
     <section className="card rule-rationale-panel"><div className="section-heading"><div><span className="eyebrow">RATIONALE & RESPONSE</span><h2>Why this rule exists</h2></div></div><textarea value={rule.notes || ""} onChange={(event) => setRule({ ...rule, notes: event.target.value })} onBlur={(event) => patch({ notes: event.target.value })} placeholder="Describe the trigger, why it matters, and exactly what you should do when the limit is reached." /></section>
-    <div className="rule-danger-zone"><div><strong>Retire this control</strong><span>Deleting removes it permanently from your rulebook.</span></div><button className="btn-outline text-danger" onClick={() => setConfirmDelete(true)}>Delete rule</button></div>
-    <ConfirmDialog open={confirmDelete} title="Delete this trading rule?" description="This action cannot be undone. Historical trades will remain intact." confirmLabel="Delete rule" tone="danger" onCancel={() => setConfirmDelete(false)} onConfirm={remove} />
+    <div className="rule-danger-zone"><div><strong>Retire this control</strong><span>Deleting removes it permanently from your rulebook.</span></div><button className="btn-outline text-danger" onClick={() => setConfirmDelete(true)}><NavigationIcon name="trash" size={16} /> Delete rule</button></div>
+    <ConfirmDialog open={confirmDelete} title="Delete this trading rule?" description="This action cannot be undone. Historical trades will remain intact." confirmLabel="Delete rule" tone="danger" onClose={() => setConfirmDelete(false)} onConfirm={remove} />
   </div>;
 }
 

@@ -18,5 +18,5 @@ test("private pauses stay scoped to one note and overlapping boundaries release 
   access.assert("/notes/note-ab"); access.assert("/notes/note-b"); access.assert("/notes?scope=normal");
   first(); assert.throws(() => access.assert("/notes/note-a")); second(); access.assert("/notes/note-a");
   const release = access.pause({ vault: "locked-notes" });
-  assert.throws(() => access.assert("/notes?scope=locked")); access.assert("/notes?scope=all"); release();
+  assert.throws(() => access.assert("/notes?scope=locked")); assert.throws(() => access.assert("/notes?scope=locked-trash")); access.assert("/notes?scope=all"); release();
 });

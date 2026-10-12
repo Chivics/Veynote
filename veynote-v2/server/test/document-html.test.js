@@ -16,6 +16,16 @@ test("tables and only checkbox inputs survive sanitation", () => {
   assert.equal(html.includes("secret"), false);
   assert.match(html, /checked/);
 });
+
+test("semantic list markers, nested numbering, and checkbox state persist safely", () => {
+  const html = sanitizeDocument('<ol style="list-style-type:upper-roman;position:fixed"><li>Main<ol style="list-style-type:upper-alpha"><li>Sub</li></ol></li></ol><ul class="list-dash"><li>Dash</li></ul><ul class="veynote-checklist"><li class="cl-item" data-checked="true"><span class="cl-box" role="checkbox" tabindex="0">✓</span>Done</li></ul>');
+  assert.match(html, /list-style-type:upper-roman/);
+  assert.match(html, /list-style-type:upper-alpha/);
+  assert.match(html, /class="list-dash"/);
+  assert.match(html, /class="veynote-checklist"/);
+  assert.match(html, /data-checked="true"/);
+  assert.doesNotMatch(html, /position:fixed|tabindex=|role=/);
+});
 test("inline media layout, alignment and captions survive safe persistence", () => {
   const html = sanitizeDocument('<div class="editor-media align-right size-medium" data-type="image"><img src="/uploads/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png" alt="Market structure"><div class="editor-caption">Daily structure and key level</div></div>');
   assert.match(html, /editor-media align-right size-medium/);
@@ -28,4 +38,17 @@ test("public image rewriting cannot expose unrelated attachments or tracking ima
   const html = sanitizeDocument(`<img src="${allowed}"><img src="https://tracker.invalid/pixel">`, { imageUrl: (src) => src === allowed ? "/api/public/notes/share/files/image" : "" });
   assert.match(html, /\/api\/public\/notes\/share\/files\/image/);
   assert.equal(html.includes("tracker.invalid"), false);
+});
+test("inline file cards persist and public links resolve only shared attachments", () => {
+  const allowed = `/uploads/${"b".repeat(32)}.pdf`;
+  const unknown = `/uploads/${"c".repeat(32)}.pdf`;
+  const content = `<div class="editor-inline-file" data-type="file"><a class="editor-inline-file-link" href="${allowed}"><strong>Board report.pdf</strong></a></div><div class="editor-inline-file"><a class="editor-inline-file-link" href="${unknown}">Private file</a></div>`;
+  const persisted = sanitizeDocument(content);
+  assert.match(persisted, /class="editor-inline-file-link"/);
+  assert.match(persisted, /Board report\.pdf/);
+  const shared = sanitizeDocument(content, { fileUrl: src => src === allowed ? "/api/public/notes/token/files/report" : "" });
+  assert.match(shared, /href="\/api\/public\/notes\/token\/files\/report"/);
+  assert.doesNotMatch(shared, new RegExp(unknown.replaceAll("/", "\\/")));
+  assert.doesNotMatch(shared, /href=""/);
+  assert.match(shared, /editor-inline-file-unavailable/);
 });

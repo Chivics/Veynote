@@ -78,7 +78,7 @@ export function NavigationProvider({ children }) {
     try { if (guard.current?.isDirty() && await guard.current.callback() === false) return; await action(); }
     finally { setBusy(false); }
   }
-  return <NavigationContext.Provider value={{ destination, route: describeRoute(location.pathname), back: () => destination && go(destination.delta ?? destination.to), go, busy, registerGuard, replaceSavedNote, runProtectedAction, revision }}>
+  return <NavigationContext.Provider value={{ destination, route: describeRoute(location.pathname, location.search), back: () => destination && go(destination.delta ?? destination.to), go, busy, registerGuard, replaceSavedNote, runProtectedAction, revision }}>
     {children}
     {failed && blocker.state === "blocked" && <UnsavedNavigationDialog onStay={() => { setFailed(false); blocker.reset(); }} onRetry={() => setAttempt(value => value + 1)} onLeave={() => { setFailed(false); blocker.proceed(); }} />}
   </NavigationContext.Provider>;

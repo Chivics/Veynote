@@ -1,7 +1,7 @@
 import { uploadForm } from "../utils/uploadForm";
 import { queryPath } from "../utils/queryPath";
 import { getNoteGrant } from "../utils/noteGrant";
-import { createQueryCache, cacheablePath } from "../utils/queryCache";
+import { createQueryCache, cacheablePath, isNotesCollectionKey, preservesNotesOnWrite } from "../utils/queryCache";
 import { protectedAccess } from "../utils/protectedAccess";
 
 const cache = createQueryCache();
@@ -12,8 +12,16 @@ function scopedCache() {
   return cache;
 }
 const cacheChannel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("veynote-cache-invalidation") : null;
-cacheChannel?.addEventListener("message", () => cache.clear());
+cacheChannel?.addEventListener("message", event => {
+  if (event.data?.type === "invalidate-except-notes") cache.clearExcept(isNotesCollectionKey);
+  else cache.clear();
+});
 function clearCache() { cache.clear(); cacheChannel?.postMessage("invalidate"); }
+function invalidateForWrite(path) {
+  if (!preservesNotesOnWrite(path)) return clearCache();
+  cache.clearExcept(isNotesCollectionKey);
+  cacheChannel?.postMessage({ type: "invalidate-except-notes" });
+}
 
 const BASE = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "/api" : "https://api.veynote.app/api")).replace(/\/$/, "");
 
@@ -103,7 +111,7 @@ async function parseResponse(response) {
 async function request(path, options = {}) {
   protectedAccess.assert(path);
   const affectsRecords = options.method && options.method !== "GET" && !path.startsWith("/auth/") && !path.startsWith("/sessions/");
-  if (affectsRecords) clearCache();
+  if (affectsRecords) invalidateForWrite(path);
   const headers = {
     ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers || {}),
@@ -130,7 +138,7 @@ async function request(path, options = {}) {
   // repopulate its UI while the independent access boundary is paused.
   protectedAccess.assert(path);
   // Invalidate again after persistence: a read during a write must not remain fresh.
-  if (affectsRecords) clearCache();
+  if (affectsRecords) invalidateForWrite(path);
   return data;
 }
 
@@ -171,6 +179,25 @@ export const api = {
 
   uploadMultiple(path, files, onProgress, fields) {
     return api.upload(path, uploadForm(files, fields, true), onProgress);
+  },
+
+  async uploadChunk(path, bytes, { signal } = {}) {
+    protectedAccess.assert(path);
+    const token = getAuthToken();
+    const vaultToken = getVaultToken();
+    const willToken = getWillToken();
+    const noteGrant = getNoteGrant();
+    const response = await fetch(`${BASE}${path}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/octet-stream", ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(vaultToken ? { "X-Vault-Token": vaultToken } : {}), ...(willToken ? { "X-Will-Token": willToken } : {}),
+        ...(noteGrant ? { "X-Note-Token": noteGrant } : {}) },
+      body: bytes,
+      signal,
+    });
+    const data = await parseResponse(response);
+    protectedAccess.assert(path);
+    return data;
   },
 
   upload(path, input, onProgress, fields, method = "POST") {

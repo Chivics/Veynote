@@ -12,7 +12,7 @@ export function createProtectedAccess() {
       const paused = [...scopes.values()].some(({ vault, noteId }) => {
         if (noteId && (url.pathname === `/notes/${noteId}` || url.pathname.startsWith(`/notes/${noteId}/`))) return true;
         if (vault === "will") return url.pathname === "/will" || url.pathname.startsWith("/will/");
-        return !noteId && vault === "locked-notes" && url.pathname === "/notes" && url.searchParams.get("scope") === "locked";
+        return !noteId && vault === "locked-notes" && url.pathname === "/notes" && ["locked", "locked-trash"].includes(url.searchParams.get("scope"));
       });
       if (!paused) return;
       const error = new Error("Unlock this protected record to continue. Your open edits remain in memory.");

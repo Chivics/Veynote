@@ -179,4 +179,11 @@ router.patch("/:workspaceId/opportunities/:opportunityId", writable, safe(async 
   res.json({ opportunity });
 }));
 
+router.delete("/:workspaceId/opportunities/:opportunityId", writable, safe(async (req, res) => {
+  const existing = await prisma.businessOpportunity.findFirst({ where: { id: req.params.opportunityId, workspaceId: req.params.workspaceId }, select: { id: true } });
+  if (!existing) return res.status(404).json({ error: "Opportunity not found." });
+  await prisma.businessOpportunity.delete({ where: { id: existing.id } });
+  res.json({ ok: true });
+}));
+
 module.exports = router;
