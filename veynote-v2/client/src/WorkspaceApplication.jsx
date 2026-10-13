@@ -49,6 +49,7 @@ import JournalMoodWorkspace from "./pages/journal/JournalMoodWorkspace";
 import JournalRelatedRecords from "./pages/journal/JournalRelatedRecords";
 import JournalRecordDetail from "./pages/journal/JournalRecordDetail";
 import JournalEntryGateway from "./pages/journal/JournalEntryGateway";
+import JournalDecisions from "./pages/journal/JournalDecisions";
 import BusinessWorkspace, { BusinessDashboard, BusinessCustomers, BusinessCustomerDetail, BusinessPipeline, BusinessFollowUps, BusinessOpportunityDetail } from "./pages/business/BusinessWorkspace";
 
 import TradingDashboard from "./pages/trading/Dashboard";
@@ -205,7 +206,7 @@ export default function WorkspaceApplication() {
           <Route path="journal/reviews/monthly" element={<JournalReviewWorkspace mode="monthly" />} />
           <Route path="journal/reviews/quarterly" element={<JournalReviewWorkspace mode="quarterly" />} />
           <Route path="journal/reviews/annual" element={<JournalReviewWorkspace mode="annual" />} />
-          <Route path="journal/decisions" element={<JournalReviewWorkspace mode="decisions" />} />
+          <Route path="journal/decisions" element={<JournalDecisions />} />
           <Route path="journal/calibration" element={<JournalReviewWorkspace mode="calibration" />} />
           <Route path="journal/reflections" element={<JournalReviewWorkspace mode="reflections" />} />
           <Route path="journal/mood" element={<JournalMoodWorkspace />} />

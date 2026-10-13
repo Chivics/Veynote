@@ -1930,10 +1930,10 @@ async function main() {
       assert.equal(await evaluate("Boolean(document.querySelector('.note-editor-shell'))"), false, `${route} must be a purpose-built Journal page rather than the Notes editor`);
       assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth+1"), true, `${route} must fit desktop`);
     }
-    for (const [route, title] of [["/journal/reviews/weekly","Weekly record"],["/journal/reviews/monthly","Monthly record"],["/journal/reviews/quarterly","Quarterly record"],["/journal/reviews/annual","Annual record"],["/journal/decisions","A consequential decision"],["/journal/calibration","Forecast before the outcome"],["/journal/reflections","A considered reflection"],["/journal/lessons","A reusable lesson"]]) {
+    for (const [route, title, selector = ".journal-review-records"] of [["/journal/reviews/weekly","Weekly record"],["/journal/reviews/monthly","Monthly record"],["/journal/reviews/quarterly","Quarterly record"],["/journal/reviews/annual","Annual record"],["/journal/decisions","A consequential decision",".decision-records"],["/journal/calibration","Forecast before the outcome"],["/journal/reflections","A considered reflection"],["/journal/lessons","A reusable lesson"]]) {
       await page.send("Page.navigate", { url:app + route });
-      await until(() => evaluate("document.querySelector('.journal-review-records')?.innerText.includes(" + JSON.stringify(title) + ")"));
-      assert.equal(await evaluate("document.querySelectorAll('.journal-review-records > a').length"), 1, `${route} must only show its tagged records`);
+      await until(() => evaluate(`document.querySelector(${JSON.stringify(selector)})?.innerText.includes(${JSON.stringify(title)})`));
+      assert.equal(await evaluate(`document.querySelectorAll(${JSON.stringify(`${selector} > a`)}).length`), 1, `${route} must only show its tagged records`);
       assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), true, `${route} must fit desktop`);
     }
     await page.send("Page.navigate", { url:app + "/journal/goals" });

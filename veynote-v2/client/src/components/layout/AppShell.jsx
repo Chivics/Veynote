@@ -89,14 +89,20 @@ function SectionPicker({ active, selected, onSelect, compact = false, drawer = f
 function SectionLinks({ workspace, onNavigate }) {
   const location = useLocation();
   const selected = activeNavigationIndex(location.pathname, location.search, WORKSPACES[workspace].pages);
+  let previousGroup = null;
   return <nav key={workspace} aria-label={`${workspace} pages`} className="section-links">
-    {WORKSPACES[workspace].pages.map(([label, to, icon], index) => <Link
+    {WORKSPACES[workspace].pages.map(([label, to, icon, group], index) => {
+      const showGroup = group && group !== previousGroup;
+      previousGroup = group || previousGroup;
+      return <div className="section-link-row" key={to}>
+      {showGroup && <span className="section-link-group">{group}</span>}
+      <Link
       key={to} to={to} aria-current={index === selected ? "page" : undefined} onClick={event => onNavigate?.(event, to)}
       onMouseEnter={() => prefetchPage(to)} onFocus={() => prefetchPage(to)}
       className={`section-link ${index === selected ? "is-active" : ""}`}
     >
       <NavigationIcon name={icon} size={18} /><span>{label}</span><span className="section-link-marker" aria-hidden="true" />
-    </Link>)}
+    </Link></div>;})}
   </nav>;
 }
 
@@ -122,6 +128,9 @@ function GlobalControls({ onNavigate, onDismiss }) {
   };
   return <div className={`global-controls ${onNavigate ? "is-drawer-global" : ""}`}>
     {onNavigate && <span className="drawer-global-label">Your Veynote</span>}
+    {!onNavigate && <button type="button" className="sidebar-account-card" onClick={event => go(event, "/settings?tab=Profile")}>
+      <span className="sidebar-account-avatar">{initials(user)}</span><span><strong>{user?.name || "Your account"}</strong><small>{user?.email || "Account & preferences"}</small></span><NavigationIcon name="chevron" size={14}/>
+    </button>}
     <div className="global-controls-items">
     {onNavigate && <button type="button" onClick={event => go(event, "/settings?tab=Profile")}><NavigationIcon name="account" size={18} /><span>Account</span></button>}
     {onNavigate && <button type="button" onClick={event => go(event, "/activity")}><NavigationIcon name="bell" size={18} /><span>Activity</span></button>}
