@@ -60,6 +60,20 @@ function createMediaRoutes({ db, root = uploadRoot }) {
     res.json({ url: `/uploads/${storedName}?access=${token}`, expiresIn: 60 });
   }));
 
+  // Authenticated streaming fallback for clients that cannot reliably use a
+  // short-lived signed URL (for example after a suspended mobile tab resumes).
+  // It repeats the same ownership and protected-note checks as grant creation.
+  access.get("/:storedName", requireAuth, asyncHandler(async (req, res) => {
+    if (!validName(req.params.storedName)) return res.status(404).json({ error: "File not found." });
+    const file = await ownedFile(req.params.storedName, req.userId);
+    if (!file) return res.status(404).json({ error: "File not found." });
+    if (file.note) {
+      const guard = noteAccess(req, file.note);
+      if (!guard.ok) return denyNoteAccess(res, guard);
+    }
+    return sendMedia(res, file, root, { preview: req.query.preview === "1" });
+  }));
+
   files.get("/:storedName", asyncHandler(async (req, res) => {
     if (!validName(req.params.storedName)) return res.status(404).json({ error: "File not found." });
     let grant;

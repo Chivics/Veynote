@@ -5,6 +5,7 @@ import ImageLightbox from "../../components/ImageLightbox";
 import DocumentContent from "../../components/DocumentContent";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import NavigationIcon from "../../components/layout/NavigationIcon";
+import AuthImage from "../../components/AuthImage";
 
 
 export default function TradeDetail() {
@@ -219,7 +220,7 @@ function ImageGrid({ images, onOpen }) {
     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
       {images.map((img) => (
         <button key={img.id} type="button" onClick={() => onOpen(img)} className="block text-left">
-          <img src={img.url} alt={img.caption || img.originalName} className="w-full aspect-square object-cover rounded-lg border border-app-border" />
+          <AuthImage src={img.url} alt={img.caption || img.originalName} className="w-full aspect-square object-cover rounded-lg border border-app-border" style={{minHeight:0}} />
           {img.caption && <p className="text-[9.5px] text-ink-muted mt-1 truncate">{img.caption}</p>}
         </button>
       ))}

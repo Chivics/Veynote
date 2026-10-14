@@ -73,6 +73,14 @@ test("only the owner can mint a grant and read the file", async () => {
   assert.equal(await response.text(), "test-image-bytes");
   assert.match(response.headers.get("content-security-policy"), /sandbox/);
 });
+test("the authenticated stream fallback preserves ownership and serves image bytes", async () => {
+  assert.equal((await fetch(`${base}/api/media/${name}`)).status, 401);
+  assert.equal((await fetch(`${base}/api/media/${name}`, { headers:{ Authorization:`Bearer ${signToken("bob")}` } })).status, 404);
+  const response = await fetch(`${base}/api/media/${name}`, { headers:{ Authorization:`Bearer ${signToken("alice")}` } });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-type"), "image/png");
+  assert.equal(await response.text(), "test-image-bytes");
+});
 test("owned PDFs preview inline only when explicitly requested", async () => {
   assert.equal((await requestGrant("bob", null, null, pdfName)).status, 404);
   const { url } = await (await requestGrant("alice", null, null, pdfName)).json();

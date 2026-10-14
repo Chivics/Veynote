@@ -162,6 +162,17 @@ function buildCandidates({ src }) {
 
   result.push(absolute);
 
+  // Keep an authenticated API stream as a recovery path. Signed grants are
+  // preferred, but may expire while a mobile browser is suspended or be
+  // stripped by an intermediary. This route still enforces ownership and all
+  // Vault/note access requirements on the server.
+  try {
+    const uploadName = new URL(absolute).pathname.match(/^\/uploads\/([a-f0-9]{32}(?:\.[a-z0-9_-]{1,16})?)$/i)?.[1];
+    if (uploadName) result.push(`${API_ORIGIN}/api/media/${encodeURIComponent(uploadName)}`);
+  } catch {
+    // The original candidate still receives the normal error treatment.
+  }
+
   /**
    * Only add /file alternatives for API-style image endpoints.
    *
