@@ -51,6 +51,7 @@ import JournalRelatedRecords from "./pages/journal/JournalRelatedRecords";
 import JournalRecordDetail from "./pages/journal/JournalRecordDetail";
 import JournalEntryGateway from "./pages/journal/JournalEntryGateway";
 import JournalDecisions from "./pages/journal/JournalDecisions";
+import JournalLifecycleWorkspace from "./pages/journal/JournalLifecycleWorkspace";
 import BusinessWorkspace, { BusinessDashboard, BusinessCustomers, BusinessCustomerDetail, BusinessPipeline, BusinessFollowUps, BusinessOpportunityDetail } from "./pages/business/BusinessWorkspace";
 
 import TradingDashboard from "./pages/trading/Dashboard";
@@ -215,6 +216,8 @@ export default function WorkspaceApplication() {
           <Route path="journal/lessons" element={<JournalReviewWorkspace mode="lessons" />} />
           <Route path="journal/goals" element={<Navigate to="/notes/library/goals" replace />} />
           <Route path="journal/related" element={<JournalRelatedRecords />} />
+          <Route path="journal/archive" element={<JournalLifecycleWorkspace mode="archive" />} />
+          <Route path="journal/trash" element={<JournalLifecycleWorkspace mode="trash" />} />
           <Route path="journal/entries/:id" element={<JournalRecordDetail />} />
           <Route path="journal/entries/:id/edit" element={<NoteEditor kind="JOURNAL" />} />
 

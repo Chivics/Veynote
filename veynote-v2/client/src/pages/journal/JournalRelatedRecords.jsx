@@ -1,30 +1,35 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import NavigationIcon from "../../components/layout/NavigationIcon";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { entryDayDate, journalExcerpt } from "./journalUtils";
 import { useJournalEntries } from "./useJournalEntries";
 import "./journalPracticeWorkspace.css";
+import "./journalRelationships.css";
 
-const normalTags = item => (item.tags || []).filter(tag => !/^(journal|review):/i.test(tag));
+const ICONS={note:"note",journal:"book",task:"tasks",library:"book",trade:"chart",business:"brief"};
+const SCOPES=[["all","All work"],["writing","Notes"],["tasks","Tasks"],["library","Library"],["trading","Trading"],["business","Business"]];
+const normalTags=item=>(item?.tags||[]).map(tag=>typeof tag==="string"?tag:tag.name).filter(tag=>tag&&!/^(journal|review):/i.test(tag));
 
-export default function JournalRelatedRecords() {
-  const journal = useJournalEntries();
-  const writing = useApiQuery("/notes", { scope:"all", kind:"NOTE", view:"summary" });
-  const relationships = useMemo(() => {
-    const notes = writing.data?.notes || [];
-    return (journal.entries || []).map(entry => {
-      const tags = new Set(normalTags(entry).map(tag => tag.toLocaleLowerCase()));
-      const related = tags.size ? notes.filter(note => normalTags(note).some(tag => tags.has(tag.toLocaleLowerCase()))).slice(0,4) : [];
-      return { entry, related };
-    }).filter(item => item.related.length).sort((a,b) => new Date(b.entry.updatedAt) - new Date(a.entry.updatedAt));
-  }, [journal.entries, writing.data]);
-  const loading = journal.entries === null || writing.loading;
-  const error = journal.error || writing.error?.message;
-  return <main className="journal-page journal-practice-workspace journal-related-workspace">
-    <header className="product-page-header journal-practice-header"><div><span className="eyebrow">RELATED RECORDS</span><h1 className="page-title">The work around the memory.</h1><p>Shared subjects connect journal entries to notes without duplicating either record. Open the source to inspect its full context and history.</p></div><Link className="btn-outline" to="/journal/timeline">Open timeline</Link></header>
-    {error && <div className="inline-error" role="alert"><span>{error}</span><button type="button" onClick={() => { journal.refresh(); writing.refresh(); }}>Retry</button></div>}
-    <section className="journal-related-ledger"><div><span className="eyebrow">CONNECTION INDEX</span><strong>{loading ? "—" : relationships.length}</strong><p>journal records currently share one or more subjects with your wider writing.</p></div><div><NavigationIcon name="tag" size={19} /><span><strong>Subjects form the bridge</strong><small>Add the same meaningful subject to a journal entry and note to relate them here.</small></span></div></section>
-    {loading ? <div className="journal-review-pending"><span /><span /><span /></div> : relationships.length ? <div className="journal-related-groups">{relationships.map(({entry,related}) => <section key={entry.id}><header><div><time>{entryDayDate(entry.entryDate || entry.updatedAt).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}</time><h2>{entry.title || "Journal entry"}</h2><p>{journalExcerpt(entry).slice(0,150)}</p></div><Link to={`/journal/entries/${entry.id}`}>Open entry <NavigationIcon name="chevron" size={13} /></Link></header><div>{related.map(note => <Link key={note.id} to={`/notes/${note.id}`}><NavigationIcon name="note" size={18} /><span><strong>{note.title || "Untitled note"}</strong><small>{journalExcerpt(note).slice(0,100) || "Open related writing"}</small></span><NavigationIcon name="chevron" size={14} /></Link>)}</div></section>)}</div> : <div className="journal-practice-empty"><NavigationIcon name="link" size={28} /><h2>Related work will gather here.</h2><p>Use shared subjects on journal entries and notes. Veynote keeps the original records separate while making their relationship discoverable.</p><Link className="btn-primary" to="/journal/new">Write an entry</Link></div>}
+export default function JournalRelatedRecords(){
+  const journal=useJournalEntries();
+  const [selectedId,setSelectedId]=useState(""); const [scope,setScope]=useState("all"); const [phrase,setPhrase]=useState("");
+  useEffect(()=>{if(!selectedId&&journal.entries?.length)setSelectedId(journal.entries[0].id);},[journal.entries,selectedId]);
+  const selected=(journal.entries||[]).find(item=>item.id===selectedId)||null;
+  const suggested=normalTags(selected)[0]||String(selected?.title||"").trim().split(/\s+/).find(word=>word.length>3)||"";
+  useEffect(()=>{setPhrase(suggested);setScope("all");},[selectedId,suggested]);
+  const settled=phrase.trim().slice(0,120); const result=useApiQuery("/search",{q:settled,scope});
+  const records=useMemo(()=>(result.data?.results||[]).filter(item=>!(item.type==="journal"&&item.id===selectedId)),[result.data,selectedId]);
+  const counts=result.data?.counts||{};
+  return <main className="journal-page journal-relationships">
+    <header className="product-page-header"><div><span className="eyebrow">JOURNAL · RELATED RECORDS</span><h1 className="page-title">The work around the memory.</h1><p>Trace a subject across writing, commitments, research, trading decisions, and business relationships while every source remains in its own workspace.</p></div><Link className="btn-outline" to="/journal/timeline">Open timeline</Link></header>
+    {(journal.error||result.error)&&<div className="inline-error" role="alert"><span>{journal.error||result.error?.message}</span><button type="button" onClick={()=>{journal.refresh();result.refresh().catch(()=>{});}}>Retry</button></div>}
+    <div className="journal-relationship-layout">
+      <aside className="journal-relationship-source"><span className="eyebrow">SOURCE RECORD</span><h2>Choose the journal context.</h2><p>Veynote uses an intentional subject or phrase to find accessible work without crossing Vault, Trash, or workspace membership boundaries.</p><label>Journal record<select value={selectedId} onChange={event=>setSelectedId(event.target.value)}><option value="">Choose a record</option>{(journal.entries||[]).map(entry=><option key={entry.id} value={entry.id}>{entry.title||`${entry.journalType||"Daily"} record`}</option>)}</select></label>{selected&&<article><time>{entryDayDate(selected.entryDate||selected.updatedAt).toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</time><strong>{selected.title||"Untitled journal record"}</strong><p>{journalExcerpt(selected).slice(0,180)||"No preview text recorded."}</p><div>{normalTags(selected).map(tag=><button key={tag} type="button" className={phrase===tag?"is-active":""} onClick={()=>setPhrase(tag)}>#{tag}</button>)}</div><Link to={`/journal/entries/${selected.id}`}>Open source record <NavigationIcon name="chevron" size={13}/></Link></article>}</aside>
+      <section className="journal-relationship-index"><div className="journal-relationship-search"><NavigationIcon name="search" size={18}/><input value={phrase} onChange={event=>setPhrase(event.target.value)} placeholder="Search a subject, person, project, or decision…"/><span>{records.length} connected</span></div><nav aria-label="Relationship workspace filters">{SCOPES.map(([key,label])=><button key={key} type="button" className={scope===key?"is-active":""} onClick={()=>setScope(key)}>{label}{key!=="all"&&<small>{counts[key]||0}</small>}</button>)}</nav>
+        {journal.entries===null||(result.fetching&&!result.data)?<div className="journal-review-pending" role="status"><span/><span/><span/></div>:settled.length<2?<Empty title="Choose a useful relationship key." text="Add a subject to the journal record or search for a person, project, market, customer, or decision represented elsewhere in Veynote."/>:records.length?<div className="journal-relationship-results">{records.map(item=><Link key={`${item.type}-${item.id}`} to={item.href}><span><NavigationIcon name={ICONS[item.type]||"link"} size={17}/></span><div><small>{item.workspace} · {item.meta||"Record"}</small><strong>{item.title||"Untitled record"}</strong><p>{item.context||"Open the source record."}</p></div><time>{new Date(item.updatedAt).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}</time><NavigationIcon name="chevron" size={14}/></Link>)}</div>:<Empty title="No connected records found." text="Try another subject or broader workspace scope. Relationships appear from real accessible records, never invented suggestions."/>}
+      </section>
+    </div><footer className="journal-relationship-privacy"><NavigationIcon name="shield" size={17}/><span>Protected records, deleted items, and inaccessible organisation data remain outside relationship discovery.</span></footer>
   </main>;
 }
+function Empty({title,text}){return <div className="journal-relationship-empty"><NavigationIcon name="link" size={27}/><h2>{title}</h2><p>{text}</p></div>}

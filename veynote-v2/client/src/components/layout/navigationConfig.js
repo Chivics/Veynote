@@ -11,6 +11,7 @@ export const WORKSPACES = {
     ["Decisions", "/journal/decisions", "tasks", "Practices"], ["Lessons", "/journal/lessons", "sparkle", "Practices"],
     ["Retrospectives", "/journal/reviews", "calendar", "Review"],
     ["Related records", "/journal/related", "link", "Review"], ["Calendar", "/journal/calendar", "calendar", "Review"], ["Insights", "/journal/insights", "chart", "Review"],
+    ["Archive", "/journal/archive", "archive", "Manage"], ["Trash", "/journal/trash", "trash", "Manage"],
   ] },
   Business: { icon: "brief", home: "/business", create: "/business/customers?new=1", createLabel: "New customer", search: "/business/customers", pages: [
     ["Overview", "/business", "home", "Business"], ["Customers", "/business/customers", "brief", "Business"],

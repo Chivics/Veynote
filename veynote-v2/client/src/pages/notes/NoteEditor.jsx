@@ -517,7 +517,7 @@ export default function NoteEditor({ kind = "NOTE" }) {
       dirtyRef.current = false;
       clearNoteDraft(draftIdentity(routeId));
       setTrashOpen(false);
-      navigate(isLocked ? "/vault/documents?view=trash" : "/notes/trash", { replace: true });
+      navigate(isLocked ? "/vault/documents?view=trash" : kind === "JOURNAL" ? "/journal/trash" : "/notes/trash", { replace: true });
     } catch (error) { if (alive.current) { setSaveError(error.message); setSaveStatus("error"); } } finally { if (alive.current) setTrashBusy(false); }
   }
 
@@ -531,7 +531,7 @@ export default function NoteEditor({ kind = "NOTE" }) {
       if (!alive.current || currentWriter !== writer.current) return;
       if (permanent) clearNoteDraft(draftIdentity(routeId));
       setTrashOpen(false);
-      if (permanent) navigate(isLocked ? "/vault/documents?view=trash" : "/notes/trash", { replace: true });
+      if (permanent) navigate(isLocked ? "/vault/documents?view=trash" : kind === "JOURNAL" ? "/journal/trash" : "/notes/trash", { replace: true });
       else loadNote();
     } catch (error) {
       if (alive.current && currentWriter === writer.current) {
@@ -760,7 +760,7 @@ export default function NoteEditor({ kind = "NOTE" }) {
       <header><div><span className="eyebrow">{isLocked || isWill ? "PROTECTED TRASH" : "RECOVERABLE WRITING"}</span><h1 className="page-title">{title || "Untitled note"}</h1><p>This document is in Trash. Your writing is preserved; restore it before editing.</p></div><NavigationIcon name="archive" size={30} /></header>
       <div className="note-trash-summary"><span><NavigationIcon name={isLocked || isWill ? "shield" : "lock"} size={16} />{isLocked || isWill ? "Protected access remains required" : "Private · Previous share links revoked"}</span><span>{formatStats(stats) || "No written text"}</span>{folderId && <span>Original folder: {folders.find(folder => folder.id === folderId)?.name || "Saved folder"}</span>}</div>
       {saveError && <div className="inline-error" role="alert">{saveError}</div>}
-      <div className="note-trash-actions"><button type="button" className="btn-primary" disabled={trashBusy} onClick={() => recoverTrashedRecord()}><NavigationIcon name="back" size={16} />{trashBusy && !trashOpen ? "Restoring…" : "Restore document"}</button><Link className="btn-outline" to={isLocked ? "/vault/documents?view=trash" : "/notes/trash"}>Return to Trash</Link><button type="button" className="note-trash-permanent" disabled={trashBusy} onClick={() => { setSaveError(""); setTrashOpen(true); }}><NavigationIcon name="trash" size={16} /> Delete permanently</button></div>
+      <div className="note-trash-actions"><button type="button" className="btn-primary" disabled={trashBusy} onClick={() => recoverTrashedRecord()}><NavigationIcon name="back" size={16} />{trashBusy && !trashOpen ? "Restoring…" : "Restore document"}</button><Link className="btn-outline" to={isLocked ? "/vault/documents?view=trash" : kind === "JOURNAL" ? "/journal/trash" : "/notes/trash"}>Return to Trash</Link><button type="button" className="note-trash-permanent" disabled={trashBusy} onClick={() => { setSaveError(""); setTrashOpen(true); }}><NavigationIcon name="trash" size={16} /> Delete permanently</button></div>
       <DocumentContent html={initialHTML} className="note-trash-document" />
       {attachments.length > 0 && <p className="note-trash-attachment-context">{attachments.length} {attachments.length === 1 ? "attachment is" : "attachments are"} preserved with this document. Restore it to manage files.</p>}
       <ConfirmDialog open={trashOpen} title="Delete this document permanently?" description="Its writing, history and attachment access will be removed. This cannot be undone." error={saveError} busy={trashBusy} confirmLabel="Delete permanently" onClose={() => setTrashOpen(false)} onConfirm={() => recoverTrashedRecord(true)} />
