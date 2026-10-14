@@ -37,11 +37,15 @@ router.get("/status", asyncHandler(async (req, res) => {
 // stores document titles, filenames, IP addresses, note identifiers, or
 // content. Collection proof is required before the ledger can be read.
 router.get("/activity", asyncHandler(async (req, res) => {
-  if (!hasValidVaultAccess(req, "vault")) {
-    return res.status(401).json({ error: "Unlock Protected Notes before reviewing security activity.", requiresVault: "locked-notes" });
-  }
   const scope = req.query.scope;
   if (scope !== undefined && !["locked-notes", "will"].includes(scope)) return res.status(400).json({ error: "Unknown security scope." });
+  const requiredPurpose = scope === "will" ? "will" : "vault";
+  if (!hasValidVaultAccess(req, requiredPurpose)) {
+    return res.status(401).json({
+      error: scope === "will" ? "Unlock Will & Inheritance before reviewing estate security activity." : "Unlock Protected Notes before reviewing security activity.",
+      requiresVault: scope === "will" ? "will" : "locked-notes",
+    });
+  }
   const events = await prisma.vaultSecurityEvent.findMany({
     where: { userId: req.userId, ...(scope && { scope }) },
     select: { id: true, scope: true, action: true, method: true, outcome: true, deviceLabel: true, createdAt: true },

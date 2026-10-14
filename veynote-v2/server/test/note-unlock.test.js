@@ -7,7 +7,7 @@ const { signToken, verifyNoteToken, verifyVaultToken } = require("../src/utils/j
 const passwordHash = bcrypt.hashSync("test-password", 4);
 const activity = [];
 const db = {
-  user: { async findUnique() { return { lockedNotesPasswordHash: passwordHash }; } },
+  user: { async findUnique() { return { lockedNotesPasswordHash: passwordHash, willPasswordHash: passwordHash }; } },
   note: { async findFirst({ where }) { return where.id === "a" && where.userId === "alice" ? { id: "a" } : null; } },
   vaultSecurityEvent: {
     async create({ data }) { const event = { id: `event-${activity.length + 1}`, createdAt: new Date(Date.now() + activity.length), ...data }; activity.push(event); return event; },
@@ -36,6 +36,17 @@ test("the activity ledger requires collection proof and exposes no protected rec
   assert.equal(JSON.stringify(payload).includes("noteId"), false);
   assert.equal(JSON.stringify(payload).includes("test-password"), false);
   assert.equal(response.headers.get("cache-control"), "no-store");
+});
+test("estate security activity accepts only estate-scoped collection proof", async () => {
+  const account = { Authorization: `Bearer ${signToken("alice")}` };
+  const vaultToken = require("../src/utils/jwt").signVaultToken("alice", "vault");
+  const willToken = require("../src/utils/jwt").signVaultToken("alice", "will");
+  const denied = await fetch(`${origin}/security/activity?scope=will`, { headers: { ...account, "X-Vault-Token": vaultToken } });
+  assert.equal(denied.status, 401);
+  assert.equal((await denied.json()).requiresVault, "will");
+  const response = await fetch(`${origin}/security/activity?scope=will`, { headers: { ...account, "X-Will-Token": willToken } });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).events.every(item => item.scope === "will"), true);
 });
 test.after(() => new Promise(resolve => server.close(resolve)));
 const unlock = body => fetch(base, { method: "POST", headers: { Authorization: `Bearer ${signToken("alice")}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });

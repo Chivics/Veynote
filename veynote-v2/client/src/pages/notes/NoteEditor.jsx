@@ -39,6 +39,7 @@ import { writingText } from "../../utils/noteCollection.js";
 import { downloadMedia, storedMediaName } from "../../utils/media.js";
 import { useContextualNavigation } from "../../context/NavigationContext";
 import JournalContextPanel, { journalTypeFromParams } from "../journal/JournalContextPanel";
+import JournalComposerHeader from "../journal/JournalComposerHeader";
 
 const FONT_SIZE_PX = { small: "13px", medium: "16px", large: "18px", comfort: "17px", display: "22px", xlarge: "28px" };
 
@@ -793,7 +794,7 @@ export default function NoteEditor({ kind = "NOTE" }) {
   }
 
   return (
-    <ProtectedContentBoundary enabled={isLocked || isWill} vault={isWill ? "will" : "locked-notes"} resourceNoteId={noteId} noteId={isLocked && !isWill ? noteId : undefined}><div className={`note-editor-shell ${focusMode ? "fixed inset-0 z-50 bg-app-bg overflow-y-auto px-4 sm:px-6 md:px-10 py-6 is-focus" : ""}`}>
+    <ProtectedContentBoundary enabled={isLocked || isWill} vault={isWill ? "will" : "locked-notes"} resourceNoteId={noteId} noteId={isLocked && !isWill ? noteId : undefined}><div className={`note-editor-shell ${kind === "JOURNAL" ? "is-journal-composer" : ""} ${focusMode ? "fixed inset-0 z-50 bg-app-bg overflow-y-auto px-4 sm:px-6 md:px-10 py-6 is-focus" : ""}`}>
       <div ref={documentRef} onClick={handleContentClick} className="note-editor-document max-sm:pb-16 mx-auto">
         <div className="note-editor-topline">
           <span className="eyebrow">
@@ -843,6 +844,7 @@ export default function NoteEditor({ kind = "NOTE" }) {
             <span className="note-save-status"><SaveStatus status={saveStatus} error={saveError} compact /></span>
           </div>
         </div>
+        {kind === "JOURNAL" && <JournalComposerHeader type={journalType} entryDate={entryDate} onInsertPrompt={html => editorRef.current?.insertBlock(html)} />}
         {(["conflict", "error", "offline"].includes(saveStatus) || (localRecoveryFailed && dirtyRef.current)) && <div className="note-save-feedback print:hidden" role="alert">
           <div><strong>{saveStatus === "conflict" ? "Your writing needs review" : ["error", "offline"].includes(saveStatus) ? "Your changes are not saved yet" : "Local recovery is unavailable"}</strong><p>{["conflict", "error", "offline"].includes(saveStatus) ? saveError || "Keep this page open while you retry or download your work." : "This draft exceeds your browser's local storage capacity. Keep this page open until it says Saved, or download a copy."}{localRecoveryFailed && ["conflict", "error", "offline"].includes(saveStatus) && " A local recovery copy could not be kept on this device."}</p></div>
           <div className="note-save-feedback-actions">{["error", "offline"].includes(saveStatus) && <button type="button" onClick={scheduleAutosave}>Retry save</button>}{recoveredNoteId && ["conflict", "error", "offline"].includes(saveStatus) && <a target="_blank" rel="noopener noreferrer" href={kind === "JOURNAL" ? `/journal/entries/${encodeURIComponent(recoveredNoteId)}` : `/notes/${encodeURIComponent(recoveredNoteId)}`}>Open saved version</a>}<button type="button" onClick={downloadUnsavedWriting}>Download backup</button></div>

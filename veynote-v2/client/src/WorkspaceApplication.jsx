@@ -26,6 +26,7 @@ import WillContactDetail from "./pages/notes/WillContactDetail";
 import WillExecutorDetail from "./pages/notes/WillExecutorDetail";
 import WillLiabilityDetail from "./pages/notes/WillLiabilityDetail";
 import WillCollectionWorkspace, { WillActivityWorkspace, WillDocumentsWorkspace } from "./pages/notes/WillCollectionWorkspace";
+import WillSecurityWorkspace from "./pages/notes/WillSecurityWorkspace";
 
 import LibraryDashboard from "./pages/library/LibraryDashboard";
 import ReadingPage from "./pages/library/ReadingPage";
@@ -137,6 +138,7 @@ export default function WorkspaceApplication() {
         <Route path="will/digital-legacy" element={<WillCollectionWorkspace view="digital" />} />
         <Route path="will/documents" element={<WillDocumentsWorkspace />} />
         <Route path="will/activity" element={<WillActivityWorkspace />} />
+        <Route path="will/security" element={<WillSecurityWorkspace />} />
 
         <Route
           path="will/details/:id"

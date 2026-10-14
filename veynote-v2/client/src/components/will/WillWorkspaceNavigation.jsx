@@ -11,6 +11,7 @@ const ITEMS = [
   ["Digital legacy", "/will/digital-legacy", "key"],
   ["Documents", "/will/documents", "files"],
   ["Activity", "/will/activity", "clock"],
+  ["Security", "/will/security", "shield"],
 ];
 
 export default function WillWorkspaceNavigation() {
