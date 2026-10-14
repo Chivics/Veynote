@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { willApi } from "../../api/will";
 import WillModal from "./WillModal";
 import DeleteConfirmation from "./DeleteConfirmation";
 import { EmptyState } from "./WillSection";
 import "./willDocuments.css";
+import WillEditAuthorization from "./WillEditAuthorization";
+import { clearWillEditToken, getWillEditToken } from "../../utils/vault";
 
 const MAX_DOCUMENT_BYTES = 200 * 1024 * 1024;
 
@@ -24,7 +26,22 @@ export default function WillDocuments({ documents: suppliedDocuments, onChange, 
   const [progress, setProgress] = useState(0);
   const [deleting, setDeleting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [openingId, setOpeningId] = useState("");
   const [error, setError] = useState("");
+  const [editAuthorizationOpen, setEditAuthorizationOpen] = useState(false);
+  const pendingEdit = useRef(null);
+
+  function authorizeEdit(action) {
+    if (getWillEditToken()) { action(); return; }
+    pendingEdit.current = action;
+    setEditAuthorizationOpen(true);
+  }
+  function authorized() {
+    setEditAuthorizationOpen(false);
+    const action = pendingEdit.current;
+    pendingEdit.current = null;
+    action?.();
+  }
 
   useEffect(() => {
     if (controlled) setDocuments(suppliedDocuments.filter((item) => matchesScope(item, scopeType, scopeId)));
@@ -64,7 +81,8 @@ export default function WillDocuments({ documents: suppliedDocuments, onChange, 
       publish(next);
       setFile(null); setOpen(false);
     } catch (err) {
-      setError(err.message || "We couldn't upload this document.");
+      if (err?.requiresVault === "will-edit") { clearWillEditToken(); authorizeEdit(upload); }
+      else setError(err.message || "We couldn't upload this document.");
     } finally {
       setUploading(false); setProgress(0);
     }
@@ -90,16 +108,24 @@ export default function WillDocuments({ documents: suppliedDocuments, onChange, 
       publish(documents.filter((item) => item.id !== deleteTarget.id));
       setDeleteTarget(null);
     } catch (err) {
-      setError(err.message || "We couldn't delete this document.");
+      if (err?.requiresVault === "will-edit") { clearWillEditToken(); authorizeEdit(remove); }
+      else setError(err.message || "We couldn't delete this document.");
     } finally {
       setDeleting(false);
     }
   }
 
+  async function openDocument(document) {
+    setOpeningId(document.id); setError("");
+    try { await willApi.documents.open(document); }
+    catch (err) { setError(err.message || "We couldn't open this protected document."); }
+    finally { setOpeningId(""); }
+  }
+
   return (
     <div>
       <div className="flex justify-end mb-4">
-        <button type="button" className="btn-primary text-xs" onClick={() => setOpen(true)}>Add document</button>
+        <button type="button" className="btn-primary text-xs" onClick={() => authorizeEdit(() => setOpen(true))}>Add document</button>
       </div>
 
       {error && <div className="text-xs text-danger mb-4">{error}</div>}
@@ -117,15 +143,16 @@ export default function WillDocuments({ documents: suppliedDocuments, onChange, 
                 </div>
               </div>
               <div className="flex gap-2 shrink-0">
-                <a href={`${import.meta.env.VITE_API_URL}${document.downloadUrl}`} target="_blank" rel="noreferrer" className="btn-outline text-[10px]">Open</a>
-                <button type="button" className="btn-outline text-[10px]" onClick={() => setDeleteTarget(document)}>Delete</button>
+                <button type="button" className="btn-outline text-[10px]" disabled={openingId === document.id} onClick={() => openDocument(document)}>{openingId === document.id ? "Opening…" : "Open"}</button>
+                <button type="button" className="btn-outline text-[10px]" onClick={() => authorizeEdit(() => setDeleteTarget(document))}>Delete</button>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      <WillModal open={open} title="Add Will document" onClose={() => !uploading && setOpen(false)}>
+      <WillEditAuthorization open={editAuthorizationOpen} onCancel={() => { pendingEdit.current = null; setEditAuthorizationOpen(false); }} onAuthorized={authorized} />
+      <WillModal open={open} title="Add Will document" description="Files are encrypted inside the protected estate boundary." onClose={() => !uploading && setOpen(false)}>
         <div className="space-y-5">
           <div className="estate-document-picker"><input type="file" onChange={chooseFile} className="block w-full text-sm" /><p>Choose a supported document up to 200 MB. Upload progress remains visible while the file is transferred into the protected estate store.</p>{file && <strong>{file.name} · {(file.size / 1024 / 1024).toFixed(file.size >= 1024 * 1024 ? 1 : 2)} MB</strong>}</div>
           {uploading && <div><div className="text-xs mb-2">Uploading {progress}%</div><div className="h-2 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-current transition-all" style={{ width: `${progress}%` }} /></div></div>}

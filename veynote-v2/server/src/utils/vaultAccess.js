@@ -17,4 +17,15 @@ function hasValidVaultAccess(req, purpose) {
   }
 }
 
-module.exports = { hasValidVaultAccess };
+function hasValidVaultEditAccess(req, purpose) {
+  const header = req.headers["x-will-edit-token"];
+  if (!header || purpose !== "will") return false;
+  try {
+    verifyVaultToken(header, req.userId, purpose, "write");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+module.exports = { hasValidVaultAccess, hasValidVaultEditAccess };

@@ -1,4 +1,32 @@
-import { api } from "./client";
+import { api, API_BASE } from "./client";
+
+async function openProtectedDocument(record) {
+  const popup = window.open("", "_blank");
+  if (popup) popup.opener = null;
+  try {
+    const response = await fetch(`${API_BASE}${record.downloadUrl}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("veynote_token") || ""}`,
+        "X-Will-Token": sessionStorage.getItem("veynote_will_token") || "",
+      },
+    });
+    if (!response.ok) {
+      let message = "This protected document could not be opened.";
+      try { message = (await response.json())?.error || message; } catch { /* binary or empty error */ }
+      const error = new Error(message); error.status = response.status; throw error;
+    }
+    const blobUrl = URL.createObjectURL(await response.blob());
+    if (popup) popup.location.href = blobUrl;
+    else {
+      const anchor = document.createElement("a");
+      anchor.href = blobUrl; anchor.download = record.originalName || "estate-document"; anchor.click();
+    }
+    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+  } catch (error) {
+    popup?.close();
+    throw error;
+  }
+}
 
 export const willApi = {
   get() {
@@ -128,6 +156,10 @@ export const willApi = {
 
     remove(id) {
       return api.delete(`/will/documents/${id}`);
+    },
+
+    open(document) {
+      return openProtectedDocument(document);
     },
   },
 

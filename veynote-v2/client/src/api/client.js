@@ -39,6 +39,22 @@ function getWillToken() {
   return sessionStorage.getItem("veynote_will_token");
 }
 
+function getWillEditToken() {
+  const token = sessionStorage.getItem("veynote_will_edit_token");
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    if (payload.access !== "write" || payload.purpose !== "will" || Number(payload.exp || 0) <= Math.floor(Date.now() / 1000)) {
+      sessionStorage.removeItem("veynote_will_edit_token");
+      return null;
+    }
+  } catch {
+    sessionStorage.removeItem("veynote_will_edit_token");
+    return null;
+  }
+  return token;
+}
+
 async function parseResponse(response) {
   const contentType = response.headers.get("content-type") || "";
 
@@ -120,10 +136,12 @@ async function request(path, options = {}) {
   const authToken = getAuthToken();
   const vaultToken = getVaultToken();
   const willToken = getWillToken();
+  const willEditToken = getWillEditToken();
 
   if (authToken) headers.Authorization = `Bearer ${authToken}`;
   if (vaultToken) headers["X-Vault-Token"] = vaultToken;
   if (willToken) headers["X-Will-Token"] = willToken;
+  if (willEditToken) headers["X-Will-Edit-Token"] = willEditToken;
   if (getNoteGrant()) headers["X-Note-Token"] = getNoteGrant();
 
   const response = await fetch(`${BASE}${path}`, {
@@ -186,11 +204,13 @@ export const api = {
     const token = getAuthToken();
     const vaultToken = getVaultToken();
     const willToken = getWillToken();
+    const willEditToken = getWillEditToken();
     const noteGrant = getNoteGrant();
     const response = await fetch(`${BASE}${path}`, {
       method: "PUT",
       headers: { "Content-Type": "application/octet-stream", ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(vaultToken ? { "X-Vault-Token": vaultToken } : {}), ...(willToken ? { "X-Will-Token": willToken } : {}),
+        ...(willEditToken ? { "X-Will-Edit-Token": willEditToken } : {}),
         ...(noteGrant ? { "X-Note-Token": noteGrant } : {}) },
       body: bytes,
       signal,
@@ -212,10 +232,12 @@ export const api = {
       const authToken = getAuthToken();
       const vaultToken = getVaultToken();
       const willToken = getWillToken();
+      const willEditToken = getWillEditToken();
 
       if (authToken) xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
       if (vaultToken) xhr.setRequestHeader("X-Vault-Token", vaultToken);
       if (willToken) xhr.setRequestHeader("X-Will-Token", willToken);
+      if (willEditToken) xhr.setRequestHeader("X-Will-Edit-Token", willEditToken);
       if (getNoteGrant()) xhr.setRequestHeader("X-Note-Token", getNoteGrant());
 
       xhr.upload.onprogress = (event) => {

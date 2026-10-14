@@ -1,12 +1,6 @@
 import { useEffect, useRef } from "react";
 
-export default function WillModal({
-  open,
-  title,
-  children,
-  onClose,
-  wide = false,
-}) {
+export default function WillModal({ open, title, description, children, onClose, wide = false }) {
   const modalRef = useRef(null);
   useEffect(() => {
     if (!open) return;
@@ -15,9 +9,18 @@ export default function WillModal({
 
     document.body.style.overflow = "hidden";
 
+    const previouslyFocused = document.activeElement;
+    window.requestAnimationFrame(() => modalRef.current?.querySelector("input, select, textarea, button")?.focus());
     function handleKeyDown(event) {
       if (event.key === "Escape" && !modalRef.current?.closest("[hidden]")) {
         onClose?.();
+      }
+      if (event.key === "Tab") {
+        const focusable = [...(modalRef.current?.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href]') || [])];
+        if (!focusable.length) return;
+        const first = focusable[0], last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
       }
     }
 
@@ -25,6 +28,7 @@ export default function WillModal({
 
     return () => {
       document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus?.();
       window.removeEventListener(
         "keydown",
         handleKeyDown
@@ -35,7 +39,7 @@ export default function WillModal({
   if (!open) return null;
 
   return (
-    <div ref={modalRef} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
+    <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="will-modal-title" className="will-modal-shell fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
       <button
         type="button"
         aria-label="Close modal"
@@ -45,15 +49,13 @@ export default function WillModal({
 
       <div
         className={[
-          "relative z-10 w-full max-h-[92vh] overflow-y-auto",
+          "relative z-10 w-full",
           "will-modal-panel rounded-t-2xl sm:rounded-2xl",
           wide ? "sm:max-w-5xl" : "sm:max-w-xl",
         ].join(" ")}
       >
         <div className="will-modal-header sticky top-0 z-10 flex items-center justify-between gap-4 px-5 py-4">
-          <h2 className="text-sm font-bold">
-            {title}
-          </h2>
+          <div><h2 id="will-modal-title" className="text-sm font-bold">{title}</h2>{description && <p>{description}</p>}</div>
 
           <button
             type="button"
@@ -64,7 +66,7 @@ export default function WillModal({
           </button>
         </div>
 
-        <div className="p-5">
+        <div className="will-modal-body p-5">
           {children}
         </div>
       </div>

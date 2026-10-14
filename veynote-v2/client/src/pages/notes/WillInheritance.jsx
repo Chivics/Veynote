@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import VaultGate from "../../components/VaultGate";
 import ProtectedContentBoundary from "../../components/ProtectedContentBoundary";
-import { clearVaultToken, getVaultToken } from "../../utils/vault";
+import { clearVaultToken, clearWillEditToken, getVaultToken, getWillEditToken } from "../../utils/vault";
 import { willApi } from "../../api/will";
 import WillModal from "../../components/will/WillModal";
 import DeleteConfirmation from "../../components/will/DeleteConfirmation";
@@ -11,6 +11,7 @@ import WillDocuments from "../../components/will/WillDocuments";
 import { AssetForm, BeneficiaryForm, ContactForm, EMPTY_ASSET, EMPTY_BENEFICIARY, EMPTY_CONTACT, EMPTY_DETAIL, EMPTY_EXECUTOR, EMPTY_LIABILITY, ExecutorForm, LiabilityForm, WillDetailForm, WillProfileForm } from "../../components/will/WillForms";
 import { EmptyState, RecordCard, Section } from "../../components/will/WillSection";
 import WillWorkspaceNavigation from "../../components/will/WillWorkspaceNavigation";
+import WillEditAuthorization from "../../components/will/WillEditAuthorization";
 import "./willWorkspace.css";
 import "./willLiabilities.css";
 
@@ -50,6 +51,8 @@ export default function WillInheritance() {
   const [modal, setModal] = useState(null);
   const [busy, setBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [editAuthorizationOpen, setEditAuthorizationOpen] = useState(false);
+  const pendingEdit = useRef(null);
   const [assetQuery, setAssetQuery] = useState("");
   const [assetFilter, setAssetFilter] = useState("All");
   const [assetSort, setAssetSort] = useState("recent");
@@ -87,7 +90,7 @@ export default function WillInheritance() {
     if (!initial) return;
     const requestedReturn = searchParams.get("returnTo");
     const returnTo = requestedReturn?.startsWith("/will/") ? requestedReturn : "";
-    setModal({ type: create === "digital-legacy" ? "detail" : create, initial, returnTo });
+    openEditor({ type: create === "digital-legacy" ? "detail" : create, initial, returnTo });
     setSearchParams({}, { replace: true });
   }, [unlocked, will, modal, searchParams, setSearchParams]);
 
@@ -95,6 +98,25 @@ export default function WillInheritance() {
     clearVaultToken("will"); setUnlocked(false); setWill(null); setError(""); setNotice(""); setModal(null);
   }
   function flash(message) { setNotice(message); window.setTimeout(() => setNotice(""), 3500); }
+  function authorizeEdit(action) {
+    if (getWillEditToken()) { action(); return; }
+    pendingEdit.current = action;
+    setEditAuthorizationOpen(true);
+  }
+  function openEditor(config) { authorizeEdit(() => setModal(config)); }
+  function confirmDelete(target) { authorizeEdit(() => setDeleteTarget(target)); }
+  function finishEditAuthorization() {
+    setEditAuthorizationOpen(false);
+    const action = pendingEdit.current;
+    pendingEdit.current = null;
+    action?.();
+  }
+  function reauthorizeIfNeeded(err, retry) {
+    if (err?.requiresVault !== "will-edit") return false;
+    clearWillEditToken();
+    authorizeEdit(retry);
+    return true;
+  }
   function closeModal() { if (!busy) setModal(null); }
   function finishSave(message) { const returnTo = modal?.returnTo; setModal(null); flash(message); if (returnTo) navigate(returnTo); }
 
@@ -104,7 +126,7 @@ export default function WillInheritance() {
     try {
       const { will: data } = await willApi.update(form);
       setWill(data); setModal(null); flash("Will title updated.");
-    } catch (err) { console.error("[WillInheritance] profile update failed", err); setError(err.message || "We couldn't update the Will title."); }
+    } catch (err) { console.error("[WillInheritance] profile update failed", err); if (!reauthorizeIfNeeded(err, () => saveProfile(form))) setError(err.message || "We couldn't update the Will title."); }
     finally { setBusy(false); }
   }
 
@@ -116,7 +138,7 @@ export default function WillInheritance() {
       const response = modal.id ? await willApi.details.update(modal.id, form) : await willApi.details.create(form);
       setWill((current) => ({ ...current, details: modal.id ? current.details.map((x) => x.id === response.detail.id ? response.detail : x) : [response.detail, ...(current.details || [])] }));
       finishSave(modal.id ? "Will detail updated." : "Will detail added.");
-    } catch (err) { console.error("[WillInheritance] detail save failed", err); setError(err.message || "We couldn't save this Will detail."); }
+    } catch (err) { console.error("[WillInheritance] detail save failed", err); if (!reauthorizeIfNeeded(err, () => saveDetail(form))) setError(err.message || "We couldn't save this Will detail."); }
     finally { setBusy(false); }
   }
 
@@ -134,7 +156,7 @@ export default function WillInheritance() {
       }
       setWill((current) => ({ ...current, assets: modal.id ? current.assets.map((x) => x.id === nextAsset.id ? nextAsset : x) : [nextAsset, ...(current.assets || [])], documents: [...(supportingFiles.length ? nextAsset.documents.slice(0, supportingFiles.length) : []), ...(current.documents || [])] }));
       finishSave(modal.id ? "Asset updated." : "Asset added.");
-    } catch (err) { console.error("[WillInheritance] asset save failed", err); setError(err.message || "We couldn't save this asset."); }
+    } catch (err) { console.error("[WillInheritance] asset save failed", err); if (!reauthorizeIfNeeded(err, () => saveAsset(form))) setError(err.message || "We couldn't save this asset."); }
     finally { setBusy(false); }
   }
 
@@ -151,7 +173,7 @@ export default function WillInheritance() {
       const response = modal.id ? await willApi.beneficiaries.update(modal.id, form) : await willApi.beneficiaries.create(form);
       setWill((current) => ({ ...current, beneficiaries: modal.id ? current.beneficiaries.map((x) => x.id === response.beneficiary.id ? response.beneficiary : x) : [response.beneficiary, ...(current.beneficiaries || [])] }));
       finishSave(modal.id ? "Beneficiary updated." : "Beneficiary added.");
-    } catch (err) { console.error("[WillInheritance] beneficiary save failed", err); setError(err.message || "We couldn't save this beneficiary."); }
+    } catch (err) { console.error("[WillInheritance] beneficiary save failed", err); if (!reauthorizeIfNeeded(err, () => saveBeneficiary(form))) setError(err.message || "We couldn't save this beneficiary."); }
     finally { setBusy(false); }
   }
 
@@ -162,7 +184,7 @@ export default function WillInheritance() {
       const response = modal.id ? await willApi.contacts.update(modal.id, form) : await willApi.contacts.create(form);
       setWill((current) => ({ ...current, contacts: modal.id ? current.contacts.map((x) => x.id === response.contact.id ? response.contact : x) : [response.contact, ...(current.contacts || [])] }));
       finishSave(modal.id ? "Contact updated." : "Contact added.");
-    } catch (err) { console.error("[WillInheritance] contact save failed", err); setError(err.message || "We couldn't save this contact."); }
+    } catch (err) { console.error("[WillInheritance] contact save failed", err); if (!reauthorizeIfNeeded(err, () => saveContact(form))) setError(err.message || "We couldn't save this contact."); }
     finally { setBusy(false); }
   }
 
@@ -173,7 +195,7 @@ export default function WillInheritance() {
       const response = modal.id ? await willApi.executors.update(modal.id, form) : await willApi.executors.create(form);
       setWill((current) => ({ ...current, executors: modal.id ? current.executors.map((x) => x.id === response.executor.id ? response.executor : x) : [response.executor, ...(current.executors || [])] }));
       finishSave(modal.id ? "Executor updated." : "Executor added.");
-    } catch (err) { console.error("[WillInheritance] executor save failed", err); setError(err.message || "We couldn't save this executor."); }
+    } catch (err) { console.error("[WillInheritance] executor save failed", err); if (!reauthorizeIfNeeded(err, () => saveExecutor(form))) setError(err.message || "We couldn't save this executor."); }
     finally { setBusy(false); }
   }
 
@@ -184,7 +206,7 @@ export default function WillInheritance() {
       const response = modal.id ? await willApi.liabilities.update(modal.id, form) : await willApi.liabilities.create(form);
       setWill((current) => ({ ...current, liabilities: modal.id ? current.liabilities.map((item) => item.id === response.liability.id ? response.liability : item) : [response.liability, ...(current.liabilities || [])] }));
       finishSave(modal.id ? "Liability updated." : "Liability added.");
-    } catch (err) { console.error("[WillInheritance] liability save failed", err); setError(err.message || "We couldn't save this liability."); }
+    } catch (err) { console.error("[WillInheritance] liability save failed", err); if (!reauthorizeIfNeeded(err, () => saveLiability(form))) setError(err.message || "We couldn't save this liability."); }
     finally { setBusy(false); }
   }
 
@@ -202,7 +224,7 @@ export default function WillInheritance() {
       const collection = type === "detail" ? "details" : type === "liability" ? "liabilities" : `${type}s`;
       setWill((current) => ({ ...current, [collection]: (current[collection] || []).filter((x) => x.id !== id) }));
       setDeleteTarget(null); flash(`${deleteTarget.label} removed.`);
-    } catch (err) { console.error("[WillInheritance] delete failed", err); setError(err.message || `We couldn't remove this ${deleteTarget.label.toLowerCase()}.`); }
+    } catch (err) { console.error("[WillInheritance] delete failed", err); if (!reauthorizeIfNeeded(err, deleteRecord)) setError(err.message || `We couldn't remove this ${deleteTarget.label.toLowerCase()}.`); }
     finally { setBusy(false); }
   }
 
@@ -271,7 +293,7 @@ export default function WillInheritance() {
           <h1 className="page-title">{will?.title || "My Will & Inheritance"}</h1>
           <p>Build a connected record of what you own, who matters, and how every responsibility should be carried forward.</p>
           <div className="estate-command-meta"><span>Protected boundary</span><span>Last reviewed {date(will?.updatedAt)}</span></div>
-          <div className="estate-command-actions"><button type="button" className="btn-primary" onClick={() => setModal({ type: "asset", initial: EMPTY_ASSET })}>+ Build an asset record</button><button type="button" className="btn-outline" onClick={() => setModal({ type: "profile", initial: { title: will?.title || "My Will & Inheritance" } })}>Edit estate title</button><button type="button" className="btn-outline" onClick={lock}>Lock workspace</button></div>
+          <div className="estate-command-actions"><button type="button" className="btn-primary" onClick={() => openEditor({ type: "asset", initial: EMPTY_ASSET })}>+ Build an asset record</button><button type="button" className="btn-outline" onClick={() => openEditor({ type: "profile", initial: { title: will?.title || "My Will & Inheritance" } })}>Edit estate title</button><button type="button" className="btn-outline" onClick={lock}>Lock workspace</button></div>
         </div>
         <div className="estate-command-seal" aria-label="Estate record status"><strong>{completionItems.filter(item => item.complete).length}<span>/{completionItems.length}</span></strong><small>readiness records complete</small><p>{attentionItems.length ? `${attentionItems.length} ${attentionItems.length === 1 ? "matter needs" : "matters need"} review` : "No immediate gaps detected"}</p></div>
       </header>
@@ -286,35 +308,35 @@ export default function WillInheritance() {
         <div className="estate-balance-strip"><div><span>Recorded asset value</span><strong>{estimatedEstateValue ? estimatedEstateValue.toLocaleString() : "Not calculated"}</strong></div><div><span>Active obligations</span><strong>{estimatedLiabilities ? estimatedLiabilities.toLocaleString() : "None recorded"}</strong></div><div className="is-net"><span>Indicative net position</span><strong>{estimatedEstateValue || estimatedLiabilities ? (estimatedEstateValue - estimatedLiabilities).toLocaleString() : "—"}</strong><small>For record-keeping only; values may use different currencies.</small></div></div>
         <CompletionCard items={completionItems} attention={attentionItems} />
 
-        <Section id="estate-instructions" eyebrow="01 · WILL DETAILS" title="Your wishes & instructions" count={`${details.length} ${details.length === 1 ? "detail" : "details"}`} description="Create focused records instead of putting your entire estate plan into one long form." action={<button type="button" className="btn-primary" onClick={() => setModal({ type: "detail", initial: EMPTY_DETAIL })}>+ Add Will Detail</button>}>
-          {details.length === 0 ? <EmptyState title="No Will details yet" description="Add personal wishes, funeral wishes, digital legacy instructions, family messages or other special requests." action={<button type="button" className="btn-outline" onClick={() => setModal({ type: "detail", initial: EMPTY_DETAIL })}>+ Add Will Detail</button>} /> : <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">{details.map((item) => <RecordCard key={item.id} to={`/will/details/${item.id}`} title={item.title} meta={`Updated ${shortDate(item.updatedAt)}`} badge={item.type.replaceAll("-", " ")} description={item.content} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => setModal({ type: "detail", id: item.id, initial: { type: item.type, title: item.title, content: item.content } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => setDeleteTarget({ type: "detail", id: item.id, label: "Will detail", name: item.title })}>Delete</button></>} />)}</div>}
+        <Section id="estate-instructions" eyebrow="01 · WILL DETAILS" title="Your wishes & instructions" count={`${details.length} ${details.length === 1 ? "detail" : "details"}`} description="Create focused records instead of putting your entire estate plan into one long form." action={<button type="button" className="btn-primary" onClick={() => openEditor({ type: "detail", initial: EMPTY_DETAIL })}>+ Add Will Detail</button>}>
+          {details.length === 0 ? <EmptyState title="No Will details yet" description="Add personal wishes, funeral wishes, digital legacy instructions, family messages or other special requests." action={<button type="button" className="btn-outline" onClick={() => openEditor({ type: "detail", initial: EMPTY_DETAIL })}>+ Add Will Detail</button>} /> : <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">{details.map((item) => <RecordCard key={item.id} to={`/will/details/${item.id}`} title={item.title} meta={`Updated ${shortDate(item.updatedAt)}`} badge={item.type.replaceAll("-", " ")} description={item.content} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => openEditor({ type: "detail", id: item.id, initial: { type: item.type, title: item.title, content: item.content } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => confirmDelete({ type: "detail", id: item.id, label: "Will detail", name: item.title })}>Delete</button></>} />)}</div>}
         </Section>
 
-        <Section id="estate-assets" eyebrow="02 · ASSETS" title="What you own" count={`${assets.length} ${assets.length === 1 ? "asset" : "assets"}`} description="Keep concise summaries here. Open an asset to see its full record and supporting documents." action={<button type="button" className="btn-primary" onClick={() => setModal({ type: "asset", initial: EMPTY_ASSET })}>+ Add Asset</button>}>
+        <Section id="estate-assets" eyebrow="02 · ASSETS" title="What you own" count={`${assets.length} ${assets.length === 1 ? "asset" : "assets"}`} description="Keep concise summaries here. Open an asset to see its full record and supporting documents." action={<button type="button" className="btn-primary" onClick={() => openEditor({ type: "asset", initial: EMPTY_ASSET })}>+ Add Asset</button>}>
           {assets.length > 0 && <div className="grid sm:grid-cols-[1fr_auto_auto] gap-2 mb-4"><input className="input" value={assetQuery} onChange={(e) => setAssetQuery(e.target.value)} placeholder="Search assets…" /><select className="input sm:w-[170px]" value={assetFilter} onChange={(e) => setAssetFilter(e.target.value)}>{ASSET_FILTERS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><select className="input sm:w-[170px]" value={assetSort} onChange={(e) => setAssetSort(e.target.value)}><option value="recent">Recently updated</option><option value="name">Name</option><option value="value">Estimated value</option></select></div>}
-          {assets.length === 0 ? <EmptyState title="No assets yet" description="Keep property, accounts, investments, vehicles, valuables and digital assets organised here." action={<button type="button" className="btn-outline" onClick={() => setModal({ type: "asset", initial: EMPTY_ASSET })}>+ Add Asset</button>} /> : filteredAssets.length === 0 ? <EmptyState title="No matching assets" description="Try another search or filter." /> : <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">{filteredAssets.map((item) => <RecordCard key={item.id} to={`/will/assets/${item.id}`} title={item.name} meta={item.estimatedValue || "Value not specified"} badge={item.type} description={item.description} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => setModal({ type: "asset", id: item.id, initial: { ...EMPTY_ASSET, ...item } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => setDeleteTarget({ type: "asset", id: item.id, label: "Asset", name: item.name })}>Delete</button></>} />)}</div>}
+          {assets.length === 0 ? <EmptyState title="No assets yet" description="Keep property, accounts, investments, vehicles, valuables and digital assets organised here." action={<button type="button" className="btn-outline" onClick={() => openEditor({ type: "asset", initial: EMPTY_ASSET })}>+ Add Asset</button>} /> : filteredAssets.length === 0 ? <EmptyState title="No matching assets" description="Try another search or filter." /> : <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">{filteredAssets.map((item) => <RecordCard key={item.id} to={`/will/assets/${item.id}`} title={item.name} meta={item.estimatedValue || "Value not specified"} badge={item.type} description={item.description} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => openEditor({ type: "asset", id: item.id, initial: { ...EMPTY_ASSET, ...item } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => confirmDelete({ type: "asset", id: item.id, label: "Asset", name: item.name })}>Delete</button></>} />)}</div>}
         </Section>
 
-        <Section id="estate-liabilities" eyebrow="03 · LIABILITIES" title="What the estate must settle" count={`${liabilities.length} ${liabilities.length === 1 ? "obligation" : "obligations"}`} description="Connect mortgages, loans, debts, tax positions, and other obligations to the assets they affect." action={<button type="button" className="btn-outline" onClick={() => setModal({ type: "liability", initial: EMPTY_LIABILITY })}>+ Add Liability</button>}>
-          {liabilities.length === 0 ? <EmptyState title="No liabilities recorded" description="Add active obligations so beneficiaries and representatives can understand the estate's net position." action={<button type="button" className="btn-outline" onClick={() => setModal({ type: "liability", initial: EMPTY_LIABILITY })}>+ Add Liability</button>} /> : <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">{liabilities.map((item) => <RecordCard key={item.id} to={`/will/liabilities/${item.id}`} title={item.name} meta={[item.amount && `${item.currency || ""} ${item.amount}`.trim(), item.asset?.name && `Linked to ${item.asset.name}`].filter(Boolean).join(" · ") || "Amount not specified"} badge={item.status} description={[item.lender, item.notes].filter(Boolean).join(" — ")} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => setModal({ type: "liability", id: item.id, initial: { ...EMPTY_LIABILITY, ...item } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => setDeleteTarget({ type: "liability", id: item.id, label: "Liability", name: item.name })}>Delete</button></>} />)}</div>}
+        <Section id="estate-liabilities" eyebrow="03 · LIABILITIES" title="What the estate must settle" count={`${liabilities.length} ${liabilities.length === 1 ? "obligation" : "obligations"}`} description="Connect mortgages, loans, debts, tax positions, and other obligations to the assets they affect." action={<button type="button" className="btn-outline" onClick={() => openEditor({ type: "liability", initial: EMPTY_LIABILITY })}>+ Add Liability</button>}>
+          {liabilities.length === 0 ? <EmptyState title="No liabilities recorded" description="Add active obligations so beneficiaries and representatives can understand the estate's net position." action={<button type="button" className="btn-outline" onClick={() => openEditor({ type: "liability", initial: EMPTY_LIABILITY })}>+ Add Liability</button>} /> : <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">{liabilities.map((item) => <RecordCard key={item.id} to={`/will/liabilities/${item.id}`} title={item.name} meta={[item.amount && `${item.currency || ""} ${item.amount}`.trim(), item.asset?.name && `Linked to ${item.asset.name}`].filter(Boolean).join(" · ") || "Amount not specified"} badge={item.status} description={[item.lender, item.notes].filter(Boolean).join(" — ")} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => openEditor({ type: "liability", id: item.id, initial: { ...EMPTY_LIABILITY, ...item } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => confirmDelete({ type: "liability", id: item.id, label: "Liability", name: item.name })}>Delete</button></>} />)}</div>}
         </Section>
 
-        <Section id="estate-beneficiaries" eyebrow="04 · BENEFICIARIES" title="Who should receive what" count={`${beneficiaries.length} ${beneficiaries.length === 1 ? "beneficiary" : "beneficiaries"}`} description="Record people, organisations, charities or trusts and describe their entitlement clearly." action={<button type="button" className="btn-primary" onClick={() => setModal({ type: "beneficiary", initial: EMPTY_BENEFICIARY })}>+ Add Beneficiary</button>}>
+        <Section id="estate-beneficiaries" eyebrow="04 · BENEFICIARIES" title="Who should receive what" count={`${beneficiaries.length} ${beneficiaries.length === 1 ? "beneficiary" : "beneficiaries"}`} description="Record people, organisations, charities or trusts and describe their entitlement clearly." action={<button type="button" className="btn-primary" onClick={() => openEditor({ type: "beneficiary", initial: EMPTY_BENEFICIARY })}>+ Add Beneficiary</button>}>
           {beneficiaries.length > 0 && <div className="grid sm:grid-cols-[1fr_auto_auto] gap-2 mb-4"><input className="input" value={beneficiaryQuery} onChange={(e) => setBeneficiaryQuery(e.target.value)} placeholder="Search beneficiaries…" /><select className="input sm:w-[170px]" value={beneficiaryFilter} onChange={(e) => setBeneficiaryFilter(e.target.value)}>{BENEFICIARY_FILTERS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><select className="input sm:w-[170px]" value={beneficiarySort} onChange={(e) => setBeneficiarySort(e.target.value)}><option value="recent">Recently updated</option><option value="name">Name</option><option value="allocation">Allocation</option></select></div>}
-          {beneficiaries.length === 0 ? <EmptyState title="No beneficiaries yet" description="Add the people or organisations you want your Will to recognise." action={<button type="button" className="btn-outline" onClick={() => setModal({ type: "beneficiary", initial: EMPTY_BENEFICIARY })}>+ Add Beneficiary</button>} /> : filteredBeneficiaries.length === 0 ? <EmptyState title="No matching beneficiaries" description="Try another search or filter." /> : <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">{filteredBeneficiaries.map((item) => <RecordCard key={item.id} to={`/will/beneficiaries/${item.id}`} title={item.name} meta={item.allocation || "Entitlement not specified"} badge={item.beneficiaryType} description={item.relationship || item.specificEntitlement} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => setModal({ type: "beneficiary", id: item.id, initial: { ...EMPTY_BENEFICIARY, ...item } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => setDeleteTarget({ type: "beneficiary", id: item.id, label: "Beneficiary", name: item.name })}>Delete</button></>} />)}</div>}
+          {beneficiaries.length === 0 ? <EmptyState title="No beneficiaries yet" description="Add the people or organisations you want your Will to recognise." action={<button type="button" className="btn-outline" onClick={() => openEditor({ type: "beneficiary", initial: EMPTY_BENEFICIARY })}>+ Add Beneficiary</button>} /> : filteredBeneficiaries.length === 0 ? <EmptyState title="No matching beneficiaries" description="Try another search or filter." /> : <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">{filteredBeneficiaries.map((item) => <RecordCard key={item.id} to={`/will/beneficiaries/${item.id}`} title={item.name} meta={item.allocation || "Entitlement not specified"} badge={item.beneficiaryType} description={item.relationship || item.specificEntitlement} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => openEditor({ type: "beneficiary", id: item.id, initial: { ...EMPTY_BENEFICIARY, ...item } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => confirmDelete({ type: "beneficiary", id: item.id, label: "Beneficiary", name: item.name })}>Delete</button></>} />)}</div>}
         </Section>
 
-        <Section id="estate-digital" eyebrow="05 · DIGITAL LEGACY" title="Your digital estate" count={`${details.filter((x) => String(x.type || "").replaceAll("_", "-") === "digital-legacy").length} ${details.filter((x) => String(x.type || "").replaceAll("_", "-") === "digital-legacy").length === 1 ? "record" : "records"}`} description="Document how you want email, domains, cloud files, subscriptions, cryptocurrency and other digital assets handled. Never store raw passwords here." action={<button type="button" className="btn-outline" onClick={() => setModal({ type: "detail", initial: { ...EMPTY_DETAIL, type: "digital-legacy", title: "Digital Legacy" } })}>+ Add Digital Legacy</button>}>
-          {details.filter((x) => String(x.type || "").replaceAll("_", "-") === "digital-legacy").length === 0 ? <EmptyState title="No digital legacy record yet" description="Create a focused record for digital accounts, files, domains, subscriptions or cryptocurrency instructions." /> : <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">{details.filter((x) => String(x.type || "").replaceAll("_", "-") === "digital-legacy").map((item) => <RecordCard key={item.id} to={`/will/details/${item.id}`} title={item.title} meta={`Updated ${shortDate(item.updatedAt)}`} badge="digital legacy" description={item.content} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => setModal({ type: "detail", id: item.id, initial: { type: item.type, title: item.title, content: item.content } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => setDeleteTarget({ type: "detail", id: item.id, label: "Will detail", name: item.title })}>Delete</button></>} />)}</div>}
+        <Section id="estate-digital" eyebrow="05 · DIGITAL LEGACY" title="Your digital estate" count={`${details.filter((x) => String(x.type || "").replaceAll("_", "-") === "digital-legacy").length} ${details.filter((x) => String(x.type || "").replaceAll("_", "-") === "digital-legacy").length === 1 ? "record" : "records"}`} description="Document how you want email, domains, cloud files, subscriptions, cryptocurrency and other digital assets handled. Never store raw passwords here." action={<button type="button" className="btn-outline" onClick={() => openEditor({ type: "detail", initial: { ...EMPTY_DETAIL, type: "digital-legacy", title: "Digital Legacy" } })}>+ Add Digital Legacy</button>}>
+          {details.filter((x) => String(x.type || "").replaceAll("_", "-") === "digital-legacy").length === 0 ? <EmptyState title="No digital legacy record yet" description="Create a focused record for digital accounts, files, domains, subscriptions or cryptocurrency instructions." /> : <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">{details.filter((x) => String(x.type || "").replaceAll("_", "-") === "digital-legacy").map((item) => <RecordCard key={item.id} to={`/will/details/${item.id}`} title={item.title} meta={`Updated ${shortDate(item.updatedAt)}`} badge="digital legacy" description={item.content} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => openEditor({ type: "detail", id: item.id, initial: { type: item.type, title: item.title, content: item.content } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => confirmDelete({ type: "detail", id: item.id, label: "Will detail", name: item.title })}>Delete</button></>} />)}</div>}
         </Section>
 
         <div id="estate-people" className="grid lg:grid-cols-2 gap-4 scroll-mt-28">
-          <Section eyebrow="06 · EXECUTORS" title="Personal representatives" count={`${executors.length} ${executors.length === 1 ? "executor" : "executors"}`} description="Optionally record the people you trust to help administer your wishes." action={<button type="button" className="btn-outline" onClick={() => setModal({ type: "executor", initial: EMPTY_EXECUTOR })}>+ Add Executor</button>}>
-            {executors.length === 0 ? <EmptyState title="No executor added" description="Add one or more personal representatives if appropriate." /> : <div className="grid gap-2.5">{executors.map((item) => <RecordCard key={item.id} to={`/will/executors/${item.id}`} title={item.name} meta={item.relationship || "Personal representative"} description={item.contact} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => setModal({ type: "executor", id: item.id, initial: { ...EMPTY_EXECUTOR, ...item } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => setDeleteTarget({ type: "executor", id: item.id, label: "Executor", name: item.name })}>Delete</button></>} />)}</div>}
+          <Section eyebrow="06 · EXECUTORS" title="Personal representatives" count={`${executors.length} ${executors.length === 1 ? "executor" : "executors"}`} description="Optionally record the people you trust to help administer your wishes." action={<button type="button" className="btn-outline" onClick={() => openEditor({ type: "executor", initial: EMPTY_EXECUTOR })}>+ Add Executor</button>}>
+            {executors.length === 0 ? <EmptyState title="No executor added" description="Add one or more personal representatives if appropriate." /> : <div className="grid gap-2.5">{executors.map((item) => <RecordCard key={item.id} to={`/will/executors/${item.id}`} title={item.name} meta={item.relationship || "Personal representative"} description={item.contact} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => openEditor({ type: "executor", id: item.id, initial: { ...EMPTY_EXECUTOR, ...item } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => confirmDelete({ type: "executor", id: item.id, label: "Executor", name: item.name })}>Delete</button></>} />)}</div>}
           </Section>
 
-          <Section eyebrow="07 · IMPORTANT CONTACTS" title="People who may need to help" count={`${contacts.length} ${contacts.length === 1 ? "contact" : "contacts"}`} action={<button type="button" className="btn-outline" onClick={() => setModal({ type: "contact", initial: EMPTY_CONTACT })}>+ Add Contact</button>}>
-            {contacts.length === 0 ? <EmptyState title="No important contacts" description="Lawyers, advisers, family members and other people can be kept here." /> : <div className="grid gap-2.5">{contacts.map((item) => <RecordCard key={item.id} to={`/will/contacts/${item.id}`} title={item.name} meta={item.type} description={[item.phone, item.email].filter(Boolean).join(" · ")} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => setModal({ type: "contact", id: item.id, initial: { ...EMPTY_CONTACT, ...item } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => setDeleteTarget({ type: "contact", id: item.id, label: "Contact", name: item.name })}>Delete</button></>} />)}</div>}
+          <Section eyebrow="07 · IMPORTANT CONTACTS" title="People who may need to help" count={`${contacts.length} ${contacts.length === 1 ? "contact" : "contacts"}`} action={<button type="button" className="btn-outline" onClick={() => openEditor({ type: "contact", initial: EMPTY_CONTACT })}>+ Add Contact</button>}>
+            {contacts.length === 0 ? <EmptyState title="No important contacts" description="Lawyers, advisers, family members and other people can be kept here." /> : <div className="grid gap-2.5">{contacts.map((item) => <RecordCard key={item.id} to={`/will/contacts/${item.id}`} title={item.name} meta={item.type} description={[item.phone, item.email].filter(Boolean).join(" · ")} actions={<><button type="button" className="text-[10px] font-semibold text-ink-soft" onClick={() => openEditor({ type: "contact", id: item.id, initial: { ...EMPTY_CONTACT, ...item } })}>Edit</button><button type="button" className="text-[10px] font-semibold text-danger" onClick={() => confirmDelete({ type: "contact", id: item.id, label: "Contact", name: item.name })}>Delete</button></>} />)}</div>}
           </Section>
         </div>
 
@@ -329,6 +351,7 @@ export default function WillInheritance() {
         <p className="text-[9.5px] text-ink-muted leading-relaxed max-w-3xl">Veynote is a private record-keeping workspace. Information stored here is not a substitute for a legally executed Will, estate-planning instrument or professional legal advice. Review important arrangements with a qualified professional where appropriate.</p>
       </div>
 
+      <WillEditAuthorization open={editAuthorizationOpen} onCancel={() => { pendingEdit.current = null; setEditAuthorizationOpen(false); }} onAuthorized={finishEditAuthorization} />
       <WillModal open={modal?.type === "profile"} title="Edit Will Title" onClose={closeModal}><WillProfileForm initialTitle={modal?.initial?.title} onSubmit={saveProfile} onCancel={closeModal} busy={busy} /></WillModal>
       <WillModal open={modal?.type === "detail"} title={modal?.id ? "Edit Will Detail" : "Add Will Detail"} description="Create one focused record for a specific part of your wishes." onClose={closeModal}><WillDetailForm initial={modal?.initial || EMPTY_DETAIL} onSubmit={saveDetail} onCancel={closeModal} busy={busy} /></WillModal>
       <WillModal open={modal?.type === "asset"} title={modal?.id ? "Review & Edit Asset" : "Build an Asset Record"} wide onClose={closeModal}><AssetForm initial={modal?.initial || EMPTY_ASSET} beneficiaries={beneficiaries} executors={executors} onCreateBeneficiary={createBeneficiaryFromAsset} onSubmit={saveAsset} onCancel={closeModal} busy={busy} /></WillModal>

@@ -39,6 +39,15 @@ test("vault tokens cannot authenticate an account or cross user/purpose boundari
   }
 });
 
+test("estate viewing grants cannot authorize estate mutations", () => {
+  const viewing = signVaultToken("alice", "will");
+  const editing = signVaultToken("alice", "will", "write");
+  assert.equal(verifyVaultToken(viewing, "alice", "will", "read").access, "read");
+  assert.equal(verifyVaultToken(editing, "alice", "will", "write").access, "write");
+  assert.throws(() => verifyVaultToken(viewing, "alice", "will", "write"));
+  assert.throws(() => verifyVaultToken(editing, "alice", "will", "read"));
+});
+
 test("legacy, expired, malformed and incorrectly scoped tokens fail closed", () => {
   const secret = process.env.JWT_SECRET;
   const claims = { sub: "alice", purpose: "session" };

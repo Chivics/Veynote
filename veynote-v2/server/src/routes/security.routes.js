@@ -88,6 +88,8 @@ router.post("/:vault/verify", asyncHandler(async (req, res) => {
   if (!config) return res.status(404).json({ error: "Unknown vault." });
 
   const noteId = req.body.noteId;
+  const access = req.body.access === "write" ? "write" : "read";
+  if (access === "write" && req.params.vault !== "will") return res.status(400).json({ error: "Edit authorization is only available for estate records." });
   if (typeof req.body.password !== "string" || Buffer.byteLength(req.body.password, "utf8") > 72) return res.status(400).json({ error: "Enter your protection password." });
   if (noteId !== undefined) {
     if (config.purpose !== "vault" || typeof noteId !== "string") return res.status(400).json({ error: "Invalid note." });
@@ -106,8 +108,8 @@ router.post("/:vault/verify", asyncHandler(async (req, res) => {
     return res.status(401).json({ error: "Incorrect password." });
   }
 
-  const token = noteId ? signNoteToken(req.userId, noteId) : signVaultToken(req.userId, config.purpose);
-  await recordVaultSecurityActivity(prisma, { userId: req.userId, scope: req.params.vault, action: noteId ? "record_unlock_succeeded" : "collection_unlock_succeeded", method: "password", outcome: "succeeded" });
+  const token = noteId ? signNoteToken(req.userId, noteId) : signVaultToken(req.userId, config.purpose, access);
+  await recordVaultSecurityActivity(prisma, { userId: req.userId, scope: req.params.vault, action: noteId ? "record_unlock_succeeded" : access === "write" ? "edit_authorized" : "collection_unlock_succeeded", method: "password", outcome: "succeeded" });
   res.json({ token });
 }));
 

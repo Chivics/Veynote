@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import VaultGate from "../../components/VaultGate";
 import ProtectedContentBoundary from "../../components/ProtectedContentBoundary";
 import {
   clearVaultToken,
+  clearWillEditToken,
   getVaultToken,
+  getWillEditToken,
 } from "../../utils/vault";
 
 import { willApi } from "../../api/will";
@@ -15,6 +17,7 @@ import WillModal from "../../components/will/WillModal";
 import DeleteConfirmation from "../../components/will/DeleteConfirmation";
 import WillDocuments from "../../components/will/WillDocuments";
 import WillWorkspaceNavigation from "../../components/will/WillWorkspaceNavigation";
+import WillEditAuthorization from "../../components/will/WillEditAuthorization";
 import "./willWorkspace.css";
 import "./willCollectionWorkspace.css";
 
@@ -145,6 +148,20 @@ export default function WillRecordDetail({ kind }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const [busy, setBusy] = useState(false);
+  const [editAuthorizationOpen, setEditAuthorizationOpen] = useState(false);
+  const pendingEdit = useRef(null);
+
+  function authorizeEdit(action) {
+    if (getWillEditToken()) { action(); return; }
+    pendingEdit.current = action;
+    setEditAuthorizationOpen(true);
+  }
+  function authorized() {
+    setEditAuthorizationOpen(false);
+    const action = pendingEdit.current;
+    pendingEdit.current = null;
+    action?.();
+  }
 
 
   /*
@@ -289,6 +306,11 @@ export default function WillRecordDetail({ kind }) {
         err
       );
 
+      if (err?.requiresVault === "will-edit") {
+        clearWillEditToken();
+        authorizeEdit(() => save(form));
+        return;
+      }
       if (err?.requiresVault) {
         clearVaultToken("will");
 
@@ -333,6 +355,11 @@ export default function WillRecordDetail({ kind }) {
         err
       );
 
+      if (err?.requiresVault === "will-edit") {
+        clearWillEditToken();
+        authorizeEdit(remove);
+        return;
+      }
       if (err?.requiresVault) {
         clearVaultToken("will");
 
@@ -496,7 +523,7 @@ export default function WillRecordDetail({ kind }) {
           <button
             type="button"
             className="btn-outline text-xs"
-            onClick={() => setModalOpen(true)}
+            onClick={() => authorizeEdit(() => setModalOpen(true))}
             disabled={busy}
           >
             Edit
@@ -505,7 +532,7 @@ export default function WillRecordDetail({ kind }) {
           <button
             type="button"
             className="btn-outline text-danger text-xs"
-            onClick={() => setDeleteOpen(true)}
+            onClick={() => authorizeEdit(() => setDeleteOpen(true))}
             disabled={busy}
           >
             Delete
@@ -843,6 +870,8 @@ export default function WillRecordDetail({ kind }) {
 
       </div>
 
+
+      <WillEditAuthorization open={editAuthorizationOpen} onCancel={() => { pendingEdit.current = null; setEditAuthorizationOpen(false); }} onAuthorized={authorized} />
 
       {/* Edit modal */}
       <WillModal

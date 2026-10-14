@@ -5,7 +5,7 @@ const fs = require("fs");
 const crypto = require("crypto");
 const prisma = require("../lib/prisma");
 const { requireAuth } = require("../middleware/auth");
-const { hasValidVaultAccess } = require("../utils/vaultAccess");
+const { hasValidVaultAccess, hasValidVaultEditAccess } = require("../utils/vaultAccess");
 const { isAllowedMime } = require("../utils/fileTypes");
 const { normalizeAssetAllocations } = require("../utils/willAssetAllocations");
 
@@ -42,6 +42,19 @@ function requireWillAccess(req, res) {
   }
   return true;
 }
+
+function requireWillEditAccess(req, res) {
+  if (!hasValidVaultEditAccess(req, "will")) {
+    res.status(401).json({ error: "Confirm your estate protection password before making changes.", requiresVault: "will-edit", code: "WILL_EDIT_AUTH_REQUIRED" });
+    return false;
+  }
+  return true;
+}
+
+router.use((req, res, next) => {
+  if (["POST", "PATCH", "PUT", "DELETE"].includes(req.method) && !requireWillEditAccess(req, res)) return;
+  next();
+});
 
 function clean(value) {
   if (value === undefined || value === null) return null;
