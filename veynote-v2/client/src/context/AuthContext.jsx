@@ -18,6 +18,7 @@ export function AuthProvider({ children }) {
     clearNoteGrant(); api.clearCache();
     sessionStorage.removeItem("veynote_vault_token");
     sessionStorage.removeItem("veynote_will_token");
+    sessionStorage.removeItem("veynote_will_edit_token");
   }
   const acceptSession = useCallback(value => {
     sessionRef.current = value; setSession(value);
@@ -169,6 +170,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem("token");
     sessionStorage.removeItem("veynote_vault_token");
     sessionStorage.removeItem("veynote_will_token");
+    sessionStorage.removeItem("veynote_will_edit_token");
     setUser(null);
     acceptSession(null);
   }
