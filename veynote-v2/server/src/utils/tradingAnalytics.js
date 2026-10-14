@@ -30,7 +30,7 @@ function calculateTradingAnalytics(entries = []) {
   const ordered = [...trades].sort((a, b) => new Date(a.entryDate) - new Date(b.entryDate));
   const wins = ordered.filter((trade) => trade.result === "WIN");
   const losses = ordered.filter((trade) => trade.result === "LOSS");
-  const breakEven = ordered.filter((trade) => trade.result === "BREAKEVEN");
+  const breakEven = ordered.filter((trade) => trade.result === "BREAK_EVEN");
   const withPlannedRisk = ordered.filter((trade) => Number.isFinite(trade.riskReward));
   const withMoney = ordered.filter((trade) => Number.isFinite(trade.profitLoss));
 
@@ -55,6 +55,8 @@ function calculateTradingAnalytics(entries = []) {
     ? rounded(rows.reduce((sum, row) => sum + selector(row), 0) / rows.length)
     : null;
   const ranked = [...ordered].sort((a, b) => (b.achievedR || 0) - (a.achievedR || 0));
+  const grossWinR = wins.reduce((sum, trade) => sum + Math.max(0, trade.achievedR || 0), 0);
+  const grossLossR = losses.reduce((sum, trade) => sum + Math.abs(Math.min(0, trade.achievedR || 0)), 0);
   const setupBreakdown = summarizeGroup(ordered, (trade) => (trade.setupTypes || "").split(",").map((item) => item.trim()));
   const instrumentBreakdown = summarizeGroup(ordered, (trade) => [trade.asset]);
   const directionBreakdown = summarizeGroup(ordered, (trade) => [trade.direction]);
@@ -78,6 +80,8 @@ function calculateTradingAnalytics(entries = []) {
     breakEven: breakEven.length,
     winRate: Math.round((wins.length / ordered.length) * 100),
     totalR: rounded(runningR),
+    expectancy: rounded(runningR / ordered.length),
+    profitFactor: grossLossR ? rounded(grossWinR / grossLossR) : grossWinR ? null : 0,
     realizedPnl: withMoney.length ? rounded(withMoney.reduce((sum, trade) => sum + trade.profitLoss, 0)) : null,
     avgRiskReward: average(withPlannedRisk, (trade) => trade.riskReward),
     averageWin: average(wins, (trade) => trade.achievedR || 0),

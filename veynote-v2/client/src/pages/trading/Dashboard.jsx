@@ -53,9 +53,11 @@ export default function TradingDashboard() {
 
       <section className="trading-briefing" aria-label="Trading briefing"><div><span>Open exposure</span><strong>{entries ? openPositions.length : "—"}</strong><small>{openPositions.length ? openPositions.map(item=>item.asset).filter(Boolean).slice(0,2).join(" · ") : "No open trades recorded"}</small></div><div><span>Evidence coverage</span><strong>{journalCoverage == null ? "—" : `${journalCoverage}%`}</strong><small>Closed trades with psychology context</small></div><div><span>Account coverage</span><strong>{accounts ? activeAccounts.length : "—"}</strong><small>{accounts?.length ? `${accounts.length} total workspaces` : "Add an account to separate performance"}</small></div><div><span>Next review</span><strong>{closedTrades ? "Ready" : "Pending"}</strong><small>{closedTrades ? "Analytics can identify patterns" : "Record a completed outcome"}</small></div></section>
 
+      <section className="trading-edge-ledger" aria-label="Trading edge summary"><header><span className="eyebrow">EDGE & RISK LEDGER</span><h2>What the closed evidence currently supports.</h2><p>Metrics are calculated only from recorded closed trades. Open positions never distort the performance baseline.</p></header><dl><div><dt>Expectancy</dt><dd>{analytics?.hasData ? `${analytics.expectancy > 0 ? "+" : ""}${analytics.expectancy}R` : "—"}</dd><small>average result per trade</small></div><div><dt>Profit factor</dt><dd>{analytics?.hasData ? analytics.profitFactor == null ? "∞" : analytics.profitFactor : "—"}</dd><small>gross R won ÷ lost</small></div><div><dt>Drawdown</dt><dd>{analytics?.hasData ? `${analytics.maximumDrawdown}R` : "—"}</dd><small>maximum peak-to-trough</small></div><div><dt>Best setup</dt><dd>{analytics?.bestSetup?.key || "—"}</dd><small>{analytics?.bestSetup ? `${analytics.bestSetup.totalR > 0 ? "+" : ""}${analytics.bestSetup.totalR}R · ${analytics.bestSetup.count} trades` : "needs closed evidence"}</small></div></dl><Link to="/trading/analytics">Open full performance intelligence <NavigationIcon name="chevron" size={14}/></Link></section>
+
       <nav className="trading-command-links" aria-label="Trading workspace shortcuts"><Link to="/trading/analytics"><NavigationIcon name="chart" size={18}/><span><strong>Performance intelligence</strong><small>Expectancy, drawdown and edge</small></span><NavigationIcon name="chevron" size={14}/></Link><Link to="/trading/rules"><NavigationIcon name="shield" size={18}/><span><strong>Rulebook</strong><small>Risk controls and compliance</small></span><NavigationIcon name="chevron" size={14}/></Link><Link to="/trading/calendar"><NavigationIcon name="calendar" size={18}/><span><strong>Trading calendar</strong><small>Review decisions in time</small></span><NavigationIcon name="chevron" size={14}/></Link><Link to="/trading/reports"><NavigationIcon name="files" size={18}/><span><strong>Reports</strong><small>Private and public summaries</small></span><NavigationIcon name="chevron" size={14}/></Link></nav>
 
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mt-10 mb-4">
+      <div className="trading-section-heading">
         <div className="min-w-0">
           <span className="eyebrow">RECENT</span>
           <h2 className="text-[16px] md:text-[19px] tracking-[-.02em] mt-[5px] mb-0">Recent decisions</h2>
@@ -88,7 +90,7 @@ export default function TradingDashboard() {
         </div>
       )}
 
-      <div className="flex items-end justify-between mt-10 mb-4">
+      <div className="trading-section-heading">
         <div className="min-w-0">
           <span className="eyebrow">ACCOUNTS</span>
           <h2 className="text-[16px] md:text-[19px] tracking-[-.02em] mt-[5px] mb-0">
