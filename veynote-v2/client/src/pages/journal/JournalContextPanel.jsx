@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import NavigationIcon from "../../components/layout/NavigationIcon";
+import { useApiQuery } from "../../hooks/useApiQuery";
 import "./journalContextPanel.css";
 
 export const JOURNAL_TYPES = [
@@ -26,6 +28,12 @@ const field = (data, onChange, key, label, options = {}) => <label className="jo
 </label>;
 
 export default function JournalContextPanel({ type, data, onTypeChange, onChange }) {
+  const [relationshipQuery,setRelationshipQuery]=useState(""); const [settled,setSettled]=useState("");
+  useEffect(()=>{const timer=setTimeout(()=>setSettled(relationshipQuery.trim()),250);return()=>clearTimeout(timer);},[relationshipQuery]);
+  const relationshipSearch=useApiQuery("/search",{q:settled,scope:"all"});
+  const related=data.relatedRecords||[];
+  const candidates=(relationshipSearch.data?.results||[]).filter(item=>!related.some(link=>link.type===item.type&&link.id===item.id)).slice(0,6);
+  const addRelated=item=>{onChange({...data,relatedRecords:[...related,{type:item.type,id:item.id,title:item.title||"Untitled record",workspace:item.workspace||"Veynote",href:item.href}]});setRelationshipQuery("");setSettled("");};
   const fields = type === "decision" ? [
     field(data,onChange,"status","Status",{choices:["Considering","Decided","In progress","Reviewed"]}),
     field(data,onChange,"selectedOption","Selected option",{placeholder:"The path chosen"}),
@@ -64,5 +72,6 @@ export default function JournalContextPanel({ type, data, onTypeChange, onChange
   return <section className="journal-context-panel" aria-label="Journal record context">
     <header><span><NavigationIcon name="book" size={17}/><strong>Record context</strong></span><small>Structured details remain searchable without interrupting the writing.</small></header>
     <div className="journal-context-grid"><label className="journal-context-field journal-context-type"><span>Record type</span><select value={type} onChange={event => onTypeChange(event.target.value)}>{JOURNAL_TYPES.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>{fields}</div>
+    <div className="journal-context-relationships"><div><span className="eyebrow">CONNECTED WORK</span><strong>Relate the records behind this entry.</strong><small>Search accessible Veynote work and preserve an explicit link to its source.</small></div><div className="journal-context-related-list">{related.map(item=><span key={`${item.type}-${item.id}`}><NavigationIcon name="link" size={13}/><b>{item.title}</b><small>{item.workspace}</small><button type="button" aria-label={`Remove ${item.title}`} onClick={()=>onChange({...data,relatedRecords:related.filter(link=>link!==item)})}><NavigationIcon name="close" size={12}/></button></span>)}</div><label className="journal-context-related-search"><NavigationIcon name="search" size={15}/><input value={relationshipQuery} onChange={event=>setRelationshipQuery(event.target.value)} placeholder="Find a note, task, trade, book, or business record…"/></label>{settled.length>1&&<div className="journal-context-related-results">{candidates.map(item=><button type="button" key={`${item.type}-${item.id}`} onClick={()=>addRelated(item)}><span><strong>{item.title}</strong><small>{item.workspace} · {item.meta||"Record"}</small></span><NavigationIcon name="plus" size={13}/></button>)}{relationshipSearch.data&&!candidates.length&&<p>No new accessible records match.</p>}</div>}</div>
   </section>;
 }

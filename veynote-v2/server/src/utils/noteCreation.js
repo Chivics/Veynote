@@ -12,8 +12,18 @@ function normalizeJournalMetadata(kind, journalType, journalData) {
   if (!JOURNAL_TYPES.has(type)) throw creationError(400, "JOURNAL_TYPE_INVALID", "Choose a supported journal record type.");
   if (journalData == null) return { journalType: type, journalData: undefined };
   if (typeof journalData !== "object" || Array.isArray(journalData)) throw creationError(400, "JOURNAL_DATA_INVALID", "Journal context must be a structured record.");
+  const normalized = { ...journalData };
+  if (normalized.relatedRecords !== undefined) {
+    if (!Array.isArray(normalized.relatedRecords) || normalized.relatedRecords.length > 24) throw creationError(400, "JOURNAL_RELATIONSHIPS_INVALID", "Choose up to 24 related Veynote records.");
+    const types = new Set(["note","journal","task","library","trade","business"]);
+    const paths = /^(?:\/notes\/[^\s]+|\/journal\/entries\/[^\s]+|\/trading\/entries\/[^\s]+|\/business\/customers\/[^\s]+)$/;
+    normalized.relatedRecords = [...new Map(normalized.relatedRecords.map(item => {
+      if (!item || typeof item !== "object" || !types.has(item.type) || typeof item.id !== "string" || !/^[\w-]{1,191}$/.test(item.id) || typeof item.title !== "string" || item.title.length > 240 || typeof item.href !== "string" || item.href.length > 500 || !paths.test(item.href)) throw creationError(400, "JOURNAL_RELATIONSHIPS_INVALID", "One or more related records are invalid.");
+      return [`${item.type}:${item.id}`, { type:item.type, id:item.id, title:item.title.trim() || "Untitled record", workspace:String(item.workspace || "Veynote").slice(0,80), href:item.href }];
+    })).values()];
+  }
   let encoded;
-  try { encoded = JSON.stringify(journalData); } catch { throw creationError(400, "JOURNAL_DATA_INVALID", "Journal context could not be saved."); }
+  try { encoded = JSON.stringify(normalized); } catch { throw creationError(400, "JOURNAL_DATA_INVALID", "Journal context could not be saved."); }
   if (encoded.length > 16384) throw creationError(413, "JOURNAL_DATA_TOO_LARGE", "Journal context is too large. Keep extended writing in the document body.");
   return { journalType: type, journalData: JSON.parse(encoded) };
 }

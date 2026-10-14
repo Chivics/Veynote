@@ -97,6 +97,9 @@ test("creation validation canonicalizes retry hashes and rejects malformed data"
   }
   assert.throws(() => noteCreationInput({ kind:"JOURNAL", journalType:"unknown" }), { status:400, code:"JOURNAL_TYPE_INVALID" });
   assert.throws(() => noteCreationInput({ kind:"JOURNAL", journalData:["not","a","record"] }), { status:400, code:"JOURNAL_DATA_INVALID" });
+  assert.throws(() => noteCreationInput({ kind:"JOURNAL", journalData:{ relatedRecords:[{ type:"note", id:"safe", title:"Unsafe", href:"https://example.com" }] } }), { status:400, code:"JOURNAL_RELATIONSHIPS_INVALID" });
+  const related = noteCreationInput({ kind:"JOURNAL", journalData:{ relatedRecords:[{ type:"task", id:"task-1", title:"Follow up", workspace:"Tasks", href:"/notes/tasks/task-1" }] } });
+  assert.deepEqual(related.payload.journalData.relatedRecords, [{ type:"task", id:"task-1", title:"Follow up", workspace:"Tasks", href:"/notes/tasks/task-1" }]);
 });
 
 test("HTTP creation returns one persisted note on retry and rejects malformed requests", async () => {
