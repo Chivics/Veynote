@@ -286,7 +286,7 @@ function TradeEditorForm() {
           <option value="OPEN">Open</option>
           <option value="WIN">Win</option>
           <option value="LOSS">Loss</option>
-          <option value="BREAKEVEN">Breakeven</option>
+          <option value="BREAK_EVEN">Break-even</option>
         </select>
         <select value={form.session} onChange={(e) => setForm((f) => ({ ...f, session: e.target.value }))} className="chip bg-app-panel2 outline-none">
           <option value="">Session</option><option value="ASIA">Asia</option><option value="LONDON">London</option><option value="NEW_YORK">New York</option><option value="OVERLAP">London / New York overlap</option><option value="OTHER">Other</option>

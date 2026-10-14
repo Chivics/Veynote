@@ -101,7 +101,7 @@ export default function TradeDetail() {
               <span className="eyebrow">RESULT</span>
               <h2 className={`text-[20px] mt-[5px] mb-0 ${resultTone}`}>
                 {entry.achievedR != null ? `${entry.achievedR >= 0 ? "+" : ""}${entry.achievedR}R ` : ""}
-                {entry.result.charAt(0) + entry.result.slice(1).toLowerCase()}
+                {entry.result === "BREAK_EVEN" ? "Break-even" : entry.result.charAt(0) + entry.result.slice(1).toLowerCase()}
               </h2>
             </div>
             {entry.confidence != null && (
