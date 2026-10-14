@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import NavigationIcon from "../../components/layout/NavigationIcon";
 import ProtectedContentBoundary from "../../components/ProtectedContentBoundary";
 import VaultGate from "../../components/VaultGate";
@@ -34,6 +34,7 @@ function Card({ item, config }) {
 }
 
 export default function WillCollectionWorkspace({ view }) {
+  const location = useLocation();
   const config = CONFIG[view];
   const [unlocked,setUnlocked] = useState(Boolean(getVaultToken("will")));
   const [will,setWill] = useState(null); const [error,setError] = useState("");
@@ -76,9 +77,9 @@ export function WillDocumentsWorkspace() {
 }
 
 export function WillActivityWorkspace() {
-  const [unlocked,setUnlocked]=useState(Boolean(getVaultToken("will"))); const [will,setWill]=useState(null); const [query,setQuery]=useState("");
-  const load=useCallback(async()=>{try{const response=await willApi.get();setWill(response.will);setUnlocked(true);}catch(err){if(err.requiresVault){clearVaultToken("will");setUnlocked(false);}}},[]); useEffect(()=>{if(unlocked)load();},[unlocked,load]);
+  const [unlocked,setUnlocked]=useState(Boolean(getVaultToken("will"))); const [will,setWill]=useState(null); const [query,setQuery]=useState(""); const [error,setError]=useState("");
+  const load=useCallback(async()=>{setError("");try{const response=await willApi.get();setWill(response.will);setUnlocked(true);}catch(err){if(err.requiresVault){clearVaultToken("will");setUnlocked(false);setWill(null);}else setError(err.message||"The estate record history could not be loaded.");}},[]); useEffect(()=>{if(unlocked)load();},[unlocked,load]);
   if(!unlocked)return <div className="max-w-[620px] mx-auto"><VaultGate vault="will" onUnlock={()=>setUnlocked(true)}/></div>;
   const rows=(will?.activities||[]).filter(item=>!query||`${item.message} ${item.action} ${item.entityType}`.toLowerCase().includes(query.toLowerCase()));
-  return <ProtectedContentBoundary vault="will"><main className="will-workspace estate-directory"><header className="estate-directory-hero"><div><span className="eyebrow">SECURITY & PROVENANCE</span><h1>A durable history of the estate record.</h1><p>Review what changed, when it changed, and which protected record was affected without exposing the record content itself.</p></div><div className="estate-directory-count"><strong>{will?.activities?.length??"—"}</strong><span>recorded events</span><small>Newest activity first</small></div></header><WillWorkspaceNavigation/><div className="estate-directory-toolbar"><div className="estate-directory-search"><NavigationIcon name="search" size={17}/><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search activity…"/></div></div><section className="estate-activity-ledger">{rows.map(item=><article key={item.id}><span><NavigationIcon name="clock" size={15}/></span><div><strong>{item.message}</strong><small>{text(item.action)} · {text(item.entityType)}</small></div><time>{date(item.createdAt)}</time></article>)}{will&&!rows.length&&<div className="estate-directory-empty"><h2>No matching activity.</h2><p>The audit trail will appear here as protected records change.</p></div>}</section></main></ProtectedContentBoundary>;
+  return <ProtectedContentBoundary vault="will"><main className="will-workspace estate-directory"><header className="estate-directory-hero"><div><span className="eyebrow">RECORD PROVENANCE</span><h1>A durable history of the estate record.</h1><p>Review what changed, when it changed, and which protected record was affected without exposing the record content itself. Security access events remain in the separate security ledger.</p></div><div className="estate-directory-count"><strong>{will?.activities?.length??"—"}</strong><span>recorded changes</span><small>Newest activity first</small></div></header><WillWorkspaceNavigation/>{error&&<div className="inline-error" role="alert"><span>{error}</span><button type="button" onClick={load}>Retry</button></div>}<div className="estate-directory-toolbar"><div className="estate-directory-search"><NavigationIcon name="search" size={17}/><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search activity…"/></div><Link className="btn-outline" to="/will/security"><NavigationIcon name="shield" size={15}/> Security ledger</Link></div><section className="estate-activity-ledger">{rows.map(item=><article key={item.id}><span><NavigationIcon name="clock" size={15}/></span><div><strong>{item.message}</strong><small>{text(item.action)} · {text(item.entityType)}</small></div><time>{date(item.createdAt)}</time></article>)}{will&&!rows.length&&<div className="estate-directory-empty"><h2>No matching activity.</h2><p>The record history will appear here as protected estate information changes.</p></div>}</section></main></ProtectedContentBoundary>;
 }

@@ -50,6 +50,8 @@ const paths = {
   pin: <path d="m8 3 8 0-1 6 4 4H5l4-4Z M12 13v8" />,
   bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z" /><path d="M10 21h4" /></>,
   cloud: <><path d="M7 18h11a4 4 0 0 0 .7-7.9A7 7 0 0 0 5.4 8.4 4.8 4.8 0 0 0 7 18Z" /><path d="M9 13h6" /></>,
+  info: <><circle cx="12" cy="12" r="9"/><path d="M12 11v6 M12 7h.01"/></>,
+  warning: <><path d="M12 3 2.5 20h19Z"/><path d="M12 9v4 M12 17h.01"/></>,
 };
 
 export default function NavigationIcon({ name, size = 19, className = "" }) {
