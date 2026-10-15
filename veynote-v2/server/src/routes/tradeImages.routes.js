@@ -104,7 +104,7 @@ router.post("/entries/:entryId/images", upload.single("file"), async (req, res) 
     },
   });
 
-  res.status(201).json({ image: { ...image, url: `/uploads/${image.storedName}` } });
+  res.status(201).json({ image: { ...image, url: `/api/media/${image.storedName}` } });
 });
 
 router.get("/entries/:entryId/images", async (req, res) => {
@@ -115,7 +115,7 @@ router.get("/entries/:entryId/images", async (req, res) => {
     where: { tradingEntryId: entry.id },
     orderBy: { createdAt: "asc" },
   });
-  res.json({ images: images.map((i) => ({ ...i, url: `/uploads/${i.storedName}` })) });
+  res.json({ images: images.map((i) => ({ ...i, url: `/api/media/${i.storedName}` })) });
 });
 
 router.patch("/images/:imageId", async (req, res) => {
@@ -131,7 +131,7 @@ router.patch("/images/:imageId", async (req, res) => {
       ...(caption !== undefined && { caption }),
     },
   });
-  res.json({ image: { ...updated, url: `/uploads/${updated.storedName}` } });
+  res.json({ image: { ...updated, url: `/api/media/${updated.storedName}` } });
 });
 
 // PATCH /api/trading/images/:imageId/file — swaps the underlying file
@@ -160,7 +160,7 @@ router.patch("/images/:imageId/file", upload.single("file"), async (req, res) =>
   });
   fs.unlink(path.join(UPLOAD_DIR, oldStoredName), () => {}); // best-effort cleanup of the file being replaced
 
-  res.json({ image: { ...updated, url: `/uploads/${updated.storedName}` } });
+  res.json({ image: { ...updated, url: `/api/media/${updated.storedName}` } });
 });
 
 router.delete("/images/:imageId", async (req, res) => {

@@ -60,6 +60,11 @@ function calculateTradingAnalytics(entries = []) {
   const setupBreakdown = summarizeGroup(ordered, (trade) => (trade.setupTypes || "").split(",").map((item) => item.trim()));
   const instrumentBreakdown = summarizeGroup(ordered, (trade) => [trade.asset]);
   const directionBreakdown = summarizeGroup(ordered, (trade) => [trade.direction]);
+  const timeframeBreakdown = summarizeGroup(ordered, (trade) => [trade.entryTimeframe || trade.setupTimeframe || trade.biasTimeframe]);
+  const dayOfWeekBreakdown = summarizeGroup(ordered, (trade) => {
+    const date = new Date(trade.entryDate);
+    return Number.isNaN(date.getTime()) ? [] : [date.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" })];
+  });
   const calendarMap = new Map();
   for (const trade of ordered) {
     const date = new Date(trade.entryDate).toISOString().slice(0, 10);
@@ -93,6 +98,8 @@ function calculateTradingAnalytics(entries = []) {
     setupBreakdown,
     instrumentBreakdown,
     directionBreakdown,
+    timeframeBreakdown,
+    dayOfWeekBreakdown,
     calendarDays,
   };
 }

@@ -34,6 +34,7 @@ export default function TradeDocumentation({ entryId, ensureEntryId, onTimeframe
   const [collapsed, setCollapsed] = useState({});
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -241,6 +242,7 @@ export default function TradeDocumentation({ entryId, ensureEntryId, onTimeframe
           onCaptionChange={caption}
           onReplace={replaceImage}
           onOpenLightbox={openLightbox}
+          onError={setError}
         />
       </section>
     );
@@ -261,7 +263,14 @@ export default function TradeDocumentation({ entryId, ensureEntryId, onTimeframe
         </div>
         {error && <div className="analysis-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError("")}>Dismiss</button></div>}
 
-        <div className="timeframe-picker" ref={inputRef}>
+        {activeTimeframes.length > 0 && <div className="analysis-board-toolbar"><div><span>Analysis path</span><strong>{activeTimeframes.join(" → ")}</strong></div><button type="button" className="btn-outline" onClick={() => setPreviewing(value => !value)}>{previewing ? "Return to workspace" : "Preview analysis board"}</button></div>}
+
+        {previewing && <section className="analysis-path-preview" aria-label="Top-down analysis preview">
+          <header><div><span className="eyebrow">TOP-DOWN REVIEW</span><h3>Context to execution</h3></div><strong>{setupImages.length}<small>charts</small></strong></header>
+          <div>{activeTimeframes.map((tf, index) => { const block = analysisBlocks.find(item => item.timeframe === tf); const chartCount = setupImages.filter(item => item.timeframe === tf).length; const observations = ANALYSIS_FIELDS.filter(([field]) => block?.[field]).length; return <article key={tf}><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{tf}</strong><p>{block?.bias || block?.marketStructure || "Analysis awaiting context."}</p></div><small>{chartCount} chart{chartCount === 1 ? "" : "s"} · {observations}/7 observations</small></article>; })}</div>
+        </section>}
+
+        {!previewing && <div className="timeframe-picker" ref={inputRef}>
           <div className="timeframe-input-wrap">
             <span>⌕</span>
             <input
@@ -299,9 +308,9 @@ export default function TradeDocumentation({ entryId, ensureEntryId, onTimeframe
                 )}
             </div>
           )}
-        </div>
+        </div>}
 
-        {activeTimeframes.length > 0 && (
+        {activeTimeframes.length > 0 && !previewing && (
           <div className="timeframe-cards">
             {activeTimeframes.map((tf, index) => {
               const tfImages = setupImages.filter((i) => i.timeframe === tf);
@@ -329,7 +338,7 @@ export default function TradeDocumentation({ entryId, ensureEntryId, onTimeframe
                     <div className="analysis-workspace-grid">
                       <div className="analysis-chart-board">
                         <div className="analysis-subhead"><div><strong>Chart evidence</strong><span>Upload, annotate externally, replace and caption each view.</span></div><span>{tf}</span></div>
-                        <TradeImageUploader images={tfImages} uploading={uploading[key] || []} onUpload={(files) => handleUpload("SETUP", tf, files)} onRemove={remove} onCaptionChange={caption} onReplace={replaceImage} onOpenLightbox={openLightbox} compact />
+                        <TradeImageUploader images={tfImages} uploading={uploading[key] || []} onUpload={(files) => handleUpload("SETUP", tf, files)} onRemove={remove} onCaptionChange={caption} onReplace={replaceImage} onOpenLightbox={openLightbox} onError={setError} compact />
                       </div>
                       <div className="analysis-observation-board">
                         {ANALYSIS_FIELDS.map(([field, label, placeholder]) => <label key={field} className={field === "setupReasoning" || field === "notes" ? "wide" : ""}><span>{label}</span><textarea value={block?.[field] || ""} placeholder={placeholder} onFocus={() => ensureAnalysisBlock(tf)} onChange={(event) => setAnalysisBlocks((current) => current.map((item) => item.id === block?.id ? { ...item, [field]: event.target.value } : item))} onBlur={(event) => updateAnalysis(analysisBlocks.find((item) => item.timeframe === tf), { [field]: event.target.value })} /></label>)}
