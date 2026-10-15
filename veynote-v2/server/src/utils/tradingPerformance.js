@@ -25,6 +25,11 @@ function summarizeTradingPerformance(records = [], { showPnl = false } = {}) {
   }, {})).map((row) => ({ ...row, winRate: row.count ? Math.round(row.wins / row.count * 100) : 0, totalR: Number(row.totalR.toFixed(2)) }))
     .sort((a, b) => b.totalR - a.totalR).slice(0, 8);
 
+  const hasDecisionEvidence = (item) => Boolean(
+    item.content && item.invalidationSignal && item.confirmationSignal &&
+    (item.analysisBlocks?.length || item._count?.analysisBlocks || item.hasAnalysis)
+  );
+
   return {
     closed: closed.length,
     wins: wins.length,
@@ -36,11 +41,13 @@ function summarizeTradingPerformance(records = [], { showPnl = false } = {}) {
     profitFactor: grossLoss ? Number((grossWin / grossLoss).toFixed(2)) : grossWin ? null : 0,
     maxDrawdown: Number(maxDrawdown.toFixed(2)),
     reviewCoverage: closed.length ? Math.round(closed.filter((item) => item.postTradeLesson || item.psychologyAfter).length / closed.length * 100) : 0,
+    evidenceCoverage: closed.length ? Math.round(closed.filter(hasDecisionEvidence).length / closed.length * 100) : 0,
     ...(showPnl ? { pnl: Number(closed.reduce((sum, item) => sum + (Number(item.profitLoss) || 0), 0).toFixed(2)) } : {}),
     curve,
     setup: grouped("setupTypes"),
     session: grouped("session"),
     instrument: grouped("asset"),
+    regime: grouped("marketRegime"),
   };
 }
 

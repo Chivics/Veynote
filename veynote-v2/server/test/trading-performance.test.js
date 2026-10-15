@@ -4,7 +4,7 @@ const { summarizeTradingPerformance } = require("../src/utils/tradingPerformance
 
 test("public trading performance contains aggregates without private records", () => {
   const metrics = summarizeTradingPerformance([
-    { title:"Private title", content:"Private thesis", result:"WIN", achievedR:2, profitLoss:500, asset:"EURUSD", session:"London", setupTypes:"BOS", postTradeLesson:"Private lesson", entryDate:"2026-10-01" },
+    { title:"Private title", content:"Private thesis", result:"WIN", achievedR:2, profitLoss:500, asset:"EURUSD", session:"London", setupTypes:"BOS", marketRegime:"Trending", postTradeLesson:"Private lesson", invalidationSignal:"Private invalidation", confirmationSignal:"Private confirmation", hasAnalysis:true, entryDate:"2026-10-01" },
     { title:"Another private title", result:"LOSS", achievedR:-1, profitLoss:-200, asset:"EURUSD", session:"London", setupTypes:"BOS", entryDate:"2026-10-02" },
     { title:"Still open", result:"OPEN", achievedR:20, profitLoss:9000, entryDate:"2026-10-03" },
   ]);
@@ -14,6 +14,8 @@ test("public trading performance contains aggregates without private records", (
   assert.equal(metrics.expectancy, .5);
   assert.equal(metrics.profitFactor, 2);
   assert.equal(metrics.reviewCoverage, 50);
+  assert.equal(metrics.evidenceCoverage, 50);
+  assert.equal(metrics.regime[0].key, "Trending");
   assert.equal("pnl" in metrics, false);
   assert.equal(JSON.stringify(metrics).includes("Private"), false);
 });

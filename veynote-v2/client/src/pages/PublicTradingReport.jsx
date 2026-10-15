@@ -39,8 +39,8 @@ export default function PublicTradingReport() {
       <Metric label="Max drawdown" value={`${m.maxDrawdown}R`} note="peak to trough" />
       {m.pnl !== undefined && <Metric label="Realized P&L" value={new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(m.pnl)} note="shared by publisher" />}
     </section>
-    <section className="public-performance-narrative"><div><span>Review discipline</span><strong>{m.reviewCoverage}%</strong><p>of closed trades include a lesson or post-trade psychology review.</p></div><div><span>Evidence base</span><strong>{m.closed}</strong><p>closed trades are included in this scope. Open positions do not affect these figures.</p></div></section>
-    <div className="public-performance-breakdowns"><Breakdown title="Setups" rows={m.setup}/><Breakdown title="Sessions" rows={m.session}/><Breakdown title="Instruments" rows={m.instrument}/></div>
+    <section className="public-performance-narrative"><div><span>Review discipline</span><strong>{m.reviewCoverage}%</strong><p>of closed trades include a lesson or post-trade psychology review.</p></div><div><span>Decision evidence</span><strong>{m.evidenceCoverage ?? 0}%</strong><p>of closed trades include a thesis, invalidation, confirmation and top-down evidence.</p></div><div><span>Evidence base</span><strong>{m.closed}</strong><p>closed trades are included in this scope. Open positions do not affect these figures.</p></div></section>
+    <div className="public-performance-breakdowns"><Breakdown title="Setups" rows={m.setup}/><Breakdown title="Sessions" rows={m.session}/><Breakdown title="Instruments" rows={m.instrument}/><Breakdown title="Market regimes" rows={m.regime}/></div>
     <footer><span className="public-performance-mark">V</span><div><strong>Recorded with Veynote</strong><p>Performance history is not a guarantee of future results.</p></div></footer>
   </main>;
 }

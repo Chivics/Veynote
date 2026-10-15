@@ -57,7 +57,10 @@ router.get("/trading/:token", asyncHandler(async (req, res) => {
     },
     select: {
       isTrade: true, result: true, achievedR: true, profitLoss: true, entryDate: true,
-      setupTypes: true, session: true, asset: true, postTradeLesson: true, psychologyAfter: true,
+      setupTypes: true, session: true, asset: true, marketRegime: true,
+      content: true, confirmationSignal: true, invalidationSignal: true,
+      postTradeLesson: true, psychologyAfter: true,
+      _count: { select: { analysisBlocks: true } },
     },
     orderBy: { entryDate: "asc" },
   });
