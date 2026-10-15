@@ -203,17 +203,19 @@ function TradeEditorForm() {
     setSaveError('');
     setSaving(true);
     try {
+      let savedId = entryId;
       if (!entryId) {
         const { entry } = await api.post("/trading/entries", buildPayload());
         if (!alive.current) return;
+        savedId = entry.id;
         setEntryId(entry.id);
         window.history.replaceState(null, "", `/trading/entries/${entry.id}/edit`);
       } else {
         await api.patch(`/trading/entries/${entryId}`, buildPayload());
         if (!alive.current) return;
-        if (revision === editRevision.current) navigate(`/trading/entries/${entryId}`);
       }
-      if (revision !== editRevision.current) setSaveError('The earlier changes were saved. You edited this trade while saving; save again to include the latest changes.');
+      if (revision === editRevision.current) navigate(`/trading/entries/${savedId}`);
+      else setSaveError('The earlier changes were saved. You edited this trade while saving; save again to include the latest changes.');
     } catch (error) {
       if (alive.current) setSaveError(error.message);
     } finally {

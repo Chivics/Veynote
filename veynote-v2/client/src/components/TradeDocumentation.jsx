@@ -4,6 +4,7 @@ import { api } from "../api/client";
 import TradeImageUploader from "./TradeImageUploader";
 import ImageLightbox from "./ImageLightbox";
 import AttachmentList from "./AttachmentList";
+import ConfirmDialog from "./ConfirmDialog";
 
 const DEFAULT_TIMEFRAMES = ["Monthly", "Weekly", "Daily", "12H", "8H", "6H", "4H", "2H", "1H", "30M", "15M", "5M", "1M"];
 const ANALYSIS_FIELDS = [
@@ -36,6 +37,8 @@ export default function TradeDocumentation({ entryId, ensureEntryId, onTimeframe
   const [open, setOpen] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(null);
+  const [pendingImageDelete, setPendingImageDelete] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -139,9 +142,18 @@ export default function TradeDocumentation({ entryId, ensureEntryId, onTimeframe
     }
   }
 
-  async function remove(id) {
-    await api.delete(`/trading/images/${id}`);
-    setImages((p) => p.filter((i) => i.id !== id));
+  async function removeConfirmed() {
+    const id = pendingImageDelete?.id;
+    if (!id) return;
+    setDeleteBusy(true);
+    setError("");
+    try {
+      await api.delete(`/trading/images/${id}`);
+      setImages((p) => p.filter((i) => i.id !== id));
+      setPendingImageDelete(null);
+    } catch (requestError) {
+      setError(requestError.message || "The screenshot could not be removed.");
+    } finally { setDeleteBusy(false); }
     setLightboxIndex((idx) => {
       if (idx === null) return null;
       const removedIndex = images.findIndex((i) => i.id === id);
@@ -238,7 +250,7 @@ export default function TradeDocumentation({ entryId, ensureEntryId, onTimeframe
           images={stageImages}
           uploading={uploading[key] || []}
           onUpload={(files) => handleUpload(stage, null, files)}
-          onRemove={remove}
+          onRemove={(imageId) => setPendingImageDelete(images.find(item => item.id === imageId) || { id: imageId })}
           onCaptionChange={caption}
           onReplace={replaceImage}
           onOpenLightbox={openLightbox}
@@ -338,7 +350,7 @@ export default function TradeDocumentation({ entryId, ensureEntryId, onTimeframe
                     <div className="analysis-workspace-grid">
                       <div className="analysis-chart-board">
                         <div className="analysis-subhead"><div><strong>Chart evidence</strong><span>Upload, annotate externally, replace and caption each view.</span></div><span>{tf}</span></div>
-                        <TradeImageUploader images={tfImages} uploading={uploading[key] || []} onUpload={(files) => handleUpload("SETUP", tf, files)} onRemove={remove} onCaptionChange={caption} onReplace={replaceImage} onOpenLightbox={openLightbox} onError={setError} compact />
+                        <TradeImageUploader images={tfImages} uploading={uploading[key] || []} onUpload={(files) => handleUpload("SETUP", tf, files)} onRemove={(imageId) => setPendingImageDelete(images.find(item => item.id === imageId) || { id: imageId })} onCaptionChange={caption} onReplace={replaceImage} onOpenLightbox={openLightbox} onError={setError} compact />
                       </div>
                       <div className="analysis-observation-board">
                         {ANALYSIS_FIELDS.map(([field, label, placeholder]) => <label key={field} className={field === "setupReasoning" || field === "notes" ? "wide" : ""}><span>{label}</span><textarea value={block?.[field] || ""} placeholder={placeholder} onFocus={() => ensureAnalysisBlock(tf)} onChange={(event) => setAnalysisBlocks((current) => current.map((item) => item.id === block?.id ? { ...item, [field]: event.target.value } : item))} onBlur={(event) => updateAnalysis(analysisBlocks.find((item) => item.timeframe === tf), { [field]: event.target.value })} /></label>)}
@@ -404,6 +416,7 @@ export default function TradeDocumentation({ entryId, ensureEntryId, onTimeframe
       {lightboxIndex !== null && (
         <ImageLightbox images={images} startIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
       )}
+      <ConfirmDialog open={Boolean(pendingImageDelete)} title="Remove this chart evidence?" description={`This removes ${pendingImageDelete?.caption || pendingImageDelete?.originalName || "the selected screenshot"} from the trade record. The rest of the timeframe analysis remains intact.`} confirmLabel="Remove screenshot" tone="danger" busy={deleteBusy} onClose={() => { if (!deleteBusy) setPendingImageDelete(null); }} onConfirm={removeConfirmed} />
     </div>
   );
 }
