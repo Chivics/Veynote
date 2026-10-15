@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
@@ -20,6 +20,9 @@ export default function Accounts() {
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [creatingBusy, setCreatingBusy] = useState(false);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [sortBy, setSortBy] = useState("PERFORMANCE");
   const createInFlight = useRef(false);
 
   function load() {
@@ -52,6 +55,11 @@ export default function Accounts() {
   const currencies = new Set((accounts || []).map(account => account.currency).filter(Boolean));
   const totalR = (accounts || []).reduce((sum, account) => sum + (Number(account.stats?.totalR) || 0), 0);
   const totalTrades = (accounts || []).reduce((sum, account) => sum + (Number(account.stats?.entryCount) || 0), 0);
+  const visibleAccounts = useMemo(() => (accounts || []).filter(account => {
+    const matchesQuery = !query || `${account.name} ${account.broker || ""} ${account.accountType || ""}`.toLowerCase().includes(query.toLowerCase());
+    const matchesStatus = statusFilter === "ALL" || account.status === statusFilter;
+    return matchesQuery && matchesStatus;
+  }).sort((a,b) => sortBy === "NAME" ? a.name.localeCompare(b.name) : sortBy === "ACTIVITY" ? Number(b.stats?.entryCount || 0)-Number(a.stats?.entryCount || 0) : Number(b.stats?.totalR || 0)-Number(a.stats?.totalR || 0)), [accounts, query, statusFilter, sortBy]);
 
   return (
     <main className="trading-accounts-page">
@@ -66,6 +74,8 @@ export default function Accounts() {
       {loadError && <div className="inline-error" role="alert"><span>{loadError}</span><button type="button" onClick={load}>Retry</button></div>}
 
       <section className="trading-accounts-summary"><div><span>Account workspaces</span><strong>{accounts?.length ?? "—"}</strong><small>Independent performance books</small></div><div><span>Currencies</span><strong>{accounts?.length ? currencies.size : "—"}</strong><small>{[...currencies].join(" · ") || "No currency recorded"}</small></div><div><span>Portfolio R</span><strong className={totalR>=0?"text-success":"text-danger"}>{accounts?.length ? `${totalR>0?"+":""}${Number(totalR.toFixed(2))}R` : "—"}</strong><small>{totalTrades} journal entries</small></div><div><span>Active mandates</span><strong>{accounts?.filter(item=>item.status!=="BREACHED").length ?? "—"}</strong><small>Personal, funded or evaluating</small></div></section>
+
+      {!!accounts?.length && <section className="trading-account-toolbar" aria-label="Account portfolio controls"><label><NavigationIcon name="search" size={15}/><input aria-label="Search accounts" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search account, broker or type"/></label><select aria-label="Filter account status" value={statusFilter} onChange={event=>setStatusFilter(event.target.value)}><option value="ALL">All mandates</option>{STATUSES.map(item=><option key={item} value={item}>{item.charAt(0)+item.slice(1).toLowerCase()}</option>)}</select><select aria-label="Sort accounts" value={sortBy} onChange={event=>setSortBy(event.target.value)}><option value="PERFORMANCE">Sort by performance</option><option value="ACTIVITY">Sort by activity</option><option value="NAME">Sort by name</option></select><span>{visibleAccounts.length} of {accounts.length} workspaces</span></section>}
 
       {creating && (
         <form onSubmit={createAccount} className="card account-setup-panel mb-5">
@@ -100,8 +110,8 @@ export default function Accounts() {
           action={<button onClick={() => setCreating(true)} className="btn-primary">Add your first account</button>}
         />
       ) : (
-        <div className="trading-account-grid">
-          {accounts.map((a) => (
+        visibleAccounts.length ? <div className="trading-account-grid">
+          {visibleAccounts.map((a) => (
             <Link
               key={a.id}
               to={`/trading/accounts/${a.id}`}
@@ -134,7 +144,7 @@ export default function Accounts() {
               </div><footer><span>{a.accountType || "Trading account"}</span><NavigationIcon name="chevron" size={14}/></footer>
             </Link>
           ))}
-        </div>
+        </div> : <EmptyState icon="⌕" title="No account matches this view" description="Adjust the search, status or sorting controls to return to the complete portfolio." action={<button className="btn-outline" onClick={()=>{setQuery("");setStatusFilter("ALL");}}>Clear filters</button>}/>
       )}
     </main>
   );
