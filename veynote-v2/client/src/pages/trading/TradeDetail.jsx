@@ -74,6 +74,13 @@ export default function TradeDetail() {
     analysisBlocks.length > 0 || hasSetupImages || byStage("ENTRY").length > 0 || byStage("DURING_TRADE").length > 0 || byStage("POST_TRADE").length > 0;
   const hasPostTradeReview =
     entry.postTradeWhatHappened || entry.postTradeWentRight || entry.postTradeWentWrong || entry.postTradeLesson;
+  const reviewChecks = [
+    [Boolean(entry.content && entry.content !== "<p></p>"), "Trade thesis"],
+    [analysisBlocks.length > 0 || hasSetupImages, "Top-down analysis"],
+    [Boolean(entry.psychologyBefore || entry.psychologyDuring || entry.psychologyAfter), "Psychology"],
+    [Boolean(hasPostTradeReview), "Post-trade lesson"],
+  ];
+  const reviewCompletion = Math.round(reviewChecks.filter(([complete]) => complete).length / reviewChecks.length * 100);
 
   async function removeTrade() {
     setDeleteBusy(true); setDeleteError("");
@@ -134,6 +141,12 @@ export default function TradeDetail() {
           )}
         </div>
       )}
+
+      {entry.isTrade && <section className="trade-review-integrity" aria-label="Trade review completeness">
+        <div><span className="eyebrow">REVIEW INTEGRITY</span><strong>{reviewCompletion}% documented</strong><p>Complete evidence makes this trade more useful to your future decisions.</p></div>
+        <div className="trade-review-checks">{reviewChecks.map(([complete, label]) => <span key={label} className={complete ? "complete" : "missing"}><i>{complete ? "✓" : "○"}</i>{label}</span>)}</div>
+        {reviewCompletion < 100 && <Link className="btn-outline" to={`/trading/entries/${id}/edit`}>Complete review</Link>}
+      </section>}
 
       <DocumentContent
         className="text-[14px] leading-[1.8] text-ink-soft mb-6 trade-body"

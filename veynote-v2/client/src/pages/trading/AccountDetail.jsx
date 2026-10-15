@@ -146,6 +146,8 @@ export default function AccountDetail() {
         <StatCard label="Total R" value={performance.hasData ? `${performance.totalR > 0 ? "+" : ""}${performance.totalR}R` : "—"} />
         <StatCard label="Realized P&L" value={performance.hasData && performance.realizedPnl != null ? money(performance.realizedPnl, currency) : "—"} hint="From recorded P&L" />
         <StatCard label="Max drawdown" value={performance.hasData ? `${performance.maximumDrawdown}R` : "—"} />
+        <StatCard label="Expectancy" value={performance.hasData ? `${performance.expectancy > 0 ? "+" : ""}${performance.expectancy}R` : "—"} hint="Expected R per closed trade" />
+        <StatCard label="Profit factor" value={performance.hasData ? (performance.profitFactor == null ? "∞" : performance.profitFactor) : "—"} hint="Gross R won / lost" />
         <StatCard label="Average win" value={performance.hasData && performance.averageWin != null ? `${performance.averageWin}R` : "—"} />
         <StatCard label="Average loss" value={performance.hasData && performance.averageLoss != null ? `${performance.averageLoss}R` : "—"} />
         <StatCard label="Planned R:R" value={performance.hasData && performance.avgRiskReward != null ? `${performance.avgRiskReward}R` : "—"} />
@@ -162,6 +164,16 @@ export default function AccountDetail() {
           <div className="account-limit-list"><div><span>Daily loss limit</span><b>{money(account.dailyLossLimit, currency)}</b></div><div><span>Overall drawdown</span><b>{money(account.drawdownLimit, currency)}</b></div><div><span>Profit target</span><b>{money(account.profitTarget, currency)}</b></div><div><span>Equity</span><b>{money(account.equity, currency)}</b></div></div>
         </section>
       </div>
+
+      {performance.hasData && <section className="card account-edge-ledger">
+        <div className="section-heading"><div><span className="eyebrow">EDGE DIAGNOSTICS</span><h2>Range, execution & evidence</h2></div><Link to={`/trading/analytics?accountId=${id}`}>Deep analytics →</Link></div>
+        <div className="account-edge-ledger-grid">
+          <Link to={performance.bestTrade ? `/trading/entries/${performance.bestTrade.id}` : "#"}><span>Best trade</span><strong className="text-success">{performance.bestTrade ? `+${performance.bestTrade.achievedR}R` : "—"}</strong><small>{performance.bestTrade?.asset || "No record"}</small></Link>
+          <Link to={performance.worstTrade ? `/trading/entries/${performance.worstTrade.id}` : "#"}><span>Worst trade</span><strong className="text-danger">{performance.worstTrade ? `${performance.worstTrade.achievedR}R` : "—"}</strong><small>{performance.worstTrade?.asset || "No record"}</small></Link>
+          <div><span>Break-even trades</span><strong>{performance.breakEven}</strong><small>Protected capital</small></div>
+          <div><span>Closed sample</span><strong>{performance.totalTrades}</strong><small>{performance.totalTrades < 20 ? "Early evidence — interpret carefully" : "Developing evidence base"}</small></div>
+        </div>
+      </section>}
 
       <div className="account-breakdown-grid"><Breakdown title="Setups" rows={performance.setupBreakdown} empty={analytics === null ? "Checking performance…" : "Setup performance appears after closed trades."} /><Breakdown title="Instruments" rows={performance.instrumentBreakdown} empty={analytics === null ? "Checking performance…" : "Instrument performance appears here."} /><Breakdown title="Long vs short" rows={performance.directionBreakdown} empty={analytics === null ? "Checking performance…" : "Direction performance appears here."} /></div>
 
