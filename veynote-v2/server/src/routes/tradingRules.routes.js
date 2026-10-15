@@ -4,6 +4,8 @@ const { requireAuth } = require("../middleware/auth");
 
 const router = express.Router();
 router.use(requireAuth);
+const EVENT_KINDS = new Set(["CHECK", "VIOLATION", "REVIEW"]);
+const COMPLIANCE_STATES = new Set(["UNREVIEWED", "COMPLIANT", "AT_RISK", "VIOLATED"]);
 
 router.get("/", async (req, res) => {
   const where = { userId: req.userId };
@@ -24,6 +26,48 @@ router.get("/:id", async (req, res) => {
   const rule = await prisma.tradingRule.findFirst({ where: { id: req.params.id, userId: req.userId }, include: { account: { select: { id: true, name: true } } } });
   if (!rule) return res.status(404).json({ error: "Rule not found." });
   res.json({ rule });
+});
+
+router.get("/:id/events", async (req, res) => {
+  const rule = await prisma.tradingRule.findFirst({ where: { id: req.params.id, userId: req.userId }, select: { id: true } });
+  if (!rule) return res.status(404).json({ error: "Rule not found." });
+  const events = await prisma.tradingRuleEvent.findMany({
+    where: { ruleId: rule.id, userId: req.userId },
+    orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
+    include: { tradingEntry: { select: { id: true, title: true, asset: true, result: true, achievedR: true } } },
+  });
+  res.json({ events });
+});
+
+router.post("/:id/events", async (req, res) => {
+  const rule = await prisma.tradingRule.findFirst({ where: { id: req.params.id, userId: req.userId }, select: { id: true } });
+  if (!rule) return res.status(404).json({ error: "Rule not found." });
+  const kind = String(req.body.kind || "CHECK").toUpperCase();
+  const complianceStatus = String(req.body.complianceStatus || (kind === "VIOLATION" ? "VIOLATED" : "COMPLIANT")).toUpperCase();
+  if (!EVENT_KINDS.has(kind) || !COMPLIANCE_STATES.has(complianceStatus)) return res.status(400).json({ error: "Choose a valid verification outcome." });
+  const note = String(req.body.note || "").trim().slice(0, 6000);
+  const correctiveAction = String(req.body.correctiveAction || "").trim().slice(0, 6000);
+  if (!note) return res.status(400).json({ error: "Record what happened or what you verified." });
+  let tradingEntryId = req.body.tradingEntryId || null;
+  if (tradingEntryId) {
+    const trade = await prisma.tradingEntry.findFirst({ where: { id: tradingEntryId, userId: req.userId }, select: { id: true } });
+    if (!trade) return res.status(400).json({ error: "Choose one of your trading records." });
+  }
+  const occurredAt = req.body.occurredAt ? new Date(req.body.occurredAt) : new Date();
+  if (Number.isNaN(occurredAt.getTime())) return res.status(400).json({ error: "Choose a valid event date." });
+  const event = await prisma.$transaction(async (tx) => {
+    const created = await tx.tradingRuleEvent.create({ data: { userId: req.userId, ruleId: rule.id, tradingEntryId, kind, complianceStatus, note, correctiveAction: correctiveAction || null, occurredAt } });
+    await tx.tradingRule.update({ where: { id: rule.id }, data: { complianceStatus } });
+    return tx.tradingRuleEvent.findUnique({ where: { id: created.id }, include: { tradingEntry: { select: { id: true, title: true, asset: true, result: true, achievedR: true } } } });
+  });
+  res.status(201).json({ event });
+});
+
+router.delete("/:id/events/:eventId", async (req, res) => {
+  const event = await prisma.tradingRuleEvent.findFirst({ where: { id: req.params.eventId, ruleId: req.params.id, userId: req.userId }, select: { id: true } });
+  if (!event) return res.status(404).json({ error: "Verification record not found." });
+  await prisma.tradingRuleEvent.delete({ where: { id: event.id } });
+  res.json({ ok: true });
 });
 
 router.post("/", async (req, res) => {

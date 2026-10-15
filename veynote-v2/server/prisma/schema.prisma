@@ -81,6 +81,7 @@ model User {
   libraryItems    LibraryItem[]
   tasks           Task[]
   tradingRules    TradingRule[]
+  tradingRuleEvents TradingRuleEvent[]
   attachments     Attachment[]
   tradeImages     TradeImage[]
   tradeAnalysisBlocks TradeAnalysisBlock[]
@@ -552,6 +553,7 @@ model TradingEntry {
   calendarEvents CalendarEvent[]
   tradeImages TradeImage[]
   analysisBlocks TradeAnalysisBlock[]
+  ruleEvents TradingRuleEvent[]
   attachments Attachment[]
 
   @@index([userId])
@@ -755,9 +757,30 @@ model TradingRule {
   notes     String?  @db.Text
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  events    TradingRuleEvent[]
 
   @@index([userId])
   @@index([accountId])
+}
+
+model TradingRuleEvent {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ruleId           String
+  rule             TradingRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  tradingEntryId   String?
+  tradingEntry     TradingEntry? @relation(fields: [tradingEntryId], references: [id], onDelete: SetNull)
+  kind             String
+  complianceStatus String
+  note             String?  @db.Text
+  correctiveAction String?  @db.Text
+  occurredAt       DateTime @default(now())
+  createdAt        DateTime @default(now())
+
+  @@index([userId, occurredAt])
+  @@index([ruleId, occurredAt])
+  @@index([tradingEntryId])
 }
 
 // Trade Images — supports multiple screenshots per trade, each tagged
