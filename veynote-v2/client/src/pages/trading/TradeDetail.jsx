@@ -73,12 +73,12 @@ export default function TradeDetail() {
   const hasAnyDocumentation =
     analysisBlocks.length > 0 || hasSetupImages || byStage("ENTRY").length > 0 || byStage("DURING_TRADE").length > 0 || byStage("POST_TRADE").length > 0;
   const hasPostTradeReview =
-    entry.postTradeWhatHappened || entry.postTradeWentRight || entry.postTradeWentWrong || entry.postTradeLesson;
+    entry.postTradeWhatHappened || entry.postTradeWentRight || entry.postTradeWentWrong || entry.postTradeLesson || entry.nextImprovement;
   const reviewChecks = [
-    [Boolean(entry.content && entry.content !== "<p></p>"), "Trade thesis"],
+    [Boolean(entry.content && entry.content !== "<p></p>" && entry.invalidationSignal), "Thesis & invalidation"],
     [analysisBlocks.length > 0 || hasSetupImages, "Top-down analysis"],
-    [Boolean(entry.psychologyBefore || entry.psychologyDuring || entry.psychologyAfter), "Psychology"],
-    [Boolean(hasPostTradeReview), "Post-trade lesson"],
+    [Boolean(entry.emotionBefore || entry.psychologyBefore || entry.disciplineNotes), "Decision psychology"],
+    [Boolean(entry.postTradeLesson && entry.nextImprovement), "Lesson & next action"],
   ];
   const reviewCompletion = Math.round(reviewChecks.filter(([complete]) => complete).length / reviewChecks.length * 100);
 
@@ -148,18 +148,21 @@ export default function TradeDetail() {
         {reviewCompletion < 100 && <Link className="btn-outline" to={`/trading/entries/${id}/edit`}>Complete review</Link>}
       </section>}
 
+      {(entry.marketRegime || entry.liquidityNarrative || entry.structureNarrative || entry.confirmationSignal || entry.invalidationSignal) && <section className="trade-detail-decision-map"><header><span className="eyebrow">ORIGINAL DECISION</span><h2>Thesis and evidence</h2><p>{entry.marketRegime ? `${entry.marketRegime} market context` : "Recorded before the outcome"}</p></header><div><PsychBox label="Liquidity narrative" value={entry.liquidityNarrative} /><PsychBox label="Market structure" value={entry.structureNarrative} /><PsychBox label="Confirmation" value={entry.confirmationSignal} /><PsychBox label="Invalidation" value={entry.invalidationSignal} /></div></section>}
+
       <DocumentContent
         className="text-[14px] leading-[1.8] text-ink-soft mb-6 trade-body"
         html={entry.content || "<p>No notes yet.</p>"}
       />
 
-      {(entry.psychologyBefore || entry.psychologyDuring || entry.psychologyAfter) && (
+      {(entry.emotionBefore || entry.psychologyBefore || entry.psychologyDuring || entry.psychologyAfter || entry.disciplineNotes) && (
         <>
-          <h2 className="text-[15.5px] mb-3">Trading psychology</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 mb-8">
+          <div className="trade-detail-section-heading"><div><span className="eyebrow">DECISION STATE</span><h2>Trading psychology</h2></div><p>{[entry.emotionBefore, entry.impulseLevel].filter(Boolean).join(" · ")}</p></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 mb-8">
             <PsychBox label="Before trade" value={entry.psychologyBefore} />
             <PsychBox label="During trade" value={entry.psychologyDuring} />
             <PsychBox label="After trade" value={entry.psychologyAfter} />
+            <PsychBox label="Discipline & rule adherence" value={entry.disciplineNotes} />
           </div>
         </>
       )}
@@ -214,6 +217,8 @@ export default function TradeDetail() {
             <PsychBox label="What went right" value={entry.postTradeWentRight} />
             <PsychBox label="What went wrong" value={entry.postTradeWentWrong} />
             <PsychBox label="Lesson learned" value={entry.postTradeLesson} />
+            <PsychBox label="One change next time" value={entry.nextImprovement} />
+            <PsychBox label="Exit reasoning" value={entry.exitReasoning} />
           </div>
         </>
       )}

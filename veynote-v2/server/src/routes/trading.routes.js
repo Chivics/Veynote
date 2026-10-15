@@ -100,9 +100,26 @@ function entryDate(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+const decisionEvidenceLimits = {
+  marketRegime: 120, liquidityNarrative: 5000, structureNarrative: 5000,
+  confirmationSignal: 5000, invalidationSignal: 5000, emotionBefore: 120,
+  impulseLevel: 120, disciplineNotes: 5000, exitReasoning: 5000, nextImprovement: 5000,
+};
+
+function invalidDecisionEvidence(body) {
+  for (const [field, limit] of Object.entries(decisionEvidenceLimits)) {
+    const value = body[field];
+    if (value !== undefined && value !== null && typeof value !== "string") return `${field} must be text.`;
+    if (typeof value === "string" && value.length > limit) return `${field} is too long.`;
+  }
+  return null;
+}
+
 router.post("/entries", ownedReference(prisma.tradingAccount, "accountId"), async (req, res) => {
   const body = req.body;
   if (!body.title?.trim()) return res.status(400).json({ error: "Title is required." });
+  const evidenceError = invalidDecisionEvidence(body);
+  if (evidenceError) return res.status(400).json({ error: evidenceError });
   const parsedEntryDate = entryDate(body.entryDate);
   if (body.entryDate && !parsedEntryDate) return res.status(400).json({ error: "Trade date must be a valid calendar date." });
 
@@ -135,6 +152,16 @@ router.post("/entries", ownedReference(prisma.tradingAccount, "accountId"), asyn
       psychologyBefore: body.psychologyBefore || null,
       psychologyDuring: body.psychologyDuring || null,
       psychologyAfter: body.psychologyAfter || null,
+      marketRegime: body.marketRegime || null,
+      liquidityNarrative: body.liquidityNarrative || null,
+      structureNarrative: body.structureNarrative || null,
+      confirmationSignal: body.confirmationSignal || null,
+      invalidationSignal: body.invalidationSignal || null,
+      emotionBefore: body.emotionBefore || null,
+      impulseLevel: body.impulseLevel || null,
+      disciplineNotes: body.disciplineNotes || null,
+      exitReasoning: body.exitReasoning || null,
+      nextImprovement: body.nextImprovement || null,
       postTradeWhatHappened: body.postTradeWhatHappened || null,
       postTradeWentRight: body.postTradeWentRight || null,
       postTradeWentWrong: body.postTradeWentWrong || null,
@@ -151,6 +178,8 @@ router.patch("/entries/:id", ownedReference(prisma.tradingAccount, "accountId"),
   if (!existing) return res.status(404).json({ error: "Entry not found." });
 
   const body = req.body;
+  const evidenceError = invalidDecisionEvidence(body);
+  if (evidenceError) return res.status(400).json({ error: evidenceError });
   const parsedEntryDate = entryDate(body.entryDate);
   if (body.entryDate !== undefined && !parsedEntryDate) return res.status(400).json({ error: "Trade date must be a valid calendar date." });
   const merged = { ...existing, ...body };
@@ -185,6 +214,16 @@ router.patch("/entries/:id", ownedReference(prisma.tradingAccount, "accountId"),
       ...(body.psychologyBefore !== undefined && { psychologyBefore: body.psychologyBefore }),
       ...(body.psychologyDuring !== undefined && { psychologyDuring: body.psychologyDuring }),
       ...(body.psychologyAfter !== undefined && { psychologyAfter: body.psychologyAfter }),
+      ...(body.marketRegime !== undefined && { marketRegime: body.marketRegime || null }),
+      ...(body.liquidityNarrative !== undefined && { liquidityNarrative: body.liquidityNarrative || null }),
+      ...(body.structureNarrative !== undefined && { structureNarrative: body.structureNarrative || null }),
+      ...(body.confirmationSignal !== undefined && { confirmationSignal: body.confirmationSignal || null }),
+      ...(body.invalidationSignal !== undefined && { invalidationSignal: body.invalidationSignal || null }),
+      ...(body.emotionBefore !== undefined && { emotionBefore: body.emotionBefore || null }),
+      ...(body.impulseLevel !== undefined && { impulseLevel: body.impulseLevel || null }),
+      ...(body.disciplineNotes !== undefined && { disciplineNotes: body.disciplineNotes || null }),
+      ...(body.exitReasoning !== undefined && { exitReasoning: body.exitReasoning || null }),
+      ...(body.nextImprovement !== undefined && { nextImprovement: body.nextImprovement || null }),
       ...(body.postTradeWhatHappened !== undefined && { postTradeWhatHappened: body.postTradeWhatHappened }),
       ...(body.postTradeWentRight !== undefined && { postTradeWentRight: body.postTradeWentRight }),
       ...(body.postTradeWentWrong !== undefined && { postTradeWentWrong: body.postTradeWentWrong }),

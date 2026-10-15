@@ -522,6 +522,20 @@ model TradingEntry {
   psychologyDuring String? @db.Text
   psychologyAfter  String? @db.Text
 
+  // Structured decision evidence used by the seven-stage trade workspace.
+  // `content` remains the rich long-form thesis; these fields make the
+  // decision model searchable, reviewable and useful to analytics later.
+  marketRegime       String?
+  liquidityNarrative String? @db.Text
+  structureNarrative String? @db.Text
+  confirmationSignal String? @db.Text
+  invalidationSignal String? @db.Text
+  emotionBefore      String?
+  impulseLevel       String?
+  disciplineNotes    String? @db.Text
+  exitReasoning      String? @db.Text
+  nextImprovement    String? @db.Text
+
   // Post-trade documentation — distinct from the psychology fields above,
   // which are about mental/emotional state. These are the objective
   // trade-review write-up.

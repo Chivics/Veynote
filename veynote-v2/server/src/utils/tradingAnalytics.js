@@ -61,6 +61,7 @@ function calculateTradingAnalytics(entries = []) {
   const instrumentBreakdown = summarizeGroup(ordered, (trade) => [trade.asset]);
   const directionBreakdown = summarizeGroup(ordered, (trade) => [trade.direction]);
   const timeframeBreakdown = summarizeGroup(ordered, (trade) => [trade.entryTimeframe || trade.setupTimeframe || trade.biasTimeframe]);
+  const marketRegimeBreakdown = summarizeGroup(ordered, (trade) => [trade.marketRegime]);
   const dayOfWeekBreakdown = summarizeGroup(ordered, (trade) => {
     const date = new Date(trade.entryDate);
     return Number.isNaN(date.getTime()) ? [] : [date.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" })];
@@ -99,6 +100,7 @@ function calculateTradingAnalytics(entries = []) {
     instrumentBreakdown,
     directionBreakdown,
     timeframeBreakdown,
+    marketRegimeBreakdown,
     dayOfWeekBreakdown,
     calendarDays,
   };

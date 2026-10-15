@@ -29,13 +29,21 @@ router.get("/trading", async (req, res) => {
 
   const closed = trades.filter((trade) => trade.result !== "OPEN");
   const wins = closed.filter((trade) => trade.result === "WIN");
-  const withPsychology = closed.filter((trade) => trade.psychologyBefore || trade.psychologyDuring || trade.psychologyAfter);
+  const withPsychology = closed.filter((trade) => trade.emotionBefore || trade.psychologyBefore || trade.psychologyDuring || trade.psychologyAfter || trade.disciplineNotes);
+  const withDecisionEvidence = closed.filter((trade) =>
+    trade.content && trade.invalidationSignal && trade.confirmationSignal &&
+    (trade.biasTimeframe || trade.setupTimeframe || trade.entryTimeframe) &&
+    trade.postTradeLesson && trade.nextImprovement
+  );
+  const withExitReview = closed.filter((trade) => trade.exitReasoning && trade.postTradeWhatHappened);
   const confidenceWins = wins.filter((trade) => trade.confidence);
   res.json({
     ...analytics,
     bestSetup: analytics.setupBreakdown[0] || null,
     ruleAdherence: {
       journaledPct: Math.round((withPsychology.length / closed.length) * 100),
+      completeEvidencePct: Math.round((withDecisionEvidence.length / closed.length) * 100),
+      exitReviewPct: Math.round((withExitReview.length / closed.length) * 100),
       avgConfidenceOnWins: confidenceWins.length
         ? Number((confidenceWins.reduce((sum, trade) => sum + trade.confidence, 0) / confidenceWins.length).toFixed(1))
         : null,

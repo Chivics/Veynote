@@ -21,15 +21,17 @@ export function summarizeTrades(records = []) {
     averageR:closed.length?Number((netR/closed.length).toFixed(2)):0,
     expectancy:closed.length?Number((netR/closed.length).toFixed(2)):0,
     profitFactor:grossLoss?Number((grossWin/grossLoss).toFixed(2)):grossWin?Infinity:0,
-    maxDrawdown:Number(maxDrawdown.toFixed(2)), documented:closed.length?Math.round(closed.filter(item=>item.postTradeLesson || item.psychologyAfter).length/closed.length*100):0,
-    setup:grouped("setupTypes"), session:grouped("session"), instrument:grouped("asset"),
+    maxDrawdown:Number(maxDrawdown.toFixed(2)), documented:closed.length?Math.round(closed.filter(item=>
+      item.postTradeLesson || item.psychologyAfter || item.disciplineNotes || item.nextImprovement
+    ).length/closed.length*100):0,
+    setup:grouped("setupTypes"), session:grouped("session"), instrument:grouped("asset"), regime:grouped("marketRegime"),
   };
 }
 
 export function reportCsv(records = []) {
   const cells = value => `"${String(value ?? "").replaceAll('"','""')}"`;
-  const headings=["Date","Account","Instrument","Direction","Setup","Session","Result","Planned R:R","Achieved R","P&L","Lesson"];
+  const headings=["Date","Account","Instrument","Direction","Setup","Session","Market regime","Result","Planned R:R","Achieved R","P&L","Lesson","Next improvement"];
   return [headings.map(cells).join(","), ...records.map(item=>[
-    String(item.entryDate||"").slice(0,10),item.account?.name||"Unassigned",item.asset,item.direction,item.setupTypes,item.session,item.result,item.riskReward,item.achievedR,item.profitLoss,item.postTradeLesson,
+    String(item.entryDate||"").slice(0,10),item.account?.name||"Unassigned",item.asset,item.direction,item.setupTypes,item.session,item.marketRegime,item.result,item.riskReward,item.achievedR,item.profitLoss,item.postTradeLesson,item.nextImprovement,
   ].map(cells).join(","))].join("\r\n");
 }
