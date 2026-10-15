@@ -54,15 +54,26 @@ export default function TradingCalendar() {
   }, [data]);
   const monthSummary = useMemo(() => {
     const rows = data?.tradingDaySummaries || [];
-    return { days:rows.length, trades:rows.reduce((sum,row)=>sum+(Number(row.tradeCount)||0),0), netR:Number(rows.reduce((sum,row)=>sum+(Number(row.netR)||0),0).toFixed(2)), positive:rows.filter(row=>Number(row.netR)>0).length };
+    const best = rows.reduce((leader, row) => !leader || Number(row.netR) > Number(leader.netR) ? row : leader, null);
+    return { days:rows.length, trades:rows.reduce((sum,row)=>sum+(Number(row.tradeCount)||0),0), netR:Number(rows.reduce((sum,row)=>sum+(Number(row.netR)||0),0).toFixed(2)), positive:rows.filter(row=>Number(row.netR)>0).length, best };
   }, [data]);
+  const selectedTrades = dayDetail?.trades || [];
+  const selectedNet = netTotal(selectedTrades);
+  const selectedEvidence = selectedTrades.length ? Math.round(selectedTrades.filter(trade => trade.content || trade.preTradeEmotion || trade.postTradeEmotion).length / selectedTrades.length * 100) : 0;
+
+  function moveSelectedDay(delta) {
+    const next = new Date(year, month - 1, selectedDay + delta);
+    setYear(next.getFullYear());
+    setMonth(next.getMonth() + 1);
+    setSelectedDay(next.getDate());
+  }
 
   return (
     <main className="trading-calendar-page">
       <header className="trading-calendar-header"><div><span className="eyebrow">TRADING · TEMPORAL REVIEW</span><h1 className="page-title">Performance in the context of time.</h1><p>{activeAccount ? `Only trades logged under ${activeAccount.name} contribute to this calendar.` : "See when decisions were made, where results clustered, and return to the complete evidence behind any trading day."}</p></div><select aria-label="Trading account" value={accountId} onChange={event => setSearchParams(previous => { const next = new URLSearchParams(previous); if (event.target.value) next.set("accountId", event.target.value); else next.delete("accountId"); return next; }, { replace: true })}><option value="">All accounts</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></header>
       {(result.error || dayResult.error) && <p role="alert" className="text-danger">{(result.error || dayResult.error).message} <button className="btn-outline" onClick={() => Promise.allSettled([result.refresh(), dayResult.refresh()])}>Retry</button></p>}
 
-      <section className="trading-calendar-summary"><div><span>Net month</span><strong className={monthSummary.netR>=0?"text-success":"text-danger"}>{data ? `${monthSummary.netR>0?"+":""}${monthSummary.netR}R` : "—"}</strong></div><div><span>Trading days</span><strong>{data ? monthSummary.days : "—"}</strong></div><div><span>Trades</span><strong>{data ? monthSummary.trades : "—"}</strong></div><div><span>Positive days</span><strong>{data ? monthSummary.positive : "—"}</strong></div></section>
+      <section className="trading-calendar-summary"><div><span>Net month</span><strong className={monthSummary.netR>=0?"text-success":"text-danger"}>{data ? `${monthSummary.netR>0?"+":""}${monthSummary.netR}R` : "—"}</strong><small>Realized R for this scope</small></div><div><span>Trading days</span><strong>{data ? monthSummary.days : "—"}</strong><small>{monthSummary.days ? `${Math.round(monthSummary.positive / monthSummary.days * 100)}% positive` : "No activity yet"}</small></div><div><span>Trades</span><strong>{data ? monthSummary.trades : "—"}</strong><small>{monthSummary.days ? `${(monthSummary.trades / monthSummary.days).toFixed(1)} per active day` : "Awaiting evidence"}</small></div><div><span>Best day</span><strong>{monthSummary.best ? `${Number(monthSummary.best.netR)>0?"+":""}${monthSummary.best.netR}R` : "—"}</strong><small>{monthSummary.best ? new Date(monthSummary.best.date).toLocaleDateString(undefined,{month:"short",day:"numeric"}) : "No closed day"}</small></div></section>
 
       <div className="trading-calendar-layout">
         <section className="trading-calendar-board">
@@ -88,15 +99,12 @@ export default function TradingCalendar() {
                 <button
                   key={d}
                   onClick={() => setSelectedDay(d)}
-                  className={`h-[65px] rounded-lg p-1.5 text-left transition ${
-                    selectedDay === d ? "bg-app-panel2 ring-1 ring-accent-trade" : "bg-app-panel2/60 hover:bg-app-panel2"
-                  } ${isToday ? "border border-accent-trade" : ""}`}
+                  className={`trading-calendar-cell ${selectedDay === d ? "selected" : ""} ${isToday ? "today" : ""} ${summary ? Number(summary.netR)>0 ? "positive" : Number(summary.netR)<0 ? "negative" : "neutral" : ""}`}
+                  aria-label={`${MONTHS[month - 1]} ${d}${summary ? `, ${summary.tradeCount} trades, ${summary.netR} R` : ""}`}
                 >
-                  <b className="text-[10.5px] text-ink-soft">{d}</b>
+                  <b>{d}</b>
                   {summary && (
-                    <span className={`block text-[8.5px] mt-1 px-1 py-0.5 rounded truncate ${summary.netR >= 0 ? "bg-success/15 text-success" : "bg-danger/15 text-danger"}`}>
-                      {summary.netR >= 0 ? "+" : ""}{summary.netR}R · {summary.tradeCount}t
-                    </span>
+                    <><i/><span>{summary.netR >= 0 ? "+" : ""}{summary.netR}R</span><small>{summary.tradeCount} trade{summary.tradeCount===1?"":"s"}</small></>
                   )}
                 </button>
               );
@@ -105,27 +113,15 @@ export default function TradingCalendar() {
         </section>
 
         <aside className="trading-calendar-day">
-          <p className="text-[10px] text-ink-muted m-0 mb-1">{MONTHS[month - 1].toUpperCase()} {selectedDay}, {year}</p>
+          <header className="trading-calendar-day-header"><button type="button" onClick={()=>moveSelectedDay(-1)} aria-label="Previous day">‹</button><div><span>DECISION REVIEW</span><strong>{MONTHS[month - 1]} {selectedDay}, {year}</strong></div><button type="button" onClick={()=>moveSelectedDay(1)} aria-label="Next day">›</button></header>
           {dayDetail?.trades?.length > 0 ? (
             <>
-              <p className="text-[13px] font-bold m-0 mb-0.5">
-                Net:{" "}
-                <span className={netTotal(dayDetail.trades) >= 0 ? "text-success" : "text-danger"}>
-                  {netTotal(dayDetail.trades) >= 0 ? "+" : ""}{netTotal(dayDetail.trades)}R
-                </span>
-              </p>
-              <p className="text-[11px] text-ink-muted m-0 mb-3.5">
-                {dayDetail.trades.length} trade{dayDetail.trades.length === 1 ? "" : "s"} ·{" "}
-                {dayDetail.trades.filter((t) => t.result === "WIN").length} win ·{" "}
-                {dayDetail.trades.filter((t) => t.result === "LOSS").length} loss
-              </p>
-              <div className="border-t border-app-border pt-2.5">
+              <section className="trading-day-score"><div><span>Net result</span><strong className={selectedNet >= 0 ? "text-success" : "text-danger"}>{selectedNet > 0 ? "+" : ""}{selectedNet}R</strong></div><div><span>Evidence</span><strong>{selectedEvidence}%</strong></div></section>
+              <p className="trading-day-outcomes">{dayDetail.trades.length} trade{dayDetail.trades.length === 1 ? "" : "s"} · {dayDetail.trades.filter((t) => t.result === "WIN").length} win · {dayDetail.trades.filter((t) => t.result === "LOSS").length} loss</p>
+              <div className="trading-day-ledger">
                 {dayDetail.trades.map((t) => (
-                  <Link key={t.id} to={`/trading/entries/${t.id}`} className="block text-[11.5px] mb-1.5">
-                    <NavigationIcon name="chart" size={13}/> {t.title}{" "}
-                    <span className={t.result === "WIN" ? "text-success" : t.result === "LOSS" ? "text-danger" : "text-ink-muted"}>
-                      ({outcomeLabel(t.result)})
-                    </span>
+                  <Link key={t.id} to={`/trading/entries/${t.id}`}>
+                    <span><NavigationIcon name="chart" size={13}/><b>{t.asset || t.title || "Trade"}</b></span><small>{[t.session, t.setupTypes].filter(Boolean).join(" · ") || "Decision record"}</small><em className={t.result === "WIN" ? "text-success" : t.result === "LOSS" ? "text-danger" : "text-ink-muted"}>{t.achievedR > 0 ? "+" : ""}{t.achievedR || 0}R · {outcomeLabel(t.result)}</em>
                   </Link>
                 ))}
               </div>
@@ -133,9 +129,7 @@ export default function TradingCalendar() {
           ) : (
             <p className="text-[11px] text-ink-muted mb-3.5">{dayDetail ? "No trades logged this day" : dayResult.error ? "Day details are unavailable." : "Checking this day…"}</p>
           )}
-          <Link to={`/trading/entries/new${accountId ? `?accountId=${encodeURIComponent(accountId)}` : ""}`} className="btn-outline w-full text-center block mt-3.5">
-            + Log a trade
-          </Link>
+          <div className="trading-day-actions"><Link to={`/trading/entries/new?entryDate=${year}-${String(month).padStart(2,"0")}-${String(selectedDay).padStart(2,"0")}${accountId ? `&accountId=${encodeURIComponent(accountId)}` : ""}`} className="btn-primary"><NavigationIcon name="plus" size={14}/> Log trade</Link>{activeAccount && <Link to={`/trading/accounts/${activeAccount.id}`} className="btn-outline">Open account</Link>}</div>
         </aside>
       </div>
     </main>

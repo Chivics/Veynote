@@ -77,7 +77,7 @@ function TradeEditorForm() {
     riskAmount: "",
     profitLoss: "",
     session: "",
-    entryDate: new Date().toISOString().slice(0, 10),
+    entryDate: searchParams.get("entryDate") || new Date().toISOString().slice(0, 10),
     setupTypes: [],
     customSetupType: "",
     biasTimeframe: "",
