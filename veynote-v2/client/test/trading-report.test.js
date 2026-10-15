@@ -18,3 +18,15 @@ test("CSV export quotes user-authored cells and retains the source account", () 
   const csv = reportCsv([{ entryDate:"2026-10-01T12:00:00Z",account:{name:"Executive, FX"},asset:"EURUSD",direction:"LONG",setupTypes:'Breakout "A"',session:"London",result:"WIN",riskReward:2,achievedR:1.5,profitLoss:150,postTradeLesson:"Patient" }]);
   assert.match(csv,/"Executive, FX"/); assert.match(csv,/"Breakout ""A"""/); assert.match(csv,/"1.5"/);
 });
+
+test("break-even trades remain visible without being counted as wins or losses", () => {
+  const report = summarizeTrades([
+    { isTrade:true,result:"WIN",achievedR:1,entryDate:"2026-10-01" },
+    { isTrade:true,result:"BREAK_EVEN",achievedR:0,entryDate:"2026-10-02" },
+  ]);
+  assert.equal(report.closed, 2);
+  assert.equal(report.wins, 1);
+  assert.equal(report.losses, 0);
+  assert.equal(report.breakEven, 1);
+  assert.equal(report.winRate, 50);
+});

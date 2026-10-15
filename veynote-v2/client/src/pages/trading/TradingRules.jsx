@@ -22,6 +22,8 @@ export default function TradingRules() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("ALL");
   const [status, setStatus] = useState("ACTIVE");
+  const [compliance, setCompliance] = useState("ALL");
+  const [quickReference, setQuickReference] = useState(false);
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [creatingBusy, setCreatingBusy] = useState(false);
@@ -34,14 +36,16 @@ export default function TradingRules() {
     const matchesQuery = !query || `${rule.rule} ${rule.notes || ""}`.toLowerCase().includes(query.toLowerCase());
     const matchesCategory = category === "ALL" || rule.category === category;
     const matchesStatus = status === "ALL" || (status === "ACTIVE" ? rule.status === "Active" : rule.status !== "Active");
-    return matchesQuery && matchesCategory && matchesStatus;
-  }), [rules, query, category, status]);
+    const matchesCompliance = compliance === "ALL" || (rule.complianceStatus || "UNREVIEWED") === compliance;
+    const matchesQuickReference = !quickReference || (rule.status === "Active" && rule.priority === "Must follow");
+    return matchesQuery && matchesCategory && matchesStatus && matchesCompliance && matchesQuickReference;
+  }), [rules, query, category, status, compliance, quickReference]);
 
   const summary = useMemo(() => ({
     active: (rules || []).filter((rule) => rule.status === "Active").length,
     critical: (rules || []).filter((rule) => rule.priority === "Must follow" && rule.status === "Active").length,
     warnings: (rules || []).filter((rule) => ["AT_RISK", "VIOLATED"].includes(rule.complianceStatus)).length,
-    assigned: new Set((rules || []).map((rule) => rule.accountId).filter(Boolean)).size,
+    reviewDue: (rules || []).filter((rule) => rule.status === "Active" && rule.reviewDate && new Date(rule.reviewDate) <= new Date()).length,
   }), [rules]);
 
   async function createRule(event) {
@@ -70,8 +74,13 @@ export default function TradingRules() {
         <div><span>Active rules</span><strong>{rules === null ? "—" : summary.active}</strong><small>Currently enforced</small></div>
         <div><span>Non-negotiable</span><strong>{rules === null ? "—" : summary.critical}</strong><small>Must-follow controls</small></div>
         <div><span>Needs attention</span><strong className={summary.warnings ? "text-danger" : ""}>{rules === null ? "—" : summary.warnings}</strong><small>At risk or violated</small></div>
-        <div><span>Account coverage</span><strong>{rules === null ? "—" : `${summary.assigned}/${accounts.length}`}</strong><small>Accounts with specific rules</small></div>
+        <div><span>Review due</span><strong className={summary.reviewDue ? "text-warning" : ""}>{rules === null ? "—" : summary.reviewDue}</strong><small>Controls requiring confirmation</small></div>
       </section>
+
+      {!!summary.critical && <section className="rulebook-quick-reference" aria-label="Pre-session quick reference">
+        <div><span className="eyebrow">PRE-SESSION BRIEF</span><h2>Your non-negotiables, before risk is live.</h2><p>{summary.critical} active must-follow control{summary.critical === 1 ? "" : "s"} across {accounts.length || "all"} account{accounts.length === 1 ? "" : "s"}.</p></div>
+        <button type="button" className={quickReference ? "rulebook-mode-toggle active" : "rulebook-mode-toggle"} aria-pressed={quickReference} onClick={() => setQuickReference(value => !value)}>{quickReference ? "Show complete rulebook" : "Open quick reference"}</button>
+      </section>}
 
       {creating && <form className="card rule-composer" onSubmit={createRule}>
         <div><span className="eyebrow">NEW CONTROL</span><h2>Write a rule you can verify</h2><p>Make it specific enough to check before or after a trade.</p></div>
@@ -88,6 +97,7 @@ export default function TradingRules() {
       <div className="rulebook-toolbar">
         <label className="rulebook-search"><span aria-hidden="true">⌕</span><input aria-label="Search rules" placeholder="Search your rulebook" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
         <select aria-label="Filter by category" value={category} onChange={(event) => setCategory(event.target.value)}><option value="ALL">All categories</option>{CATEGORIES.map((item) => <option key={item}>{item}</option>)}</select>
+        <select aria-label="Filter by compliance" value={compliance} onChange={(event) => setCompliance(event.target.value)}><option value="ALL">All compliance</option>{COMPLIANCE.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</select>
         <div className="rule-status-tabs" aria-label="Filter by status">{[["ACTIVE", "Active"], ["RETIRED", "Reviewing / retired"], ["ALL", "All"]].map(([value, label]) => <button key={value} onClick={() => setStatus(value)} className={status === value ? "active" : ""}>{label}</button>)}</div>
       </div>
 

@@ -34,6 +34,12 @@ export default function TradingCalendar() {
     setYear(y);
     setSelectedDay(day => Math.min(day, new Date(y, m, 0).getDate()));
   }
+  function returnToToday() {
+    const current = new Date();
+    setYear(current.getFullYear());
+    setMonth(current.getMonth() + 1);
+    setSelectedDay(current.getDate());
+  }
 
   const daysInMonth = new Date(year, month, 0).getDate();
   const firstWeekday = new Date(year, month - 1, 1).getDay();
@@ -63,6 +69,7 @@ export default function TradingCalendar() {
           <div className="trading-calendar-period">
             <button onClick={() => changeMonth(-1)} aria-label="Previous month">‹</button>
             <div><span>MONTHLY REVIEW</span><h2>{MONTHS[month - 1]} {year}</h2></div>
+            {!isCurrentMonth && <button className="trading-calendar-today" onClick={returnToToday}>Today</button>}
             <button onClick={() => changeMonth(1)} aria-label="Next month">›</button>
           </div>
 
@@ -117,7 +124,7 @@ export default function TradingCalendar() {
                   <Link key={t.id} to={`/trading/entries/${t.id}`} className="block text-[11.5px] mb-1.5">
                     <NavigationIcon name="chart" size={13}/> {t.title}{" "}
                     <span className={t.result === "WIN" ? "text-success" : t.result === "LOSS" ? "text-danger" : "text-ink-muted"}>
-                      ({t.result === "OPEN" ? "Open" : t.result.charAt(0) + t.result.slice(1).toLowerCase()})
+                      ({outcomeLabel(t.result)})
                     </span>
                   </Link>
                 ))}
@@ -137,4 +144,9 @@ export default function TradingCalendar() {
 
 function netTotal(trades) {
   return Number(trades.reduce((s, t) => s + (t.achievedR || 0), 0).toFixed(2));
+}
+function outcomeLabel(result) {
+  if (result === "BREAK_EVEN") return "Break-even";
+  if (!result || result === "OPEN") return "Open";
+  return result.charAt(0) + result.slice(1).toLowerCase();
 }
