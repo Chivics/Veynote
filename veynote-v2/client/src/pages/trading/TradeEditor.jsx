@@ -14,6 +14,13 @@ const SETUP_TYPES = [
   { key: "FVG", label: "FVG" },
   { key: "CUSTOM", label: "Custom" },
 ];
+const WORKFLOW_STAGES = [
+  { key: "overview", number: "01", label: "Overview & execution", note: "Plan, risk and setup" },
+  { key: "thesis", number: "02", label: "Trade thesis", note: "Narrative and invalidation" },
+  { key: "analysis", number: "03", label: "Top-down analysis", note: "Context to confirmation" },
+  { key: "psychology", number: "04", label: "Psychology", note: "State and discipline" },
+  { key: "review", number: "05", label: "Result & review", note: "Outcome and lesson" },
+];
 
 export default function TradeEditor() {
   const { id } = useParams();
@@ -34,6 +41,8 @@ function TradeEditorForm() {
   const [saving, setSaving] = useState(false);
   const [initialContent, setInitialContent] = useState('');
   const [analysisPath, setAnalysisPath] = useState([]);
+  const [activeStage, setActiveStage] = useState("overview");
+  const [thesisStarted, setThesisStarted] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [accountError, setAccountError] = useState('');
@@ -131,6 +140,7 @@ function TradeEditorForm() {
         });
         setAnalysisPath([e.biasTimeframe, e.setupTimeframe, e.entryTimeframe].filter(Boolean));
         setInitialContent(e.content || '');
+        setThesisStarted(Boolean((e.content || "").replace(/<[^>]+>/g, "").trim()));
         setLoaded(true);
       }).catch(error => { if(active) setLoadError(error.message); });
     }
@@ -143,6 +153,15 @@ function TradeEditorForm() {
           Math.abs(form.takeProfit - form.entryPrice) / (Math.abs(form.entryPrice - form.stopLoss) || 1)
         ).toFixed(2)
       : null;
+  const stageComplete = {
+    overview: Boolean(form.title.trim() && form.asset.trim() && form.entryPrice && form.stopLoss && form.takeProfit),
+    thesis: thesisStarted,
+    analysis: analysisPath.length > 0,
+    psychology: Boolean(form.psychologyBefore || form.psychologyDuring || form.psychologyAfter),
+    review: form.result === "OPEN" || Boolean(form.postTradeLesson || form.postTradeWhatHappened),
+  };
+  const completedStages = WORKFLOW_STAGES.filter((stage) => stageComplete[stage.key]).length;
+  const activeStageIndex = WORKFLOW_STAGES.findIndex((stage) => stage.key === activeStage);
 
   function toggleSetupType(key) {
     setForm((f) => {
@@ -262,10 +281,6 @@ function TradeEditorForm() {
         </button>
       </div>
 
-      <nav className="trade-workflow-nav" aria-label="Trade workspace sections">
-        <a href="#overview"><span>01</span> Overview</a><a href="#thesis"><span>02</span> Thesis</a><a href="#analysis"><span>03</span> Analysis</a><a href="#psychology"><span>04</span> Psychology</a><a href="#review"><span>05</span> Review</a>
-      </nav>
-
       {saveError && <p role="alert" className="text-danger text-sm mb-4">{saveError}</p>}
       {accountError && <p role="alert" className="text-danger text-sm mb-4">Accounts could not be loaded: {accountError} Reload this page before choosing an account.</p>}
 
@@ -303,7 +318,15 @@ function TradeEditorForm() {
         onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
       />
 
-      <section id="overview" className="trade-overview-panel rounded-2xl border border-app-border p-5 mb-6 bg-gradient-to-br from-app-panel to-accent-trade-soft">
+      <div className="trade-stage-layout">
+      <aside className="trade-workflow-nav" aria-label="Trade workspace sections">
+        <div className="trade-workflow-progress"><span>RECORD COMPLETION</span><strong>{completedStages} / {WORKFLOW_STAGES.length}</strong><i><b style={{ width: `${completedStages / WORKFLOW_STAGES.length * 100}%` }} /></i></div>
+        {WORKFLOW_STAGES.map((stage) => <button type="button" key={stage.key} className={`${activeStage === stage.key ? "active" : ""} ${stageComplete[stage.key] ? "complete" : ""}`} aria-current={activeStage === stage.key ? "step" : undefined} onClick={() => setActiveStage(stage.key)}><span>{stageComplete[stage.key] ? "✓" : stage.number}</span><div><strong>{stage.label}</strong><small>{stage.note}</small></div></button>)}
+        <div className="trade-workflow-context"><span>LIVE SUMMARY</span><strong>{form.asset || "No instrument"} · {form.direction}</strong><small>{rr ? `${rr}R planned` : "Risk plan incomplete"}{analysisPath.length ? ` · ${analysisPath.join(" → ")}` : ""}</small></div>
+      </aside>
+      <main className="trade-stage-content">
+
+      <section id="overview" hidden={activeStage !== "overview"} className="trade-overview-panel rounded-2xl border border-app-border p-5 bg-gradient-to-br from-app-panel to-accent-trade-soft">
         <div className="trade-section-heading"><div><span className="eyebrow">01 · TRADE OVERVIEW & EXECUTION</span><h2>Plan the trade</h2></div><span className="type-pill">{form.result === "OPEN" ? "Planning / live" : "Closed"}</span></div>
         <div className="flex justify-between items-start mb-4 flex-wrap gap-3">
           <div className="flex gap-2 items-center flex-wrap">
@@ -399,16 +422,9 @@ function TradeEditorForm() {
           </div>
         )}
 
-        {form.result !== "OPEN" && (
-          <div className="mt-3.5">
-            <p className="text-[10.5px] text-ink-muted mb-1.5">ACHIEVED R</p>
-            <input className="input w-32" placeholder="e.g. 3.2" value={form.achievedR} onChange={(e) => setForm((f) => ({ ...f, achievedR: e.target.value }))} />
-            <input className="input w-40 ml-2" placeholder="Realized P&L" value={form.profitLoss} onChange={(e) => setForm((f) => ({ ...f, profitLoss: e.target.value }))} />
-          </div>
-        )}
       </section>
 
-      <section id="thesis" className="trade-editor-section">
+      <section id="thesis" hidden={activeStage !== "thesis"} className="trade-editor-section">
       <div className="trade-section-heading"><div><span className="eyebrow">02 · TRADE THESIS</span><h2>State the market story</h2><p>Explain the setup, invalidation and the evidence that justified execution.</p></div></div>
       <div className="flex gap-0.5 border border-app-border border-b-0 rounded-t-xl px-2.5 py-2 bg-app-panel">
         <button onClick={() => exec("bold")} className="w-7 h-7 max-sm:w-11 max-sm:h-11 rounded-md text-ink-muted hover:bg-app-panel2 hover:text-ink font-bold text-[12px] max-sm:text-[15px]">B</button>
@@ -419,20 +435,20 @@ function TradeEditorForm() {
         ref={bodyRef}
         contentEditable
         role="textbox" aria-label="Trade notes" aria-multiline="true"
-        onInput={() => { editRevision.current++; }}
+        onInput={(event) => { editRevision.current++; setThesisStarted(Boolean(event.currentTarget.textContent?.trim())); }}
         suppressContentEditableWarning
         onPaste={handleLinkPaste}
         className="border border-app-border rounded-b-xl p-6 bg-app-panel min-h-[140px] text-[14px] leading-[1.8] text-ink-soft outline-none focus:border-accent-trade mb-6 trade-body"
       />
       </section>
 
-      <section id="analysis" className="trade-editor-section"><div className="trade-section-heading"><div><span className="eyebrow">03 · TOP-DOWN ANALYSIS</span><h2>Build the evidence board</h2><p>Choose only the timeframes that belong to this trade, then document the progression to execution.</p></div>{analysisPath.length > 0 && <span className="trade-analysis-path" aria-label="Selected timeframe path">{analysisPath.join(" → ")}</span>}</div>
+      <section id="analysis" hidden={activeStage !== "analysis"} className="trade-editor-section"><div className="trade-section-heading"><div><span className="eyebrow">03 · TOP-DOWN ANALYSIS</span><h2>Build the evidence board</h2><p>Choose only the timeframes that belong to this trade, then document the progression to execution.</p></div>{analysisPath.length > 0 && <span className="trade-analysis-path" aria-label="Selected timeframe path">{analysisPath.join(" → ")}</span>}</div>
       <div className="mb-8">
         <TradeDocumentation entryId={entryId} ensureEntryId={ensureEntryId} onTimeframesChange={setAnalysisPath} />
       </div>
       </section>
 
-      <section id="psychology" className="trade-editor-section"><div className="trade-section-heading"><div><span className="eyebrow">04 · PSYCHOLOGY</span><h2>Track the decision state</h2><p>Record emotion, discipline and impulse without turning reflection into a questionnaire.</p></div></div>
+      <section id="psychology" hidden={activeStage !== "psychology"} className="trade-editor-section"><div className="trade-section-heading"><div><span className="eyebrow">04 · PSYCHOLOGY</span><h2>Track the decision state</h2><p>Record emotion, discipline and impulse without turning reflection into a questionnaire.</p></div></div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 mb-8">
         <PsychBox label="Before trade" value={form.psychologyBefore} onChange={(v) => setForm((f) => ({ ...f, psychologyBefore: v }))} />
         <PsychBox label="During trade" value={form.psychologyDuring} onChange={(v) => setForm((f) => ({ ...f, psychologyDuring: v }))} />
@@ -440,7 +456,8 @@ function TradeEditorForm() {
       </div>
       </section>
 
-      <section id="review" className="trade-editor-section"><div className="trade-section-heading"><div><span className="eyebrow">05 · POST-TRADE REVIEW</span><h2>Turn the outcome into a lesson</h2><p>Separate what happened from what should change next time.</p></div></div>
+      <section id="review" hidden={activeStage !== "review"} className="trade-editor-section"><div className="trade-section-heading"><div><span className="eyebrow">05 · RESULT & POST-TRADE REVIEW</span><h2>Turn the outcome into a lesson</h2><p>Close the record with the actual result, an honest review, and one reusable lesson.</p></div></div>
+      <div className="trade-result-console"><label><span>Outcome</span><select value={form.result} onChange={(event) => setForm((current) => ({ ...current, result:event.target.value }))}><option value="OPEN">Open / active</option><option value="WIN">Win</option><option value="LOSS">Loss</option><option value="BREAK_EVEN">Break-even</option></select></label><label><span>Achieved R</span><input inputMode="decimal" value={form.achievedR} onChange={(event) => setForm((current) => ({ ...current, achievedR:event.target.value }))} placeholder="e.g. 2.4" disabled={form.result === "OPEN"}/></label><label><span>Realized P&amp;L</span><input inputMode="decimal" value={form.profitLoss} onChange={(event) => setForm((current) => ({ ...current, profitLoss:event.target.value }))} placeholder="Optional" disabled={form.result === "OPEN"}/></label><div><span>Plan vs outcome</span><strong>{form.result === "OPEN" ? "Awaiting close" : `${rr || "—"}R planned · ${form.achievedR || "—"}R achieved`}</strong></div></div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
         <PsychBox label="What happened" value={form.postTradeWhatHappened} onChange={(v) => setForm((f) => ({ ...f, postTradeWhatHappened: v }))} />
         <PsychBox label="What went right" value={form.postTradeWentRight} onChange={(v) => setForm((f) => ({ ...f, postTradeWentRight: v }))} />
@@ -448,6 +465,9 @@ function TradeEditorForm() {
         <PsychBox label="Lesson learned" value={form.postTradeLesson} onChange={(v) => setForm((f) => ({ ...f, postTradeLesson: v }))} />
       </div>
       </section>
+      <footer className="trade-stage-footer"><button type="button" className="btn-outline" disabled={activeStageIndex === 0} onClick={() => setActiveStage(WORKFLOW_STAGES[activeStageIndex - 1].key)}>← Previous</button><div><span>{WORKFLOW_STAGES[activeStageIndex].number} / 05</span><strong>{WORKFLOW_STAGES[activeStageIndex].label}</strong></div>{activeStageIndex < WORKFLOW_STAGES.length - 1 ? <button type="button" className="btn-primary" onClick={() => setActiveStage(WORKFLOW_STAGES[activeStageIndex + 1].key)}>Continue →</button> : <button type="button" className="btn-primary" disabled={saving} onClick={save}>{saving ? "Saving…" : "Review & save trade"}</button>}</footer>
+      </main>
+      </div>
     </div>
   );
 }
