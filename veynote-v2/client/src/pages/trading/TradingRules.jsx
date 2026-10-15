@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
 
@@ -15,10 +15,12 @@ function priorityClass(priority) {
 
 export default function TradingRules() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const accountId = searchParams.get("accountId") || "";
   const [rules, setRules] = useState(() => api.peek("/trading-rules")?.rules ?? null);
   const [accounts, setAccounts] = useState(() => api.peek("/accounts")?.accounts ?? []);
   const [creating, setCreating] = useState(false);
-  const [draft, setDraft] = useState({ rule: "", category: "Risk Management", priority: "Must follow", accountId: "" });
+  const [draft, setDraft] = useState({ rule: "", category: "Risk Management", priority: "Must follow", accountId });
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("ALL");
   const [status, setStatus] = useState("ACTIVE");
@@ -31,6 +33,7 @@ export default function TradingRules() {
 
   function load() { api.get("/trading-rules").then((data) => { setRules(data.rules); setLoadError(""); }).catch((requestError) => setLoadError(requestError.message || "Rules could not be loaded.")); }
   useEffect(() => { load(); api.get("/accounts").then((data) => setAccounts(data.accounts)).catch(() => {}); }, []);
+  const activeAccount = accounts.find((account) => account.id === accountId);
 
   const filtered = useMemo(() => (rules || []).filter((rule) => {
     const matchesQuery = !query || `${rule.rule} ${rule.notes || ""}`.toLowerCase().includes(query.toLowerCase());
@@ -38,8 +41,9 @@ export default function TradingRules() {
     const matchesStatus = status === "ALL" || (status === "ACTIVE" ? rule.status === "Active" : rule.status !== "Active");
     const matchesCompliance = compliance === "ALL" || (rule.complianceStatus || "UNREVIEWED") === compliance;
     const matchesQuickReference = !quickReference || (rule.status === "Active" && rule.priority === "Must follow");
-    return matchesQuery && matchesCategory && matchesStatus && matchesCompliance && matchesQuickReference;
-  }), [rules, query, category, status, compliance, quickReference]);
+    const matchesAccount = !accountId || !rule.accountId || rule.accountId === accountId;
+    return matchesQuery && matchesCategory && matchesStatus && matchesCompliance && matchesQuickReference && matchesAccount;
+  }), [rules, query, category, status, compliance, quickReference, accountId]);
 
   const summary = useMemo(() => ({
     active: (rules || []).filter((rule) => rule.status === "Active").length,
@@ -56,7 +60,7 @@ export default function TradingRules() {
     setError("");
     try {
       const { rule } = await api.post("/trading-rules", draft);
-      setDraft({ rule: "", category: "Risk Management", priority: "Must follow", accountId: "" });
+      setDraft({ rule: "", category: "Risk Management", priority: "Must follow", accountId });
       setCreating(false);
       navigate(`/trading/rules/${rule.id}`);
     } catch (requestError) { setError(requestError.message || "We couldn't create this rule."); }
@@ -66,8 +70,8 @@ export default function TradingRules() {
   return (
     <div className="rulebook-page">
       <header className="rulebook-header">
-        <div><span className="eyebrow">TRADING DISCIPLINE</span><h1 className="page-title">Trading Rulebook</h1><p>Your live operating system for risk, execution and discipline.</p></div>
-        <button onClick={() => setCreating((value) => !value)} className="btn-primary">+ New rule</button>
+        <div><span className="eyebrow">TRADING DISCIPLINE</span><h1 className="page-title">{activeAccount ? `${activeAccount.name} Rulebook` : "Trading Rulebook"}</h1><p>{activeAccount ? "Account controls appear alongside global rules that govern every workspace." : "Your live operating system for risk, execution and discipline."}</p>{activeAccount && <Link className="rulebook-account-return" to={`/trading/accounts/${activeAccount.id}`}>← Return to account workspace</Link>}</div>
+        <button onClick={() => { setDraft(current => ({ ...current, accountId })); setCreating((value) => !value); }} className="btn-primary">+ New rule</button>
       </header>
 
       <section className="rulebook-briefing">
@@ -98,6 +102,7 @@ export default function TradingRules() {
         <label className="rulebook-search"><span aria-hidden="true">⌕</span><input aria-label="Search rules" placeholder="Search your rulebook" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
         <select aria-label="Filter by category" value={category} onChange={(event) => setCategory(event.target.value)}><option value="ALL">All categories</option>{CATEGORIES.map((item) => <option key={item}>{item}</option>)}</select>
         <select aria-label="Filter by compliance" value={compliance} onChange={(event) => setCompliance(event.target.value)}><option value="ALL">All compliance</option>{COMPLIANCE.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</select>
+        <select aria-label="Filter by account" value={accountId} onChange={(event) => setSearchParams(previous => { const next = new URLSearchParams(previous); if (event.target.value) next.set("accountId", event.target.value); else next.delete("accountId"); return next; }, { replace:true })}><option value="">All accounts</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select>
         <div className="rule-status-tabs" aria-label="Filter by status">{[["ACTIVE", "Active"], ["RETIRED", "Reviewing / retired"], ["ALL", "All"]].map(([value, label]) => <button key={value} onClick={() => setStatus(value)} className={status === value ? "active" : ""}>{label}</button>)}</div>
       </div>
 

@@ -160,7 +160,7 @@ export default function AccountDetail() {
           {!performance.hasData ? <p className="account-empty-copy">{analytics === null ? "Checking account performance…" : "Closed trades will build this curve."}</p> : <div className="account-equity-chart" aria-label="Cumulative R chart">{performance.cumulativeR.map((point, index) => { const values = performance.cumulativeR.map((item) => item.value); const min = Math.min(...values, 0); const max = Math.max(...values, 0); const range = Math.max(max - min, 1); const height = ((point.value - min) / range) * 78 + 10; return <div key={point.tradeId || index} className="account-equity-column"><i className={point.value >= 0 ? "positive" : "negative"} style={{ height: `${height}%` }} /><span>{index === 0 || index === performance.cumulativeR.length - 1 ? `${point.value}R` : ""}</span></div>; })}</div>}
         </section>
         <section className="card account-limits-panel">
-          <div className="section-heading"><div><span className="eyebrow">RISK ENVELOPE</span><h2>Limits & targets</h2></div><Link to="/trading/rules">Rulebook →</Link></div>
+          <div className="section-heading"><div><span className="eyebrow">RISK ENVELOPE</span><h2>Limits & targets</h2></div><Link to={`/trading/rules?accountId=${id}`}>Rulebook →</Link></div>
           <div className="account-limit-list"><div><span>Daily loss limit</span><b>{money(account.dailyLossLimit, currency)}</b></div><div><span>Overall drawdown</span><b>{money(account.drawdownLimit, currency)}</b></div><div><span>Profit target</span><b>{money(account.profitTarget, currency)}</b></div><div><span>Equity</span><b>{money(account.equity, currency)}</b></div></div>
         </section>
       </div>
