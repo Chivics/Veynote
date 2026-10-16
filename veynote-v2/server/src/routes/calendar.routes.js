@@ -46,7 +46,7 @@ router.get("/", async (req, res) => {
   let tradingDaySummaries = [];
   if (mode === "TRADING") {
     const trades = await prisma.tradingEntry.findMany({
-      where: { userId: req.userId, isTrade: true, archivedAt: null, deletedAt: null, ...(accountId && { accountId }), entryDate: { gte: start, lt: end } },
+      where: { userId: req.userId, isTrade: true, isDraft: false, archivedAt: null, deletedAt: null, ...(accountId && { accountId }), entryDate: { gte: start, lt: end } },
     });
     const byDay = {};
     for (const t of trades) {
@@ -58,7 +58,7 @@ router.get("/", async (req, res) => {
     tradingDaySummaries = Object.values(byDay).map((d) => ({ ...d, netR: Number(d.netR.toFixed(2)) }));
   }
 
-  const activeUserEvents = userEvents.filter(event => !event.linkedTrade || (!event.linkedTrade.archivedAt && !event.linkedTrade.deletedAt));
+  const activeUserEvents = userEvents.filter(event => !event.linkedTrade || (!event.linkedTrade.isDraft && !event.linkedTrade.archivedAt && !event.linkedTrade.deletedAt));
   res.json({
     userEvents: (accountId ? activeUserEvents.filter(event => event.linkedTrade?.accountId === accountId) : activeUserEvents).map((event) => calendarEventPublic(event, req.userId)),
     systemEvents,
@@ -85,7 +85,7 @@ router.get("/day", async (req, res) => {
   let trades = [];
   if (mode === "TRADING") {
     trades = await prisma.tradingEntry.findMany({
-      where: { userId: req.userId, archivedAt: null, deletedAt: null, ...(accountId && { accountId }), entryDate: { gte: start, lt: end } },
+      where: { userId: req.userId, isTrade: true, isDraft: false, archivedAt: null, deletedAt: null, ...(accountId && { accountId }), entryDate: { gte: start, lt: end } },
       include: { account: true },
     });
   }
@@ -94,13 +94,13 @@ router.get("/day", async (req, res) => {
     (e) => new Date(e.date).getUTCDate() === date.getUTCDate()
   );
 
-  const activeUserEvents = userEvents.filter(event => !event.linkedTrade || (!event.linkedTrade.archivedAt && !event.linkedTrade.deletedAt));
+  const activeUserEvents = userEvents.filter(event => !event.linkedTrade || (!event.linkedTrade.isDraft && !event.linkedTrade.archivedAt && !event.linkedTrade.deletedAt));
   res.json({ userEvents: (accountId ? activeUserEvents.filter(event => event.linkedTrade?.accountId === accountId) : activeUserEvents).map((event) => calendarEventPublic(event, req.userId)), systemEvents, trades });
 });
 
 router.post("/",
   ownedReference(prisma.note, "linkedNoteId", { isLocked: false, isWill: false, isTrashed: false }),
-  ownedReference(prisma.tradingEntry, "linkedTradeId", { archivedAt: null, deletedAt: null }),
+  ownedReference(prisma.tradingEntry, "linkedTradeId", { isDraft: false, archivedAt: null, deletedAt: null }),
   asyncHandler(async (req, res) => {
   const { mode, date, title, time, linkedNoteId, linkedTradeId } = req.body;
   let fields;

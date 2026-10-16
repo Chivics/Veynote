@@ -35,14 +35,14 @@ export default function TradingDashboard() {
     loadAnalytics();
   }, []);
 
-  const openPositions = entries?.filter((e) => e.isTrade && e.result === "OPEN") || [];
+  const openPositions = entries?.filter((e) => e.isTrade && !e.isDraft && e.result === "OPEN") || [];
   const recent = (entries || []).slice(0, 4);
   const netR = analytics?.hasData ? (analytics.totalR ?? analytics.cumulativeR?.at(-1)?.value ?? 0) : null;
   const closedTrades = analytics?.hasData ? analytics.totalTrades : 0;
   const journalCoverage = analytics?.ruleAdherence?.journaledPct;
   const activeAccounts = (accounts || []).filter(account => account.status !== "BREACHED");
-  const reviewQueue = (entries || []).filter((entry) => entry.isTrade && entry.result !== "OPEN" && (!entry.postTradeLesson || !entry.nextImprovement)).slice(0, 4);
-  const unassignedTrades = (entries || []).filter((entry) => entry.isTrade && !entry.accountId).length;
+  const reviewQueue = (entries || []).filter((entry) => entry.isTrade && !entry.isDraft && entry.result !== "OPEN" && (!entry.postTradeLesson || !entry.nextImprovement)).slice(0, 4);
+  const unassignedTrades = (entries || []).filter((entry) => entry.isTrade && !entry.isDraft && !entry.accountId).length;
   const strongestAccount = (accounts || []).reduce((leader, account) => !leader || Number(account.stats?.totalR || 0) > Number(leader.stats?.totalR || 0) ? account : leader, null);
 
   return (
@@ -147,7 +147,7 @@ export function EntryCard({ entry }) {
             entry.isTrade ? "bg-accent-trade-soft text-[#9ecbff]" : ""
           }`}
         >
-          <NavigationIcon name={entry.isTrade ? "chart" : "note"} size={12}/>{entry.isTrade ? "Trade" : "Research note"}
+          <NavigationIcon name={entry.isTrade ? "chart" : "note"} size={12}/>{entry.isDraft ? "Draft" : entry.isTrade ? "Trade" : "Research note"}
         </span>
         <span className="text-[10px] text-ink-muted shrink-0">
           {new Date(entry.entryDate).toLocaleDateString(undefined, {
@@ -187,7 +187,7 @@ export function EntryCard({ entry }) {
                   : ""
               }`}
             >
-              {entry.result === "OPEN"
+              {entry.isDraft ? "Draft" : entry.result === "OPEN"
                 ? "Open"
                 : entry.result?.charAt(0) + entry.result?.slice(1).toLowerCase()}
             </b>

@@ -54,7 +54,7 @@ router.get("/", async (req, res) => {
   const accounts = await prisma.tradingAccount.findMany({
     where: { userId: req.userId },
     orderBy: { createdAt: "asc" },
-    include: { entries: { where: { archivedAt: null, deletedAt: null } }, _count: { select: { rules: true } } },
+    include: { entries: { where: { isDraft: false, archivedAt: null, deletedAt: null } }, _count: { select: { rules: true } } },
   });
 
   res.json({
@@ -66,7 +66,7 @@ router.get("/:id", async (req, res) => {
   const account = await prisma.tradingAccount.findFirst({
     where: { id: req.params.id, userId: req.userId },
     include: {
-      entries: { where: { archivedAt: null, deletedAt: null }, orderBy: { entryDate: "desc" }, include: { tradeImages: true } },
+      entries: { where: { isDraft: false, archivedAt: null, deletedAt: null }, orderBy: { entryDate: "desc" }, include: { tradeImages: true } },
       rules: { orderBy: [{ priority: "asc" }, { createdAt: "desc" }] },
     },
   });

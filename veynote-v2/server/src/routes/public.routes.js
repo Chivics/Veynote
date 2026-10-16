@@ -51,6 +51,7 @@ router.get("/trading/:token", asyncHandler(async (req, res) => {
   const entries = await prisma.tradingEntry.findMany({
     where: {
       userId: share.userId,
+      isDraft: false,
       archivedAt: null,
       deletedAt: null,
       ...(share.accountId && { accountId: share.accountId }),

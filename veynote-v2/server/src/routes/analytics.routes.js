@@ -12,7 +12,7 @@ router.use(requireAuth);
 // frontend renders the empty state instead of a chart with nothing in it.
 router.get("/trading", async (req, res) => {
   const { accountId } = req.query;
-  const where = { userId: req.userId, isTrade: true, archivedAt: null, deletedAt: null };
+  const where = { userId: req.userId, isTrade: true, isDraft: false, archivedAt: null, deletedAt: null };
   if (accountId) {
     const account = await prisma.tradingAccount.findFirst({ where: { id: accountId, userId: req.userId }, select: { id: true } });
     if (!account) return res.status(404).json({ error: "Account not found." });

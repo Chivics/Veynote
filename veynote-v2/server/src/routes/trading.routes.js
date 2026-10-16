@@ -131,6 +131,7 @@ router.post("/entries", ownedReference(prisma.tradingAccount, "accountId"), asyn
   const entry = await prisma.tradingEntry.create({
     data: {
       userId: req.userId,
+      isDraft: Boolean(body.isDraft),
       accountId: body.accountId || null,
       isTrade: body.isTrade !== false,
       title: body.title.trim(),
@@ -232,6 +233,7 @@ router.patch("/entries/:id", ownedReference(prisma.tradingAccount, "accountId"),
       ...(body.postTradeWentWrong !== undefined && { postTradeWentWrong: body.postTradeWentWrong }),
       ...(body.postTradeLesson !== undefined && { postTradeLesson: body.postTradeLesson }),
       ...(body.isFavorite !== undefined && { isFavorite: body.isFavorite }),
+      ...(body.isDraft !== undefined && { isDraft: Boolean(body.isDraft) }),
     },
   });
 

@@ -18,7 +18,7 @@ export default function TradingReports() {
   const [publisherOpen,setPublisherOpen]=useState(false); const [share,setShare]=useState(null); const [shareTitle,setShareTitle]=useState("Verified trading performance");
   const [showPnl,setShowPnl]=useState(false); const [showAccountName,setShowAccountName]=useState(false); const [shareBusy,setShareBusy]=useState(false); const [shareError,setShareError]=useState(""); const [copied,setCopied]=useState(false); const [revokeOpen,setRevokeOpen]=useState(false);
   const entries=useApiQuery("/trading/entries",{accountId,from,to}); const accounts=useApiQuery("/accounts");
-  const records=entries.data?.entries || []; const summary=useMemo(()=>summarizeTrades(records),[records]);
+  const records=(entries.data?.entries || []).filter(item=>!item.isDraft); const summary=useMemo(()=>summarizeTrades(records),[records]);
   const account=accounts.data?.accounts?.find(item=>item.id===accountId);
   const shareUrl=share?.token ? `${window.location.origin}/performance/${share.token}` : "";
   useEffect(()=>{ api.get("/trading/report-share").then(body=>setShare(body.share||null)).catch(()=>{}); },[]);

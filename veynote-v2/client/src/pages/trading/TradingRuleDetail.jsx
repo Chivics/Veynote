@@ -26,7 +26,7 @@ export default function TradingRuleDetail() {
   useEffect(() => {
     api.get(`/trading-rules/${id}`).then((data) => setRule(data.rule)).catch((requestError) => setError(requestError.message));
     api.get(`/trading-rules/${id}/events`).then((data) => setEvents(data.events)).catch((requestError) => setEventError(requestError.message || "Verification history could not be loaded."));
-    api.get("/trading/entries").then((data) => setTrades((data.entries || []).filter(entry => entry.isTrade))).catch(() => {});
+    api.get("/trading/entries").then((data) => setTrades((data.entries || []).filter(entry => entry.isTrade && !entry.isDraft))).catch(() => {});
     api.get("/accounts").then((data) => setAccounts(data.accounts)).catch(() => {});
   }, [id]);
 

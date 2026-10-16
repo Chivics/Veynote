@@ -42,6 +42,8 @@ function TradeEditorForm() {
   const [loaded, setLoaded] = useState(isNew);
   useEffect(() => bodyRef.current ? observeMedia(bodyRef.current) : undefined, [loaded]);
   const [saving, setSaving] = useState(false);
+  const [isDraftRecord, setIsDraftRecord] = useState(false);
+  const [saveNotice, setSaveNotice] = useState("");
   const [initialContent, setInitialContent] = useState('');
   const [analysisPath, setAnalysisPath] = useState([]);
   const [activeStage, setActiveStage] = useState("setup");
@@ -121,6 +123,7 @@ function TradeEditorForm() {
       api.get(`/trading/entries/${routeId}`).then((d) => {
         if (!active) return;
         const e = d.entry;
+        setIsDraftRecord(Boolean(e.isDraft));
         const storedSetupTypes = (e.setupTypes || "").split(",").filter(Boolean);
         const storedCustomSetup = storedSetupTypes.find((type) => type.startsWith("CUSTOM:"));
         const normalizedSetupTypes = storedSetupTypes.map((type) =>
@@ -209,7 +212,7 @@ function TradeEditorForm() {
     });
   }
 
-  function buildPayload() {
+  function buildPayload({ draft = isDraftRecord } = {}) {
     const content = bodyRef.current ? persistentHTML(bodyRef.current) : "";
     const { customSetupType, ...formWithoutCustomField } = form;
 
@@ -239,33 +242,38 @@ function TradeEditorForm() {
       profitLoss: form.profitLoss ? Number(form.profitLoss) : null,
       achievedR: form.achievedR ? Number(form.achievedR) : null,
       confidence: Number(form.confidence),
+      isDraft: Boolean(draft),
     };
   }
 
-  async function save() {
+  async function persistTrade({ draft = false } = {}) {
     if (saveInFlight.current) return;
-    if (!form.title.trim()) { setSaveError('Give this trade a title before saving.'); return; }
-    if (form.setupTypes.includes("CUSTOM") && !form.customSetupType.trim()) {
+    if (!draft && !form.title.trim()) { setSaveError('Give this trade a title before saving.'); return; }
+    if (!draft && form.setupTypes.includes("CUSTOM") && !form.customSetupType.trim()) {
       setSaveError('Enter your custom setup type or deselect Custom.');
       return;
     }
     saveInFlight.current=true;
     const revision=editRevision.current;
     setSaveError('');
+    setSaveNotice('');
     setSaving(true);
     try {
       let savedId = entryId;
+      const payload = { ...buildPayload({ draft }), title: form.title.trim() || "Untitled trade" };
       if (!entryId) {
-        const { entry } = await api.post("/trading/entries", buildPayload());
+        const { entry } = await api.post("/trading/entries", payload);
         if (!alive.current) return;
         savedId = entry.id;
         setEntryId(entry.id);
         window.history.replaceState(null, "", `/trading/entries/${entry.id}/edit`);
       } else {
-        await api.patch(`/trading/entries/${entryId}`, buildPayload());
+        await api.patch(`/trading/entries/${entryId}`, payload);
         if (!alive.current) return;
       }
-      if (revision === editRevision.current) navigate(`/trading/entries/${savedId}`);
+      setIsDraftRecord(draft);
+      if (revision === editRevision.current && !draft) navigate(`/trading/entries/${savedId}`);
+      else if (revision === editRevision.current) setSaveNotice("Draft saved. It stays out of performance analytics until you complete the trade.");
       else setSaveError('The earlier changes were saved. You edited this trade while saving; save again to include the latest changes.');
     } catch (error) {
       if (alive.current) setSaveError(error.message);
@@ -275,6 +283,9 @@ function TradeEditorForm() {
     }
   }
 
+  const save = () => persistTrade({ draft:false });
+  const saveDraft = () => persistTrade({ draft:true });
+
   // Trade images need a real entry id to attach to — if someone uploads a
   // setup screenshot before ever hitting Save, create a lightweight draft
   // first (same pattern as the Notes editor's attachments), using
@@ -282,10 +293,12 @@ function TradeEditorForm() {
   async function ensureEntryId() {
     if (entryId) return entryId;
     const { entry } = await api.post("/trading/entries", {
-      ...buildPayload(),
+      ...buildPayload({ draft:true }),
       title: form.title.trim() || "Untitled trade",
     });
     setEntryId(entry.id);
+    setIsDraftRecord(true);
+    setSaveNotice("Draft created so your analysis evidence can be saved safely.");
     // Update the address bar so a refresh/bookmark lands back on this
     // draft — WITHOUT going through react-router's navigate(). navigate()
     // swaps to a fresh route match (/trading/entries/:id, which renders
@@ -307,13 +320,15 @@ function TradeEditorForm() {
   return (
     <div className="trade-workspace-page">
       <div className="trade-workspace-header">
-        <div><span className="eyebrow">{entryId ? "EDITING TRADE" : "TRADE WORKSPACE"}</span><h1 className="page-title">{entryId ? "Review your trade" : "Document the complete idea"}</h1><p>Build the plan, evidence, execution and lesson in one connected record.</p></div>
-        <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-60">
-          {saving ? "Saving…" : "Save trade"}
-        </button>
+        <div><span className="eyebrow">{isDraftRecord ? "DRAFT TRADE" : entryId ? "EDITING TRADE" : "TRADE WORKSPACE"}</span><h1 className="page-title">{entryId ? "Review your trade" : "Document the complete idea"}</h1><p>Build the plan, evidence, execution and lesson in one connected record.</p></div>
+        <div className="trade-workspace-save-actions">
+          <button type="button" onClick={saveDraft} disabled={saving} className="btn-outline disabled:opacity-60">Save draft</button>
+          <button type="button" onClick={save} disabled={saving} className="btn-primary disabled:opacity-60">{saving ? "Saving…" : isDraftRecord ? "Complete trade" : "Save trade"}</button>
+        </div>
       </div>
 
       {saveError && <p role="alert" className="text-danger text-sm mb-4">{saveError}</p>}
+      {saveNotice && <p role="status" className="trade-save-notice">{saveNotice}</p>}
       {accountError && <p role="alert" className="text-danger text-sm mb-4">Accounts could not be loaded: {accountError} Reload this page before choosing an account.</p>}
 
       <section className="trade-record-identity">
@@ -325,7 +340,7 @@ function TradeEditorForm() {
         <div className="trade-record-meta">
           <label><span>Account</span><select value={form.accountId} onChange={(e) => setForm((f) => ({ ...f, accountId: e.target.value }))}><option value="">Unassigned</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
           <label><span>Trade date</span><input aria-label="Trade date" type="date" value={form.entryDate} onChange={(e) => setForm((f) => ({ ...f, entryDate: e.target.value }))} /></label>
-          <div><span>Record state</span><strong>{form.result === "OPEN" ? "Planning / live" : "Closed · reviewed"}</strong></div>
+          <div><span>Record state</span><strong>{isDraftRecord ? "Private draft" : form.result === "OPEN" ? "Planning / live" : "Closed · reviewed"}</strong></div>
         </div>
       </section>
 

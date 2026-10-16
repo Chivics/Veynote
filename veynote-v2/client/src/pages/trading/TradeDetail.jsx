@@ -101,10 +101,10 @@ export default function TradeDetail() {
       {mediaError && <div className="inline-error mb-4" role="alert"><span>{mediaError}</span><button type="button" onClick={() => loadMedia(true)}>Retry media</button></div>}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <span className="eyebrow">
-          {entry.account?.name || "No account"} · {entry.result}
+          {entry.account?.name || "No account"} · {entry.isDraft ? "PRIVATE DRAFT" : entry.result}
         </span>
         <div className="flex gap-2 flex-wrap">
-          {!entry.archivedAt && !entry.deletedAt && <><Link to={`/trading/entries/${id}/edit`} className="btn-outline"><NavigationIcon name="edit" size={16} /> Edit</Link><button type="button" className="btn-outline" onClick={() => updateLifecycle("archive")} disabled={deleteBusy}><NavigationIcon name="archive" size={16} /> Archive</button></>}
+          {!entry.archivedAt && !entry.deletedAt && <><Link to={`/trading/entries/${id}/edit`} className={entry.isDraft ? "btn-primary" : "btn-outline"}><NavigationIcon name="edit" size={16} /> {entry.isDraft ? "Continue draft" : "Edit"}</Link><button type="button" className="btn-outline" onClick={() => updateLifecycle("archive")} disabled={deleteBusy}><NavigationIcon name="archive" size={16} /> Archive</button></>}
           {(entry.archivedAt || entry.deletedAt) && <button type="button" className="btn-outline" onClick={() => updateLifecycle("restore")} disabled={deleteBusy}><NavigationIcon name="restore" size={16} /> Restore</button>}
           {!entry.deletedAt && <button type="button" className="btn-outline text-danger" onClick={() => { setPendingAction("trash"); setDeleteOpen(true); }}><NavigationIcon name="trash" size={16} /> Move to Trash</button>}
           {entry.deletedAt && <button type="button" className="btn-outline text-danger" onClick={() => { setPendingAction("permanent"); setDeleteOpen(true); }}><NavigationIcon name="trash" size={16} /> Delete permanently</button>}
@@ -112,6 +112,7 @@ export default function TradeDetail() {
       </div>
 
       {(entry.archivedAt || entry.deletedAt) && <div className="trade-detail-lifecycle-notice" role="status"><NavigationIcon name={entry.deletedAt ? "trash" : "archive"} size={16}/><span><strong>{entry.deletedAt ? "In Trash" : "Archived record"}</strong><small>{entry.deletedAt ? "This decision is excluded from performance and can still be restored." : "This decision is preserved outside active performance."}</small></span></div>}
+      {entry.isDraft && !entry.archivedAt && !entry.deletedAt && <div className="trade-detail-draft-notice" role="status"><NavigationIcon name="edit" size={16}/><span><strong>Private working draft</strong><small>This record is saved safely and excluded from analytics, calendars, reports, rule compliance, and public performance until completed.</small></span></div>}
 
       <h1 className="page-title text-[26px] tracking-tight mb-6">{entry.title}</h1>
 

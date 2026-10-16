@@ -18,11 +18,11 @@ async function calendarAgenda(db, userId, query) {
   const writingDay=value=>{const parts=Object.fromEntries(localDate.formatToParts(new Date(value)).map(part=>[part.type,part.value]));return `${parts.year}-${parts.month}-${parts.day}`;};
   const visibleNote = { userId, isLocked:false, isWill:false, isTrashed:false, isArchived:false };
   const [reminders, tasks, notes, journal, trades, business] = await Promise.all([
-    db.calendarEvent.findMany({ where:{userId,OR:[{date:reminderRange},{recurrenceRule:{not:null},date:{lt:reminderRange.lt},OR:[{recurrenceUntil:null},{recurrenceUntil:{gte:reminderRange.gte}}]}]}, orderBy:[{date:"desc"},{id:"asc"}], take:LIMIT+1, include:{linkedNote:{select:{id:true,userId:true,kind:true,isLocked:true,isWill:true,isTrashed:true,isArchived:true}},linkedTrade:{select:{id:true,userId:true}}} }),
+    db.calendarEvent.findMany({ where:{userId,OR:[{date:reminderRange},{recurrenceRule:{not:null},date:{lt:reminderRange.lt},OR:[{recurrenceUntil:null},{recurrenceUntil:{gte:reminderRange.gte}}]}]}, orderBy:[{date:"desc"},{id:"asc"}], take:LIMIT+1, include:{linkedNote:{select:{id:true,userId:true,kind:true,isLocked:true,isWill:true,isTrashed:true,isArchived:true}},linkedTrade:{select:{id:true,userId:true,isDraft:true,archivedAt:true,deletedAt:true}}} }),
     db.task.findMany({where:{userId,deletedAt:null,dueDate:range},orderBy:[{dueDate:"asc"},{id:"asc"}],take:LIMIT+1,select:{id:true,title:true,dueDate:true,status:true,priority:true}}),
     db.note.findMany({where:{...visibleNote,kind:"NOTE",updatedAt:writingRange},orderBy:[{updatedAt:"asc"},{id:"asc"}],take:LIMIT+1,select:{id:true,title:true,updatedAt:true}}),
     db.note.findMany({where:{...visibleNote,kind:"JOURNAL",entryDate:range},orderBy:[{entryDate:"asc"},{id:"asc"}],take:LIMIT+1,select:{id:true,title:true,entryDate:true}}),
-    db.tradingEntry.findMany({where:{userId,isTrade:true,archivedAt:null,deletedAt:null,entryDate:range},orderBy:[{entryDate:"asc"},{id:"asc"}],take:LIMIT+1,select:{id:true,title:true,asset:true,entryDate:true,result:true,account:{select:{name:true}}}}),
+    db.tradingEntry.findMany({where:{userId,isTrade:true,isDraft:false,archivedAt:null,deletedAt:null,entryDate:range},orderBy:[{entryDate:"asc"},{id:"asc"}],take:LIMIT+1,select:{id:true,title:true,asset:true,entryDate:true,result:true,account:{select:{name:true}}}}),
     db.businessInteraction.findMany({where:{nextActionAt:writingRange,completedAt:null,customer:{isArchived:false},workspace:{members:{some:{userId}}}},orderBy:[{nextActionAt:"asc"},{id:"asc"}],take:LIMIT+1,select:{id:true,summary:true,nextActionAt:true,workspaceId:true,customerId:true,customer:{select:{name:true}}}}),
   ]);
   const groups = {reminder:reminders,task:tasks,note:notes,journal,trade:trades,business};
@@ -32,7 +32,7 @@ async function calendarAgenda(db, userId, query) {
     if(type==="reminder") {
       const n=record.linkedNote,t=record.linkedTrade;
       if(record.linkedNoteId && (!n || n.userId!==userId || n.isLocked || n.isWill || n.isTrashed || n.isArchived))continue;
-      if(record.linkedTradeId && (!t || t.userId!==userId))continue;
+      if(record.linkedTradeId && (!t || t.userId!==userId || t.isDraft || t.archivedAt || t.deletedAt))continue;
       href=n ? `${n.kind==="JOURNAL"?"/journal/entries":"/notes"}/${n.id}` : t ? `/trading/entries/${t.id}` : null;
       const anchor=day(record.date), last=record.recurrenceUntil ? day(record.recurrenceUntil) : null;
       const originalEnd=record.endsAtUtc && record.timeZone ? localParts(record.endsAtUtc,record.timeZone) : null;

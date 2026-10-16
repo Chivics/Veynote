@@ -24,11 +24,16 @@ export default function EntryListPage({ mode }) {
   useEffect(() => { const timer = setTimeout(() => setSearchQuery(q), 200); return () => clearTimeout(timer); }, [q]);
   const result = useApiQuery("/trading/entries", { accountId, q: searchQuery || undefined, view });
   const entries = result.data?.entries ?? null;
-  const visibleEntries = useMemo(() => (entries || []).filter(entry => outcome === "ALL" || entry.result === outcome), [entries, outcome]);
+  const visibleEntries = useMemo(() => (entries || []).filter(entry => {
+    if (outcome === "ALL") return true;
+    if (outcome === "DRAFT") return entry.isDraft;
+    return !entry.isDraft && entry.result === outcome;
+  }), [entries, outcome]);
   const summary = useMemo(() => ({
-    open:(entries || []).filter(entry=>entry.result === "OPEN").length,
-    closed:(entries || []).filter(entry=>["WIN","LOSS","BREAK_EVEN"].includes(entry.result)).length,
-    wins:(entries || []).filter(entry=>entry.result === "WIN").length,
+    drafts:(entries || []).filter(entry=>entry.isDraft).length,
+    open:(entries || []).filter(entry=>!entry.isDraft && entry.result === "OPEN").length,
+    closed:(entries || []).filter(entry=>!entry.isDraft && ["WIN","LOSS","BREAK_EVEN"].includes(entry.result)).length,
+    wins:(entries || []).filter(entry=>!entry.isDraft && entry.result === "WIN").length,
     documented:(entries || []).filter(entry=>(entry.content || "").replace(/<[^>]+>/g," ").trim() || entry.preTradeEmotion || entry.postTradeEmotion).length,
   }), [entries]);
 
@@ -80,7 +85,7 @@ export default function EntryListPage({ mode }) {
         {view === "active" && <Link to={`/trading/entries/new${accountId ? `?accountId=${encodeURIComponent(accountId)}` : ""}`} className="btn-primary shrink-0"><NavigationIcon name="plus" size={16}/>Log trade</Link>}
       </header>
 
-      <section className="trade-journal-summary"><div><span>Total records</span><strong>{entries?.length ?? "—"}</strong><small>Across the current scope</small></div><div><span>Open</span><strong>{entries ? summary.open : "—"}</strong><small>Still in progress</small></div><div><span>Closed</span><strong>{entries ? summary.closed : "—"}</strong><small>{summary.closed ? `${summary.wins} wins` : "No outcomes yet"}</small></div><div><span>Evidence coverage</span><strong>{entries?.length ? `${Math.round(summary.documented/entries.length*100)}%` : "—"}</strong><small>With notes or psychology</small></div></section>
+      <section className="trade-journal-summary"><div><span>Total records</span><strong>{entries?.length ?? "—"}</strong><small>{summary.drafts ? `${summary.drafts} private draft${summary.drafts === 1 ? "" : "s"}` : "Across the current scope"}</small></div><div><span>Open</span><strong>{entries ? summary.open : "—"}</strong><small>Finalized and in progress</small></div><div><span>Closed</span><strong>{entries ? summary.closed : "—"}</strong><small>{summary.closed ? `${summary.wins} wins` : "No outcomes yet"}</small></div><div><span>Evidence coverage</span><strong>{entries?.length ? `${Math.round(summary.documented/entries.length*100)}%` : "—"}</strong><small>With notes or psychology</small></div></section>
 
       <section className="trade-journal-toolbar">
         <div className="trade-journal-search">
@@ -105,7 +110,7 @@ export default function EntryListPage({ mode }) {
       </nav>
 
       <div className="trade-journal-filters">
-        {[['ALL','All records'],['OPEN','Open'],['WIN','Wins'],['LOSS','Losses'],['BREAK_EVEN','Break-even']].map(([value,label])=><FilterChip key={value} active={outcome===value} onClick={()=>setOutcome(value)}>{label}</FilterChip>)}
+        {[['ALL','All records'],['DRAFT','Drafts'],['OPEN','Open'],['WIN','Wins'],['LOSS','Losses'],['BREAK_EVEN','Break-even']].map(([value,label])=><FilterChip key={value} active={outcome===value} onClick={()=>setOutcome(value)}>{label}</FilterChip>)}
       </div>
 
       {lifecycleError && <div className="inline-error mb-4" role="alert">{lifecycleError}</div>}
@@ -141,16 +146,16 @@ export default function EntryListPage({ mode }) {
 
 function TradeLedgerRow({ entry, view, busy, onAction }) {
   const documented = Boolean((entry.content || "").replace(/<[^>]+>/g," ").trim() || entry.preTradeEmotion || entry.postTradeEmotion);
-  const resultLabel = entry.result === "BREAK_EVEN" ? "Break-even" : entry.result ? entry.result.charAt(0)+entry.result.slice(1).toLowerCase() : "Open";
-  const resultTone = entry.result === "WIN" ? "is-win" : entry.result === "LOSS" ? "is-loss" : entry.result === "BREAK_EVEN" ? "is-even" : "is-open";
+  const resultLabel = entry.isDraft ? "Draft" : entry.result === "BREAK_EVEN" ? "Break-even" : entry.result ? entry.result.charAt(0)+entry.result.slice(1).toLowerCase() : "Open";
+  const resultTone = entry.isDraft ? "is-draft" : entry.result === "WIN" ? "is-win" : entry.result === "LOSS" ? "is-loss" : entry.result === "BREAK_EVEN" ? "is-even" : "is-open";
   const setups = (entry.setupTypes || "").split(",").map(item=>item.trim()).filter(Boolean);
   const actionBusy = type => busy === `${type}:${entry.id}`;
   return <article className="trade-journal-record"><Link className="trade-journal-ledger-row" to={`/trading/entries/${entry.id}`}>
     <time><strong>{new Date(entry.entryDate).getDate()}</strong><span>{new Date(entry.entryDate).toLocaleDateString(undefined,{month:"short",year:"numeric"})}</span></time>
-    <span className="trade-journal-decision"><small>{entry.isTrade ? "TRADE" : "RESEARCH NOTE"}</small><strong>{entry.title || "Untitled trading record"}</strong><span>{entry.account?.name || "No account assigned"}{setups.length ? ` · ${setups.slice(0,2).join(" · ")}` : ""}</span></span>
+    <span className="trade-journal-decision"><small>{entry.isDraft ? "PRIVATE DRAFT" : entry.isTrade ? "TRADE" : "RESEARCH NOTE"}</small><strong>{entry.title || "Untitled trading record"}</strong><span>{entry.account?.name || "No account assigned"}{setups.length ? ` · ${setups.slice(0,2).join(" · ")}` : ""}</span></span>
     <span className="trade-journal-market"><strong>{entry.asset || "—"}</strong><small>{entry.direction ? entry.direction.charAt(0)+entry.direction.slice(1).toLowerCase() : "No direction"}</small></span>
     <span className={`trade-journal-outcome ${resultTone}`}><strong>{entry.achievedR != null ? `${entry.achievedR > 0 ? "+" : ""}${entry.achievedR}R` : resultLabel}</strong><small>{entry.profitLoss != null ? `${entry.profitLoss > 0 ? "+" : ""}${Number(entry.profitLoss).toLocaleString()}` : resultLabel}</small></span>
-    <span className={`trade-journal-evidence ${documented ? "is-documented" : ""}`}><NavigationIcon name={documented?"check":"note"} size={14}/><span><strong>{documented?"Documented":"Needs context"}</strong><small>{documented?"Thesis or psychology recorded":"Add the evidence behind the result"}</small></span></span>
+    <span className={`trade-journal-evidence ${documented ? "is-documented" : ""}`}><NavigationIcon name={documented?"check":"note"} size={14}/><span><strong>{entry.isDraft ? "Continue documenting" : documented?"Documented":"Needs context"}</strong><small>{entry.isDraft ? "Excluded from performance" : documented?"Thesis or psychology recorded":"Add the evidence behind the result"}</small></span></span>
     <NavigationIcon name="chevron" size={16}/>
   </Link><div className="trade-journal-record-actions">
     {view === "active" && <><button type="button" disabled={Boolean(busy)} onClick={() => onAction({ type:"archive", entry })}><NavigationIcon name="archive" size={13}/>{actionBusy("archive") ? "Archiving…" : "Archive"}</button><button type="button" className="is-danger" disabled={Boolean(busy)} onClick={() => onAction({ type:"trash", entry })}><NavigationIcon name="trash" size={13}/>Trash</button></>}
