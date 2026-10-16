@@ -546,6 +546,8 @@ model TradingEntry {
   postTradeLesson       String? @db.Text
 
   isFavorite Boolean  @default(false)
+  archivedAt DateTime?
+  deletedAt  DateTime?
   entryDate  DateTime @default(now())
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -557,6 +559,7 @@ model TradingEntry {
   attachments Attachment[]
 
   @@index([userId])
+  @@index([userId, archivedAt, deletedAt])
   @@index([accountId])
 }
 

@@ -22,7 +22,7 @@ async function calendarAgenda(db, userId, query) {
     db.task.findMany({where:{userId,deletedAt:null,dueDate:range},orderBy:[{dueDate:"asc"},{id:"asc"}],take:LIMIT+1,select:{id:true,title:true,dueDate:true,status:true,priority:true}}),
     db.note.findMany({where:{...visibleNote,kind:"NOTE",updatedAt:writingRange},orderBy:[{updatedAt:"asc"},{id:"asc"}],take:LIMIT+1,select:{id:true,title:true,updatedAt:true}}),
     db.note.findMany({where:{...visibleNote,kind:"JOURNAL",entryDate:range},orderBy:[{entryDate:"asc"},{id:"asc"}],take:LIMIT+1,select:{id:true,title:true,entryDate:true}}),
-    db.tradingEntry.findMany({where:{userId,isTrade:true,entryDate:range},orderBy:[{entryDate:"asc"},{id:"asc"}],take:LIMIT+1,select:{id:true,title:true,asset:true,entryDate:true,result:true,account:{select:{name:true}}}}),
+    db.tradingEntry.findMany({where:{userId,isTrade:true,archivedAt:null,deletedAt:null,entryDate:range},orderBy:[{entryDate:"asc"},{id:"asc"}],take:LIMIT+1,select:{id:true,title:true,asset:true,entryDate:true,result:true,account:{select:{name:true}}}}),
     db.businessInteraction.findMany({where:{nextActionAt:writingRange,completedAt:null,customer:{isArchived:false},workspace:{members:{some:{userId}}}},orderBy:[{nextActionAt:"asc"},{id:"asc"}],take:LIMIT+1,select:{id:true,summary:true,nextActionAt:true,workspaceId:true,customerId:true,customer:{select:{name:true}}}}),
   ]);
   const groups = {reminder:reminders,task:tasks,note:notes,journal,trade:trades,business};

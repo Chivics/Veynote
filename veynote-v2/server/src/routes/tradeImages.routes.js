@@ -16,12 +16,12 @@ const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const VALID_STAGES = ["SETUP", "ENTRY", "DURING_TRADE", "POST_TRADE", "OTHER"];
 const ANALYSIS_FIELDS = ["marketStructure", "keyLevels", "liquidity", "bias", "setupReasoning", "confirmation", "notes"];
 
-async function ownedEntry(entryId, userId) {
-  return prisma.tradingEntry.findFirst({ where: { id: entryId, userId }, select: { id: true } });
+async function ownedEntry(entryId, userId, activeOnly = true) {
+  return prisma.tradingEntry.findFirst({ where: { id: entryId, userId, ...(activeOnly && { archivedAt: null, deletedAt: null }) }, select: { id: true } });
 }
 
 router.get("/entries/:entryId/analysis", async (req, res) => {
-  const entry = await ownedEntry(req.params.entryId, req.userId);
+  const entry = await ownedEntry(req.params.entryId, req.userId, false);
   if (!entry) return res.status(404).json({ error: "Trade entry not found." });
   const blocks = await prisma.tradeAnalysisBlock.findMany({ where: { tradingEntryId: entry.id }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] });
   res.json({ blocks });
@@ -81,7 +81,7 @@ const upload = multer({
 
 // POST /api/trading/entries/:entryId/images  (multipart, field "file", plus body: stage, timeframe, caption)
 router.post("/entries/:entryId/images", upload.single("file"), async (req, res) => {
-  const entry = await prisma.tradingEntry.findFirst({ where: { id: req.params.entryId, userId: req.userId } });
+  const entry = await prisma.tradingEntry.findFirst({ where: { id: req.params.entryId, userId: req.userId, archivedAt: null, deletedAt: null } });
   if (!entry) {
     if (req.file) fs.unlink(req.file.path, () => {});
     return res.status(404).json({ error: "Trade entry not found." });

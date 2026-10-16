@@ -50,7 +50,7 @@ router.post("/:id/events", async (req, res) => {
   if (!note) return res.status(400).json({ error: "Record what happened or what you verified." });
   let tradingEntryId = req.body.tradingEntryId || null;
   if (tradingEntryId) {
-    const trade = await prisma.tradingEntry.findFirst({ where: { id: tradingEntryId, userId: req.userId }, select: { id: true } });
+    const trade = await prisma.tradingEntry.findFirst({ where: { id: tradingEntryId, userId: req.userId, archivedAt: null, deletedAt: null }, select: { id: true } });
     if (!trade) return res.status(400).json({ error: "Choose one of your trading records." });
   }
   const occurredAt = req.body.occurredAt ? new Date(req.body.occurredAt) : new Date();

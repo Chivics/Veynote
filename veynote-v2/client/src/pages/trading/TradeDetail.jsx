@@ -21,6 +21,7 @@ export default function TradeDetail() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [pendingAction, setPendingAction] = useState("trash");
   const requestGeneration = useRef(0);
 
   function openLightbox(image) {
@@ -82,10 +83,16 @@ export default function TradeDetail() {
   ];
   const reviewCompletion = Math.round(reviewChecks.filter(([complete]) => complete).length / reviewChecks.length * 100);
 
-  async function removeTrade() {
+  async function updateLifecycle(action) {
     setDeleteBusy(true); setDeleteError("");
-    try { await api.delete(`/trading/entries/${id}`); navigate("/trading/entries", { replace:true }); }
-    catch (requestError) { setDeleteError(requestError.message || "This trade could not be deleted."); setDeleteBusy(false); }
+    try {
+      if (action === "archive") await api.post(`/trading/entries/${id}/archive`, {});
+      if (action === "restore") await api.post(`/trading/entries/${id}/restore`, {});
+      if (action === "trash") await api.delete(`/trading/entries/${id}`);
+      if (action === "permanent") await api.delete(`/trading/entries/${id}/permanent`);
+      navigate(action === "archive" ? "/trading/entries?view=archived" : action === "trash" || action === "permanent" ? "/trading/entries?view=trash" : "/trading/entries", { replace:true });
+    }
+    catch (requestError) { setDeleteError(requestError.message || "This trade could not be updated."); setDeleteBusy(false); }
   }
 
   return (
@@ -96,8 +103,15 @@ export default function TradeDetail() {
         <span className="eyebrow">
           {entry.account?.name || "No account"} · {entry.result}
         </span>
-        <div className="flex gap-2"><Link to={`/trading/entries/${id}/edit`} className="btn-outline"><NavigationIcon name="edit" size={16} /> Edit</Link><button type="button" className="btn-outline text-danger" onClick={() => setDeleteOpen(true)}><NavigationIcon name="trash" size={16} /> Delete</button></div>
+        <div className="flex gap-2 flex-wrap">
+          {!entry.archivedAt && !entry.deletedAt && <><Link to={`/trading/entries/${id}/edit`} className="btn-outline"><NavigationIcon name="edit" size={16} /> Edit</Link><button type="button" className="btn-outline" onClick={() => updateLifecycle("archive")} disabled={deleteBusy}><NavigationIcon name="archive" size={16} /> Archive</button></>}
+          {(entry.archivedAt || entry.deletedAt) && <button type="button" className="btn-outline" onClick={() => updateLifecycle("restore")} disabled={deleteBusy}><NavigationIcon name="restore" size={16} /> Restore</button>}
+          {!entry.deletedAt && <button type="button" className="btn-outline text-danger" onClick={() => { setPendingAction("trash"); setDeleteOpen(true); }}><NavigationIcon name="trash" size={16} /> Move to Trash</button>}
+          {entry.deletedAt && <button type="button" className="btn-outline text-danger" onClick={() => { setPendingAction("permanent"); setDeleteOpen(true); }}><NavigationIcon name="trash" size={16} /> Delete permanently</button>}
+        </div>
       </div>
+
+      {(entry.archivedAt || entry.deletedAt) && <div className="trade-detail-lifecycle-notice" role="status"><NavigationIcon name={entry.deletedAt ? "trash" : "archive"} size={16}/><span><strong>{entry.deletedAt ? "In Trash" : "Archived record"}</strong><small>{entry.deletedAt ? "This decision is excluded from performance and can still be restored." : "This decision is preserved outside active performance."}</small></span></div>}
 
       <h1 className="page-title text-[26px] tracking-tight mb-6">{entry.title}</h1>
 
@@ -226,7 +240,7 @@ export default function TradeDetail() {
       {lightboxIndex !== null && (
         <ImageLightbox images={images} startIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
       )}
-      <ConfirmDialog open={deleteOpen} title="Delete this trade?" description="This removes the trade, its screenshots, analysis blocks, and attachments. This action cannot be undone." error={deleteError} confirmLabel="Delete trade" busy={deleteBusy} onClose={() => { if (!deleteBusy) { setDeleteOpen(false); setDeleteError(""); } }} onConfirm={removeTrade} />
+      <ConfirmDialog open={deleteOpen} title={pendingAction === "permanent" ? "Permanently delete this trade?" : "Move this trade to Trash?"} description={pendingAction === "permanent" ? "This permanently removes the trade, screenshots, analysis blocks, and attachments. This action cannot be undone." : "The trade will be excluded from performance and remain recoverable from Trading Journal Trash."} error={deleteError} confirmLabel={pendingAction === "permanent" ? "Delete permanently" : "Move to Trash"} tone="danger" busy={deleteBusy} onClose={() => { if (!deleteBusy) { setDeleteOpen(false); setDeleteError(""); } }} onConfirm={() => updateLifecycle(pendingAction)} />
     </div>
   );
 }

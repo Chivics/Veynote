@@ -53,9 +53,12 @@ router.delete("/report-share", async (req, res) => {
 
 // GET /api/trading/entries?accountId=&result=&q=&from=&to=
 router.get("/entries", async (req, res) => {
-  const { accountId, result, q, from, to } = req.query;
+  const { accountId, result, q, from, to, view = "active" } = req.query;
 
   const where = { userId: req.userId };
+  if (view === "trash") where.deletedAt = { not: null };
+  else if (view === "archived") { where.deletedAt = null; where.archivedAt = { not: null }; }
+  else { where.deletedAt = null; where.archivedAt = null; }
   if (accountId) where.accountId = accountId;
   if (result) where.result = result;
   if (from || to) {
@@ -174,7 +177,7 @@ router.post("/entries", ownedReference(prisma.tradingAccount, "accountId"), asyn
 });
 
 router.patch("/entries/:id", ownedReference(prisma.tradingAccount, "accountId"), async (req, res) => {
-  const existing = await prisma.tradingEntry.findFirst({ where: { id: req.params.id, userId: req.userId } });
+  const existing = await prisma.tradingEntry.findFirst({ where: { id: req.params.id, userId: req.userId, archivedAt: null, deletedAt: null } });
   if (!existing) return res.status(404).json({ error: "Entry not found." });
 
   const body = req.body;
@@ -236,9 +239,29 @@ router.patch("/entries/:id", ownedReference(prisma.tradingAccount, "accountId"),
 });
 
 router.delete("/entries/:id", async (req, res) => {
-  const existing = await prisma.tradingEntry.findFirst({ where: { id: req.params.id, userId: req.userId } });
+  const existing = await prisma.tradingEntry.findFirst({ where: { id: req.params.id, userId: req.userId, deletedAt: null } });
   if (!existing) return res.status(404).json({ error: "Entry not found." });
+  await prisma.tradingEntry.update({ where: { id: existing.id }, data: { deletedAt: new Date(), archivedAt: null } });
+  res.json({ ok: true });
+});
 
+router.post("/entries/:id/archive", async (req, res) => {
+  const existing = await prisma.tradingEntry.findFirst({ where: { id: req.params.id, userId: req.userId, deletedAt: null }, select: { id: true } });
+  if (!existing) return res.status(404).json({ error: "Entry not found." });
+  const entry = await prisma.tradingEntry.update({ where: { id: existing.id }, data: { archivedAt: new Date() } });
+  res.json({ entry });
+});
+
+router.post("/entries/:id/restore", async (req, res) => {
+  const existing = await prisma.tradingEntry.findFirst({ where: { id: req.params.id, userId: req.userId }, select: { id: true } });
+  if (!existing) return res.status(404).json({ error: "Entry not found." });
+  const entry = await prisma.tradingEntry.update({ where: { id: existing.id }, data: { archivedAt: null, deletedAt: null } });
+  res.json({ entry });
+});
+
+router.delete("/entries/:id/permanent", async (req, res) => {
+  const existing = await prisma.tradingEntry.findFirst({ where: { id: req.params.id, userId: req.userId, deletedAt: { not: null } }, select: { id: true } });
+  if (!existing) return res.status(404).json({ error: "Trashed entry not found." });
   await prisma.tradingEntry.delete({ where: { id: existing.id } });
   res.json({ ok: true });
 });

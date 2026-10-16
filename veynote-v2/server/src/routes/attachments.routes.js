@@ -326,7 +326,7 @@ const noteAttachmentRoutes = createAttachmentRouter({
 
 const tradingAttachmentRoutes = createAttachmentRouter({
   paramName: "entryId",
-  findResource: (req) => prisma.tradingEntry.findFirst({ where: { id: req.params.entryId, userId: req.userId } }),
+  findResource: (req) => prisma.tradingEntry.findFirst({ where: { id: req.params.entryId, userId: req.userId, archivedAt: null, deletedAt: null } }),
   whereClause: (entry) => ({ tradingEntryId: entry.id }),
   attachData: (entry) => ({ tradingEntryId: entry.id }),
 });
