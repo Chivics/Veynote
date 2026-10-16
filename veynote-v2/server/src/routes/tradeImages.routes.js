@@ -40,7 +40,7 @@ router.post("/entries/:entryId/analysis", async (req, res) => {
 });
 
 router.patch("/analysis/:blockId", async (req, res) => {
-  const existing = await prisma.tradeAnalysisBlock.findFirst({ where: { id: req.params.blockId, userId: req.userId } });
+  const existing = await prisma.tradeAnalysisBlock.findFirst({ where: { id: req.params.blockId, userId: req.userId, tradingEntry: { is: { archivedAt: null, deletedAt: null } } } });
   if (!existing) return res.status(404).json({ error: "Analysis block not found." });
   const data = {};
   for (const field of ANALYSIS_FIELDS) if (field in req.body) data[field] = req.body[field] ? String(req.body[field]).slice(0, 10000) : null;
@@ -54,7 +54,7 @@ router.patch("/analysis/:blockId", async (req, res) => {
 });
 
 router.delete("/analysis/:blockId", async (req, res) => {
-  const existing = await prisma.tradeAnalysisBlock.findFirst({ where: { id: req.params.blockId, userId: req.userId } });
+  const existing = await prisma.tradeAnalysisBlock.findFirst({ where: { id: req.params.blockId, userId: req.userId, tradingEntry: { is: { archivedAt: null, deletedAt: null } } } });
   if (!existing) return res.status(404).json({ error: "Analysis block not found." });
   const imageCount = await prisma.tradeImage.count({ where: { tradingEntryId: existing.tradingEntryId, timeframe: existing.timeframe, stage: "SETUP" } });
   if (imageCount) return res.status(409).json({ error: "Remove this timeframe's screenshots before deleting its analysis." });
@@ -119,7 +119,7 @@ router.get("/entries/:entryId/images", async (req, res) => {
 });
 
 router.patch("/images/:imageId", async (req, res) => {
-  const image = await prisma.tradeImage.findFirst({ where: { id: req.params.imageId, userId: req.userId } });
+  const image = await prisma.tradeImage.findFirst({ where: { id: req.params.imageId, userId: req.userId, tradingEntry: { is: { archivedAt: null, deletedAt: null } } } });
   if (!image) return res.status(404).json({ error: "Image not found." });
 
   const { stage, timeframe, caption } = req.body;
@@ -141,7 +141,7 @@ router.patch("/images/:imageId", async (req, res) => {
 // would generate a new id, which is a real difference from the user's
 // perspective ("replace this chart" vs "remove it, then add a new one").
 router.patch("/images/:imageId/file", upload.single("file"), async (req, res) => {
-  const image = await prisma.tradeImage.findFirst({ where: { id: req.params.imageId, userId: req.userId } });
+  const image = await prisma.tradeImage.findFirst({ where: { id: req.params.imageId, userId: req.userId, tradingEntry: { is: { archivedAt: null, deletedAt: null } } } });
   if (!image) {
     if (req.file) fs.unlink(req.file.path, () => {});
     return res.status(404).json({ error: "Image not found." });
@@ -164,7 +164,7 @@ router.patch("/images/:imageId/file", upload.single("file"), async (req, res) =>
 });
 
 router.delete("/images/:imageId", async (req, res) => {
-  const image = await prisma.tradeImage.findFirst({ where: { id: req.params.imageId, userId: req.userId } });
+  const image = await prisma.tradeImage.findFirst({ where: { id: req.params.imageId, userId: req.userId, tradingEntry: { is: { archivedAt: null, deletedAt: null } } } });
   if (!image) return res.status(404).json({ error: "Image not found." });
 
   await prisma.tradeImage.delete({ where: { id: image.id } });

@@ -1,13 +1,10 @@
 import { api, API_BASE } from "../api/client";
+import { storedMediaNameFor } from "./mediaReference.js";
 
 const apiOrigin = () => new URL(API_BASE, window.location.href).origin;
 
 export function storedMediaName(value) {
-  try {
-    const url = new URL(value, window.location.href);
-    if (![apiOrigin(), window.location.origin].includes(url.origin)) return null;
-    return url.pathname.match(/^\/uploads\/([a-f0-9]{32}(?:\.[a-z0-9_-]{1,16})?)$/i)?.[1] || null;
-  } catch { return null; }
+  return storedMediaNameFor(value, { apiBase:API_BASE, pageHref:window.location.href, pageOrigin:window.location.origin });
 }
 
 export async function resolveMediaUrl(value) {
