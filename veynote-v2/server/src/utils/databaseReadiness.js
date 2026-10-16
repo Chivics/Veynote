@@ -20,6 +20,7 @@ async function checkDatabaseReadiness(db) {
     ["task_trash", "task", { id: true, deletedAt: true }],
     ["estate_liabilities", "willLiability", { id: true, assetId: true, status: true }],
     ["vault_security_activity", "vaultSecurityEvent", { id: true, scope: true, outcome: true }],
+    ["trading_playbooks", "tradingPlaybook", { id: true, status: true }],
   ];
   const results = await Promise.all(probes.map(async ([check, model, select]) => {
     try {

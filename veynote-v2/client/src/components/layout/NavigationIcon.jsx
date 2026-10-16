@@ -45,6 +45,7 @@ const paths = {
   account: <><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></>,
   download: <path d="M12 3v12 m-5-5 5 5 5-5 M4 17v4h16v-4" />,
   grid: <path d="M3 3h7v7H3Z M14 3h7v7h-7Z M3 14h7v7H3Z M14 14h7v7h-7Z" />,
+  layers: <><path d="m12 3 9 5-9 5-9-5Z"/><path d="m3 12 9 5 9-5 M3 16l9 5 9-5"/></>,
   list: <path d="M9 5h12 M9 12h12 M9 19h12 M3 5h1 M3 12h1 M3 19h1" />,
   check: <path d="m4 12 5 5L20 6" />,
   pin: <path d="m8 3 8 0-1 6 4 4H5l4-4Z M12 13v8" />,

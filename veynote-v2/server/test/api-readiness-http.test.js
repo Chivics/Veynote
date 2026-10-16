@@ -15,7 +15,7 @@ const model = name => ({ async findMany(query) {
   if (failure?.model === name) throw failure.error;
   return [];
 } });
-const db = Object.fromEntries(["user", "authSession", "noteCreationRequest", "note", "noteDocumentRevision", "noteDocumentChunk", "webAuthnCredential", "webAuthnLoginChallenge", "authEmailChallenge", "authEmailJob", "writingTemplate", "tag", "fileNode", "attachment", "noteComment", "task", "willLiability", "vaultSecurityEvent"].map(name => [name, model(name)]));
+const db = Object.fromEntries(["user", "authSession", "noteCreationRequest", "note", "noteDocumentRevision", "noteDocumentChunk", "webAuthnCredential", "webAuthnLoginChallenge", "authEmailChallenge", "authEmailJob", "writingTemplate", "tag", "fileNode", "attachment", "noteComment", "task", "willLiability", "vaultSecurityEvent", "tradingPlaybook"].map(name => [name, model(name)]));
 const prismaPath = require.resolve("../src/lib/prisma");
 require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: db };
 // Boot the real application, middleware and routes. Importing it must not
@@ -82,6 +82,7 @@ test("the HTTP readiness route reports missing content lifecycle migrations", as
       ["task", "task_trash", "P2022"],
       ["willLiability", "estate_liabilities", "P2021"],
       ["vaultSecurityEvent", "vault_security_activity", "P2021"],
+      ["tradingPlaybook", "trading_playbooks", "P2021"],
     ]) {
       failure = { model: modelName, error: Object.assign(new Error("private database details"), { code }) };
       const response = await fetch(`${origin}/api/ready`);

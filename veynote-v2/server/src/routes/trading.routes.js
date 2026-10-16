@@ -73,7 +73,7 @@ router.get("/entries", async (req, res) => {
 
   const entries = await prisma.tradingEntry.findMany({
     where,
-    include: { account: true },
+    include: { account: true, playbook: { select:{ id:true, title:true, status:true } } },
     orderBy: { entryDate: "desc" },
   });
 
@@ -83,7 +83,7 @@ router.get("/entries", async (req, res) => {
 router.get("/entries/:id", async (req, res) => {
   const entry = await prisma.tradingEntry.findFirst({
     where: { id: req.params.id, userId: req.userId },
-    include: { account: true },
+    include: { account: true, playbook: { select:{ id:true, title:true, status:true } } },
   });
   if (!entry) return res.status(404).json({ error: "Entry not found." });
   res.json({ entry: { ...entry, content: sanitizeDocument(entry.content) } });
@@ -118,7 +118,7 @@ function invalidDecisionEvidence(body) {
   return null;
 }
 
-router.post("/entries", ownedReference(prisma.tradingAccount, "accountId"), async (req, res) => {
+router.post("/entries", ownedReference(prisma.tradingAccount, "accountId"), ownedReference(prisma.tradingPlaybook, "playbookId"), async (req, res) => {
   const body = req.body;
   if (!body.title?.trim()) return res.status(400).json({ error: "Title is required." });
   const evidenceError = invalidDecisionEvidence(body);
@@ -133,6 +133,7 @@ router.post("/entries", ownedReference(prisma.tradingAccount, "accountId"), asyn
       userId: req.userId,
       isDraft: Boolean(body.isDraft),
       accountId: body.accountId || null,
+      playbookId: body.playbookId || null,
       isTrade: body.isTrade !== false,
       title: body.title.trim(),
       content: body.content || "",
@@ -177,7 +178,7 @@ router.post("/entries", ownedReference(prisma.tradingAccount, "accountId"), asyn
   res.status(201).json({ entry });
 });
 
-router.patch("/entries/:id", ownedReference(prisma.tradingAccount, "accountId"), async (req, res) => {
+router.patch("/entries/:id", ownedReference(prisma.tradingAccount, "accountId"), ownedReference(prisma.tradingPlaybook, "playbookId"), async (req, res) => {
   const existing = await prisma.tradingEntry.findFirst({ where: { id: req.params.id, userId: req.userId, archivedAt: null, deletedAt: null } });
   if (!existing) return res.status(404).json({ error: "Entry not found." });
 
@@ -193,6 +194,7 @@ router.patch("/entries/:id", ownedReference(prisma.tradingAccount, "accountId"),
     where: { id: existing.id },
     data: {
       ...(body.accountId !== undefined && { accountId: body.accountId || null }),
+      ...(body.playbookId !== undefined && { playbookId: body.playbookId || null }),
       ...(body.title !== undefined && { title: body.title }),
       ...(body.content !== undefined && { content: body.content }),
       ...(body.asset !== undefined && { asset: body.asset }),

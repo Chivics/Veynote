@@ -10,7 +10,7 @@ const sections = {
   "/journal/decisions": "Decision records", "/journal/calibration": "Confidence calibration", "/journal/reflections": "Reflections", "/journal/mood": "Mood & energy", "/journal/lessons": "Lessons", "/journal/related": "Related records",
   "/business": "Business", "/business/customers": "Customers", "/business/pipeline": "Pipeline", "/business/follow-ups": "Follow-ups",
   "/trading/entries": "Trades", "/trading/accounts": "Accounts", "/trading/rules": "Trading rules", "/notes/shared": "Shared links", "/activity": "Activity", "/sharing": "Sharing & review", "/search": "Search Veynote",
-  "/trading/analytics": "Analytics", "/trading/calendar": "Trading calendar", "/trading/search": "Trade search", "/settings": "Settings", "/product-preview": "Product Preview",
+  "/trading/analytics": "Analytics", "/trading/calendar": "Trading calendar", "/trading/playbook": "Playbook", "/trading/search": "Trade search", "/settings": "Settings", "/product-preview": "Product Preview",
 };
 const library = { reading: "Reading & watching", films: "Films & movies", goals: "Life goals", travel: "Travel plans", bucket: "Bucket list", ideas: "Ideas", projects: "Projects" };
 export function describeRoute(pathname, search = "") {

@@ -39,6 +39,7 @@ function TradeEditorForm() {
 
   const [entryId, setEntryId] = useState(routeId || null);
   const [accounts, setAccounts] = useState([]);
+  const [playbooks, setPlaybooks] = useState([]);
   const [loaded, setLoaded] = useState(isNew);
   useEffect(() => bodyRef.current ? observeMedia(bodyRef.current) : undefined, [loaded]);
   const [saving, setSaving] = useState(false);
@@ -52,6 +53,7 @@ function TradeEditorForm() {
   const [loadError, setLoadError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [accountError, setAccountError] = useState('');
+  const [playbookError, setPlaybookError] = useState('');
   const [loadAttempt, setLoadAttempt] = useState(0);
   const editRevision = useRef(0), alive = useRef(true), saveInFlight = useRef(false);
   useEffect(() => { alive.current=true; return () => { alive.current=false; }; }, []);
@@ -69,6 +71,7 @@ function TradeEditorForm() {
 
   const [form, setFormState] = useState({
     accountId: searchParams.get("accountId") || "",
+    playbookId: searchParams.get("playbookId") || "",
     title: "",
     asset: "",
     direction: "LONG",
@@ -113,6 +116,8 @@ function TradeEditorForm() {
     let active=true;
     api.get("/accounts").then((d) => { if(active) setAccounts(d.accounts); })
       .catch(error => { if(active) setAccountError(error.message); });
+    api.get("/trading-playbooks").then((d) => { if(active) setPlaybooks(d.playbooks); })
+      .catch(error => { if(active) setPlaybookError(error.message); });
     return () => { active=false; };
   }, []);
 
@@ -132,6 +137,7 @@ function TradeEditorForm() {
 
         setFormState({
           accountId: e.accountId || "",
+          playbookId: e.playbookId || "",
           title: e.title,
           asset: e.asset || "",
           direction: e.direction || "LONG",
@@ -330,6 +336,7 @@ function TradeEditorForm() {
       {saveError && <p role="alert" className="text-danger text-sm mb-4">{saveError}</p>}
       {saveNotice && <p role="status" className="trade-save-notice">{saveNotice}</p>}
       {accountError && <p role="alert" className="text-danger text-sm mb-4">Accounts could not be loaded: {accountError} Reload this page before choosing an account.</p>}
+      {playbookError && <p role="alert" className="text-danger text-sm mb-4">Playbook setups could not be loaded: {playbookError}</p>}
 
       <section className="trade-record-identity">
         <div>
@@ -362,6 +369,7 @@ function TradeEditorForm() {
         <div className="trade-context-grid">
           <label><span>Trading session</span><select className="input" value={form.session} onChange={(e) => setForm((f) => ({ ...f, session: e.target.value }))}><option value="">Choose session</option><option value="ASIA">Asia</option><option value="LONDON">London</option><option value="NEW_YORK">New York</option><option value="OVERLAP">London / New York overlap</option><option value="OTHER">Other</option></select></label>
           <label><span>Market regime</span><select className="input" value={form.marketRegime} onChange={(e) => setForm((f) => ({ ...f, marketRegime: e.target.value }))}><option value="">Choose context</option><option>Trending</option><option>Range-bound</option><option>Expansion</option><option>Reversal</option><option>High volatility</option><option>Low liquidity</option></select></label>
+          <label className="trade-playbook-select"><span>Playbook setup</span><select className="input" value={form.playbookId} onChange={(e) => setForm((f) => ({ ...f, playbookId: e.target.value }))}><option value="">No setup linked</option>{playbooks.filter(item=>item.status!=="RETIRED").map(item=><option key={item.id} value={item.id}>{item.title}{item.status==="TESTING"?" · testing":""}</option>)}</select></label>
         </div>
         <p className="trade-field-caption">SETUP / PLAYBOOK</p>
         <div className="trade-setup-chips">

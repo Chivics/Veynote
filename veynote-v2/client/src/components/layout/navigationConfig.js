@@ -28,7 +28,7 @@ export const WORKSPACES = {
     ["Dashboard", "/trading", "home", "Trading"], ["Trade Journal", "/trading/entries", "book", "Trading"],
     ["Log Trade", "/trading/entries/new", "plus", "Trading"], ["Trading Calendar", "/trading/calendar", "calendar", "Review"],
     ["Analytics", "/trading/analytics", "chart", "Review"], ["Accounts", "/trading/accounts", "brief", "Management"],
-    ["Trading Rules", "/trading/rules", "shield", "Management"], ["Reports", "/trading/reports", "files", "Review"], ["Search", "/trading/search", "search", "Review"],
+    ["Playbook", "/trading/playbook", "layers", "Management"], ["Trading Rules", "/trading/rules", "shield", "Management"], ["Reports", "/trading/reports", "files", "Review"], ["Search", "/trading/search", "search", "Review"],
   ] },
   Vault: { icon: "shield", home: "/vault", create: "/notes/new?private=1", createLabel: "New private note", search: "/vault/documents", pages: [
     ["Overview", "/vault", "home", "Private workspace"], ["Documents", "/vault/documents", "files", "Private workspace"], ["Will & Inheritance", "/will", "shield", "Estate"], ["Activity", "/vault/activity", "clock", "Protection"], ["Security", "/vault/security", "key", "Protection"],

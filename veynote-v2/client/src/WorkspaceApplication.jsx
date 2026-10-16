@@ -65,6 +65,7 @@ import TradingCalendar from "./pages/trading/Calendar";
 import TradingRules from "./pages/trading/TradingRules";
 import TradingRuleDetail from "./pages/trading/TradingRuleDetail";
 import TradingReports from "./pages/trading/TradingReports";
+import TradingPlaybook from "./pages/trading/TradingPlaybook";
 
 import Settings from "./pages/Settings";
 import ProductPreview from "./pages/ProductPreview";
@@ -243,6 +244,7 @@ export default function WorkspaceApplication() {
           <Route path="trading/calendar" element={<TradingCalendar />} />
           <Route path="trading/analytics" element={<Analytics />} />
           <Route path="trading/reports" element={<TradingReports />} />
+          <Route path="trading/playbook" element={<TradingPlaybook />} />
           <Route path="trading/search" element={<EntryListPage mode="search" />} />
         </Route>
 

@@ -21,6 +21,7 @@ const calendarRoutes = require("./routes/calendar.routes");
 const libraryRoutes = require("./routes/library.routes");
 const taskRoutes = require("./routes/tasks.routes");
 const tradingRuleRoutes = require("./routes/tradingRules.routes");
+const tradingPlaybookRoutes = require("./routes/tradingPlaybooks.routes");
 const {
   noteAttachmentRoutes,
   tradingAttachmentRoutes,
@@ -108,6 +109,7 @@ app.use("/api/library", libraryRoutes);
 app.use("/api/tasks", taskRoutes);
 
 app.use("/api/trading-rules", tradingRuleRoutes);
+app.use("/api/trading-playbooks", tradingPlaybookRoutes);
 
 app.use("/api/files", fileRoutes);
 

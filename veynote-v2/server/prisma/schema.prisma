@@ -82,6 +82,7 @@ model User {
   tasks           Task[]
   tradingRules    TradingRule[]
   tradingRuleEvents TradingRuleEvent[]
+  tradingPlaybooks TradingPlaybook[]
   attachments     Attachment[]
   tradeImages     TradeImage[]
   tradeAnalysisBlocks TradeAnalysisBlock[]
@@ -496,6 +497,8 @@ model TradingEntry {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   accountId String?
   account   TradingAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  playbookId String?
+  playbook   TradingPlaybook? @relation(fields: [playbookId], references: [id], onDelete: SetNull)
 
   isTrade   Boolean  @default(true) // false = plain journal note logged in Trading Journal mode
   title     String
@@ -562,6 +565,31 @@ model TradingEntry {
   @@index([userId])
   @@index([userId, archivedAt, deletedAt, isDraft])
   @@index([accountId])
+  @@index([playbookId])
+}
+
+model TradingPlaybook {
+  id                   String   @id @default(cuid())
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title                String   @db.VarChar(140)
+  description          String?  @db.Text
+  market               String?  @db.VarChar(120)
+  preferredDirection   String?  @db.VarChar(32)
+  sessions             String?  @db.VarChar(255)
+  timeframes           String?  @db.VarChar(255)
+  entryCriteria        String?  @db.Text
+  confirmationCriteria String?  @db.Text
+  invalidationCriteria String?  @db.Text
+  riskPlan             String?  @db.Text
+  reviewNotes          String?  @db.Text
+  status               String   @default("ACTIVE") @db.VarChar(24)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  entries              TradingEntry[]
+
+  @@unique([userId, title])
+  @@index([userId, status])
 }
 
 // User-created calendar items for either mode. System/observance events

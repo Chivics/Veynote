@@ -115,6 +115,7 @@ export default function TradeDetail() {
       {entry.isDraft && !entry.archivedAt && !entry.deletedAt && <div className="trade-detail-draft-notice" role="status"><NavigationIcon name="edit" size={16}/><span><strong>Private working draft</strong><small>This record is saved safely and excluded from analytics, calendars, reports, rule compliance, and public performance until completed.</small></span></div>}
 
       <h1 className="page-title text-[26px] tracking-tight mb-6">{entry.title}</h1>
+      {entry.playbook && <Link className="trade-detail-playbook-link" to={`/trading/playbook?setup=${encodeURIComponent(entry.playbook.id)}`}><NavigationIcon name="layers" size={15}/><span><small>PLAYBOOK SETUP</small><strong>{entry.playbook.title}</strong></span><NavigationIcon name="chevron" size={14}/></Link>}
 
       {entry.isTrade && (
         <div className="rounded-2xl border border-app-border p-5 mb-6 bg-gradient-to-br from-app-panel to-accent-trade-soft">

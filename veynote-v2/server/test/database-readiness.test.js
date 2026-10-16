@@ -6,8 +6,8 @@ const { errorHandler } = require("../src/middleware/errorHandler");
 test("readiness probes required models without reading note content or credentials", async () => {
   const calls = [];
   const model = name => ({ async findMany(query) { calls.push({ name, query }); return []; } });
-  await checkDatabaseReadiness({ user: model("user"), authSession: model("sessions"), noteCreationRequest: model("creation"), note: model("notes"), noteDocumentRevision: model("revisions"), noteDocumentChunk: model("chunks"), webAuthnCredential: model("passkeys"), webAuthnLoginChallenge: model("deviceChallenges"), authEmailChallenge: model("accountEmail"), authEmailJob: model("emailJobs"), writingTemplate: model("templates"), tag: model("tags"), fileNode: model("files"), attachment: model("attachments"), noteComment: model("comments"), task: model("tasks"), willLiability: model("liabilities"), vaultSecurityEvent: model("vaultActivity") });
-  assert.equal(calls.length, 18);
+  await checkDatabaseReadiness({ user: model("user"), authSession: model("sessions"), noteCreationRequest: model("creation"), note: model("notes"), noteDocumentRevision: model("revisions"), noteDocumentChunk: model("chunks"), webAuthnCredential: model("passkeys"), webAuthnLoginChallenge: model("deviceChallenges"), authEmailChallenge: model("accountEmail"), authEmailJob: model("emailJobs"), writingTemplate: model("templates"), tag: model("tags"), fileNode: model("files"), attachment: model("attachments"), noteComment: model("comments"), task: model("tasks"), willLiability: model("liabilities"), vaultSecurityEvent: model("vaultActivity"), tradingPlaybook: model("playbooks") });
+  assert.equal(calls.length, 19);
   assert.ok(calls.every(call => call.query.take === 1));
   assert.deepEqual(calls[0].query.select, { sessionGeneration: true, defaultWorkspace: true, emailVerifiedAt: true });
   assert.deepEqual(calls[3].query.select, { id: true, contentPreview: true, wordCount: true });
@@ -22,11 +22,12 @@ test("readiness probes required models without reading note content or credentia
   assert.deepEqual(calls[15].query.select, { id: true, deletedAt: true });
   assert.deepEqual(calls[16].query.select, { id: true, assetId: true, status: true });
   assert.deepEqual(calls[17].query.select, { id: true, scope: true, outcome: true });
+  assert.deepEqual(calls[18].query.select, { id: true, status: true });
   await assert.rejects(checkDatabaseReadiness({ user: { async findMany() { throw Object.assign(Error("private database details"), { code: "P2022" }); } } }), { code: "P2022" });
 });
 
 test("readiness identifies missing content lifecycle migrations", async () => {
-  const modelNames = ["user", "authSession", "noteCreationRequest", "note", "noteDocumentRevision", "noteDocumentChunk", "webAuthnCredential", "webAuthnLoginChallenge", "authEmailChallenge", "authEmailJob", "writingTemplate", "tag", "fileNode", "attachment", "noteComment", "task", "willLiability", "vaultSecurityEvent"];
+  const modelNames = ["user", "authSession", "noteCreationRequest", "note", "noteDocumentRevision", "noteDocumentChunk", "webAuthnCredential", "webAuthnLoginChallenge", "authEmailChallenge", "authEmailJob", "writingTemplate", "tag", "fileNode", "attachment", "noteComment", "task", "willLiability", "vaultSecurityEvent", "tradingPlaybook"];
   for (const [modelName, check, code] of [
     ["note", "note_list_summaries", "P2022"],
     ["noteDocumentRevision", "document_revisions", "P2021"],
@@ -37,6 +38,7 @@ test("readiness identifies missing content lifecycle migrations", async () => {
     ["task", "task_trash", "P2022"],
     ["willLiability", "estate_liabilities", "P2021"],
     ["vaultSecurityEvent", "vault_security_activity", "P2021"],
+    ["tradingPlaybook", "trading_playbooks", "P2021"],
   ]) {
     const db = Object.fromEntries(modelNames.map(name => [name, { findMany: async () => [] }]));
     db[modelName].findMany = async () => { throw Object.assign(new Error("private database details"), { code }); };
