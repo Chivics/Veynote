@@ -51,11 +51,20 @@ router.get("/", async (req, res) => {
     const byDay = {};
     for (const t of trades) {
       const key = t.entryDate.toISOString().slice(0, 10);
-      byDay[key] = byDay[key] || { date: key, tradeCount: 0, netR: 0 };
+      byDay[key] = byDay[key] || { date: key, tradeCount: 0, netR: 0, wins: 0, losses: 0, breakEven: 0, open: 0, documented: 0 };
       byDay[key].tradeCount += 1;
       byDay[key].netR += t.achievedR || 0;
+      if (t.result === "WIN") byDay[key].wins += 1;
+      else if (t.result === "LOSS") byDay[key].losses += 1;
+      else if (t.result === "BREAK_EVEN") byDay[key].breakEven += 1;
+      else byDay[key].open += 1;
+      if (t.content || t.liquidityNarrative || t.postTradeLesson || t.psychologyBefore || t.emotionBefore) byDay[key].documented += 1;
     }
-    tradingDaySummaries = Object.values(byDay).map((d) => ({ ...d, netR: Number(d.netR.toFixed(2)) }));
+    tradingDaySummaries = Object.values(byDay).map((d) => ({
+      ...d,
+      netR: Number(d.netR.toFixed(2)),
+      evidencePercent: d.tradeCount ? Math.round((d.documented / d.tradeCount) * 100) : 0,
+    }));
   }
 
   const activeUserEvents = userEvents.filter(event => !event.linkedTrade || (!event.linkedTrade.isDraft && !event.linkedTrade.archivedAt && !event.linkedTrade.deletedAt));

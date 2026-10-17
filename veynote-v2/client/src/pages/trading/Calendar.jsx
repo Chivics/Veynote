@@ -3,6 +3,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import NavigationIcon from "../../components/layout/NavigationIcon";
+import EmptyState from "../../components/EmptyState";
+import { tradingMonthReview } from "../../utils/tradingCalendar";
 import "./tradingCalendar.css";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -13,6 +15,7 @@ const MONTHS = [
 export default function TradingCalendar() {
   const [searchParams, setSearchParams] = useSearchParams();
   const accountId = searchParams.get("accountId") || "";
+  const view = ["month", "weeks", "agenda"].includes(searchParams.get("view")) ? searchParams.get("view") : "month";
   const [accounts, setAccounts] = useState(() => api.peek("/accounts")?.accounts ?? []);
   useEffect(() => { api.get("/accounts").then(data => setAccounts(data.accounts)).catch(() => {}); }, []);
   const activeAccount = accounts.find(account => account.id === accountId);
@@ -52,14 +55,10 @@ export default function TradingCalendar() {
     });
     return map;
   }, [data]);
-  const monthSummary = useMemo(() => {
-    const rows = data?.tradingDaySummaries || [];
-    const best = rows.reduce((leader, row) => !leader || Number(row.netR) > Number(leader.netR) ? row : leader, null);
-    return { days:rows.length, trades:rows.reduce((sum,row)=>sum+(Number(row.tradeCount)||0),0), netR:Number(rows.reduce((sum,row)=>sum+(Number(row.netR)||0),0).toFixed(2)), positive:rows.filter(row=>Number(row.netR)>0).length, best };
-  }, [data]);
+  const monthSummary = useMemo(() => tradingMonthReview(data?.tradingDaySummaries || [], year, month), [data, year, month]);
   const selectedTrades = dayDetail?.trades || [];
   const selectedNet = netTotal(selectedTrades);
-  const selectedEvidence = selectedTrades.length ? Math.round(selectedTrades.filter(trade => trade.content || trade.preTradeEmotion || trade.postTradeEmotion).length / selectedTrades.length * 100) : 0;
+  const selectedEvidence = selectedTrades.length ? Math.round(selectedTrades.filter(trade => trade.content || trade.liquidityNarrative || trade.postTradeLesson || trade.psychologyBefore || trade.emotionBefore).length / selectedTrades.length * 100) : 0;
 
   function moveSelectedDay(delta) {
     const next = new Date(year, month - 1, selectedDay + delta);
@@ -67,13 +66,20 @@ export default function TradingCalendar() {
     setMonth(next.getMonth() + 1);
     setSelectedDay(next.getDate());
   }
+  function selectView(nextView) {
+    setSearchParams(previous => {
+      const next = new URLSearchParams(previous);
+      if (nextView === "month") next.delete("view"); else next.set("view", nextView);
+      return next;
+    }, { replace: true });
+  }
 
   return (
     <main className="trading-calendar-page">
       <header className="trading-calendar-header"><div><span className="eyebrow">TRADING · TEMPORAL REVIEW</span><h1 className="page-title">Performance in the context of time.</h1><p>{activeAccount ? `Only trades logged under ${activeAccount.name} contribute to this calendar.` : "See when decisions were made, where results clustered, and return to the complete evidence behind any trading day."}</p></div><select aria-label="Trading account" value={accountId} onChange={event => setSearchParams(previous => { const next = new URLSearchParams(previous); if (event.target.value) next.set("accountId", event.target.value); else next.delete("accountId"); return next; }, { replace: true })}><option value="">All accounts</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></header>
       {(result.error || dayResult.error) && <p role="alert" className="text-danger">{(result.error || dayResult.error).message} <button className="btn-outline" onClick={() => Promise.allSettled([result.refresh(), dayResult.refresh()])}>Retry</button></p>}
 
-      <section className="trading-calendar-summary"><div><span>Net month</span><strong className={monthSummary.netR>=0?"text-success":"text-danger"}>{data ? `${monthSummary.netR>0?"+":""}${monthSummary.netR}R` : "—"}</strong><small>Realized R for this scope</small></div><div><span>Trading days</span><strong>{data ? monthSummary.days : "—"}</strong><small>{monthSummary.days ? `${Math.round(monthSummary.positive / monthSummary.days * 100)}% positive` : "No activity yet"}</small></div><div><span>Trades</span><strong>{data ? monthSummary.trades : "—"}</strong><small>{monthSummary.days ? `${(monthSummary.trades / monthSummary.days).toFixed(1)} per active day` : "Awaiting evidence"}</small></div><div><span>Best day</span><strong>{monthSummary.best ? `${Number(monthSummary.best.netR)>0?"+":""}${monthSummary.best.netR}R` : "—"}</strong><small>{monthSummary.best ? new Date(monthSummary.best.date).toLocaleDateString(undefined,{month:"short",day:"numeric"}) : "No closed day"}</small></div></section>
+      <section className="trading-calendar-summary"><div><span>Net month</span><strong className={monthSummary.netR>=0?"text-success":"text-danger"}>{data ? `${monthSummary.netR>0?"+":""}${monthSummary.netR}R` : "—"}</strong><small>Realized R for this scope</small></div><div><span>Win rate</span><strong>{data ? `${monthSummary.winRate}%` : "—"}</strong><small>{monthSummary.closed ? `${monthSummary.wins} of ${monthSummary.closed} closed outcomes` : "No closed outcomes"}</small></div><div><span>Evidence maturity</span><strong>{data ? `${monthSummary.evidencePercent}%` : "—"}</strong><small>{monthSummary.trades ? "Trades with review evidence" : "Awaiting evidence"}</small></div><div><span>Best day</span><strong>{monthSummary.best ? `${Number(monthSummary.best.netR)>0?"+":""}${monthSummary.best.netR}R` : "—"}</strong><small>{monthSummary.best ? new Date(monthSummary.best.date).toLocaleDateString(undefined,{month:"short",day:"numeric"}) : "No closed day"}</small></div></section>
 
       <div className="trading-calendar-layout">
         <section className="trading-calendar-board">
@@ -83,8 +89,11 @@ export default function TradingCalendar() {
             {!isCurrentMonth && <button className="trading-calendar-today" onClick={returnToToday}>Today</button>}
             <button onClick={() => changeMonth(1)} aria-label="Next month">›</button>
           </div>
+          <nav className="trading-calendar-views" aria-label="Calendar review view">
+            {[['month','Month'],['weeks','Weeks'],['agenda','Agenda']].map(([key,label])=><button key={key} type="button" aria-pressed={view===key} onClick={()=>selectView(key)}>{label}</button>)}
+          </nav>
 
-          <div className="grid grid-cols-7 gap-1.5 mb-1.5">
+          {view === "month" && <><div className="grid grid-cols-7 gap-1.5 mb-1.5">
             {WEEKDAYS.map((d) => (
               <span key={d} className="text-[9px] text-ink-muted text-center pb-1.5">{d}</span>
             ))}
@@ -109,7 +118,9 @@ export default function TradingCalendar() {
                 </button>
               );
             })}
-          </div>
+          </div></>}
+          {view === "weeks" && <WeekReview weeks={monthSummary.weeks} month={MONTHS[month-1]} onSelect={setSelectedDay}/>}
+          {view === "agenda" && <AgendaReview rows={monthSummary.rows} month={MONTHS[month-1]} year={year} onSelect={setSelectedDay}/>}
         </section>
 
         <aside className="trading-calendar-day">
@@ -134,6 +145,28 @@ export default function TradingCalendar() {
       </div>
     </main>
   );
+}
+
+function WeekReview({ weeks, month, onSelect }) {
+  return <div className="trading-week-review">{weeks.map((week,index)=><button key={week.start} type="button" onClick={()=>onSelect(week.active[0] ? new Date(week.active[0].date).getUTCDate() : week.start)}>
+    <span className="trading-week-index"><small>WEEK {String(index+1).padStart(2,"0")}</small><strong>{month.slice(0,3)} {week.start}–{week.end}</strong></span>
+    <span className="trading-week-track" aria-hidden="true">{Array.from({length:week.end-week.start+1},(_,offset)=>{const day=week.start+offset;const row=week.active.find(item=>new Date(item.date).getUTCDate()===day);return <i key={day} className={!row?"empty":Number(row.netR)>0?"positive":Number(row.netR)<0?"negative":"neutral"}/>})}</span>
+    <span><small>NET RESULT</small><strong className={week.netR>=0?"text-success":"text-danger"}>{week.trades?`${week.netR>0?"+":""}${week.netR}R`:"—"}</strong></span>
+    <span><small>ACTIVITY</small><strong>{week.trades ? `${week.trades} trade${week.trades===1?"":"s"}` : "No trades"}</strong></span>
+    <span><small>DOCUMENTED</small><strong>{week.trades ? `${week.evidencePercent}%` : "—"}</strong></span>
+    <NavigationIcon name="chevron" size={15}/>
+  </button>)}</div>;
+}
+
+function AgendaReview({ rows, month, year, onSelect }) {
+  if (!rows.length) return <EmptyState icon="calendar" title="A clear month" description="No completed trading activity appears in this scope yet. Log a decision when the market gives you one; Veynote will build the review agenda from the real record."/>;
+  return <div className="trading-agenda-review">{[...rows].reverse().map(row=>{const day=new Date(row.date).getUTCDate();return <button key={row.date} type="button" onClick={()=>onSelect(day)}>
+    <time dateTime={row.date}><b>{String(day).padStart(2,"0")}</b><span>{month.slice(0,3)}<small>{year}</small></span></time>
+    <span className="trading-agenda-story"><strong>{row.tradeCount} recorded decision{row.tradeCount===1?"":"s"}</strong><small>{row.wins} win · {row.losses} loss · {row.breakEven} break-even · {row.open} open</small></span>
+    <span className="trading-agenda-evidence"><small>EVIDENCE</small><strong>{row.evidencePercent}%</strong></span>
+    <em className={Number(row.netR)>=0?"text-success":"text-danger"}>{Number(row.netR)>0?"+":""}{row.netR}R</em>
+    <NavigationIcon name="chevron" size={15}/>
+  </button>})}</div>;
 }
 
 function netTotal(trades) {

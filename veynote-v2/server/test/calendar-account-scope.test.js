@@ -7,8 +7,8 @@ test("trading calendar keeps monthly and daily records within the selected owned
   const { signToken } = require("../src/utils/jwt");
   const date = new Date("2026-09-14T12:00:00.000Z");
   const trades = [
-    { id: "trade-a", userId: "alice", accountId: "account-a", title: "Account A trade", entryDate: date, isTrade: true, achievedR: 2 },
-    { id: "trade-b", userId: "alice", accountId: "account-b", title: "Account B trade", entryDate: date, isTrade: true, achievedR: -1 },
+    { id: "trade-a", userId: "alice", accountId: "account-a", title: "Account A trade", entryDate: date, isTrade: true, achievedR: 2, result: "WIN", content: "Breakout thesis" },
+    { id: "trade-b", userId: "alice", accountId: "account-b", title: "Account B trade", entryDate: date, isTrade: true, achievedR: -1, result: "LOSS" },
   ];
   const events = trades.map(trade => ({
     id: `event-${trade.id}`, userId: "alice", mode: "TRADING", date,
@@ -41,6 +41,7 @@ test("trading calendar keeps monthly and daily records within the selected owned
     assert.equal(month.status, 200);
     const monthData = await month.json();
     assert.deepEqual(monthData.tradingDaySummaries.map(day => [day.tradeCount, day.netR]), [[1, 2]]);
+    assert.deepEqual(monthData.tradingDaySummaries.map(day => [day.wins, day.losses, day.evidencePercent]), [[1, 0, 100]]);
     assert.deepEqual(monthData.userEvents.map(event => event.id), ["event-trade-a"]);
 
     const day = await fetch(`${base}/day?mode=TRADING&date=2026-09-14&accountId=account-b`, { headers });
