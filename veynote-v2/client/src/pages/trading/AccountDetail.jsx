@@ -151,6 +151,7 @@ export default function AccountDetail() {
         <StatCard label="Average win" value={performance.hasData && performance.averageWin != null ? `${performance.averageWin}R` : "—"} />
         <StatCard label="Average loss" value={performance.hasData && performance.averageLoss != null ? `${performance.averageLoss}R` : "—"} />
         <StatCard label="Planned R:R" value={performance.hasData && performance.avgRiskReward != null ? `${performance.avgRiskReward}R` : "—"} />
+        <StatCard label="Average outcome" value={performance.hasData && performance.averageOutcome != null ? `${performance.averageOutcome > 0 ? "+" : ""}${performance.averageOutcome}R` : "—"} hint="Realized per closed trade" />
         <StatCard label="Account rules" value={payload.rules?.length || 0} hint={payload.rules?.filter((rule) => rule.status === "Active").length ? `${payload.rules.filter((rule) => rule.status === "Active").length} active` : "No active rules"} />
       </div>
 
@@ -172,10 +173,11 @@ export default function AccountDetail() {
           <Link to={performance.worstTrade ? `/trading/entries/${performance.worstTrade.id}` : "#"}><span>Worst trade</span><strong className="text-danger">{performance.worstTrade ? `${performance.worstTrade.achievedR}R` : "—"}</strong><small>{performance.worstTrade?.asset || "No record"}</small></Link>
           <div><span>Break-even trades</span><strong>{performance.breakEven}</strong><small>Protected capital</small></div>
           <div><span>Closed sample</span><strong>{performance.totalTrades}</strong><small>{performance.totalTrades < 20 ? "Early evidence — interpret carefully" : "Developing evidence base"}</small></div>
+          <div><span>Current sequence</span><strong>{performance.streaks?.current?.count || 0}</strong><small>{performance.streaks?.current?.outcome?.replace("BREAK_EVEN", "Break-even").toLowerCase() || "No closed trades"}</small></div>
         </div>
       </section>}
 
-      <div className="account-breakdown-grid"><Breakdown title="Setups" rows={performance.setupBreakdown} empty={analytics === null ? "Checking performance…" : "Setup performance appears after closed trades."} /><Breakdown title="Instruments" rows={performance.instrumentBreakdown} empty={analytics === null ? "Checking performance…" : "Instrument performance appears here."} /><Breakdown title="Long vs short" rows={performance.directionBreakdown} empty={analytics === null ? "Checking performance…" : "Direction performance appears here."} /></div>
+      <div className="account-breakdown-grid"><Breakdown title="Playbook evidence" rows={performance.playbookBreakdown} empty={analytics === null ? "Checking performance…" : "Link trades to a Playbook setup to build evidence."} /><Breakdown title="Sessions" rows={performance.sessionBreakdown} empty={analytics === null ? "Checking performance…" : "Session performance appears after closed trades."} /><Breakdown title="Setups" rows={performance.setupBreakdown} empty={analytics === null ? "Checking performance…" : "Setup performance appears after closed trades."} /><Breakdown title="Instruments" rows={performance.instrumentBreakdown} empty={analytics === null ? "Checking performance…" : "Instrument performance appears here."} /><Breakdown title="Long vs short" rows={performance.directionBreakdown} empty={analytics === null ? "Checking performance…" : "Direction performance appears here."} /></div>
 
       {analytics === null ? <section className="card account-calendar-panel"><div className="section-heading"><div><span className="eyebrow">TRADING CALENDAR</span><h2>Account calendar</h2></div></div><p className="account-empty-copy" role={analyticsError ? undefined : "status"}>{analyticsError ? "Account calendar is unavailable until performance is reloaded." : "Checking account calendar…"}</p></section> : <AccountCalendar days={performance.calendarDays} accountId={id} />}
 
