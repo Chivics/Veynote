@@ -1,7 +1,7 @@
 function errorHandler(error, _req, res, next) {
   if (res.headersSent) return next(error);
   if (error?.name === "DatabaseReadinessError") {
-    const check = ["account", "sessions", "note_saves", "note_list_summaries", "document_revisions", "document_chunks", "device_access", "device_signin", "account_email", "email_delivery", "writing_templates", "tag_index", "file_trash", "attachment_trash", "note_comments", "task_trash", "estate_liabilities", "vault_security_activity"].includes(error.readinessCheck) ? error.readinessCheck : "database";
+    const check = ["account", "sessions", "note_saves", "note_list_summaries", "document_revisions", "document_chunks", "device_access", "device_signin", "account_email", "email_delivery", "writing_templates", "tag_index", "file_trash", "attachment_trash", "note_comments", "task_trash", "estate_liabilities", "vault_security_activity", "trading_playbooks"].includes(error.readinessCheck) ? error.readinessCheck : "database";
     const schemaMissing = ["P2021", "P2022"].includes(error.code);
     const clientOutdated = error.code === "DATABASE_CLIENT_OUTDATED" || error.cause?.name === "PrismaClientValidationError";
     const readinessCodes = {
