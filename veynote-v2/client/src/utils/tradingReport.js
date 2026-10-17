@@ -9,6 +9,8 @@ export function summarizeTrades(records = []) {
   const pnl = closed.reduce((sum,item)=>sum+(Number(item.profitLoss)||0),0);
   const grossWin = wins.reduce((sum,item)=>sum+Math.max(0,Number(item.achievedR)||0),0);
   const grossLoss = Math.abs(losses.reduce((sum,item)=>sum+Math.min(0,Number(item.achievedR)||0),0));
+  const average = rows => rows.length ? Number((rows.reduce((sum,item)=>sum+Math.abs(Number(item.achievedR)||0),0)/rows.length).toFixed(2)) : null;
+  const averageWin=average(wins), averageLoss=average(losses);
   let curve=0, peak=0, maxDrawdown=0;
   [...closed].sort((a,b)=>new Date(a.entryDate)-new Date(b.entryDate)).forEach(item=>{ curve += Number(item.achievedR)||0; peak=Math.max(peak,curve); maxDrawdown=Math.max(maxDrawdown,peak-curve); });
   const grouped = key => Object.values(closed.reduce((map,item)=>{
@@ -21,10 +23,14 @@ export function summarizeTrades(records = []) {
     averageR:closed.length?Number((netR/closed.length).toFixed(2)):0,
     expectancy:closed.length?Number((netR/closed.length).toFixed(2)):0,
     profitFactor:grossLoss?Number((grossWin/grossLoss).toFixed(2)):grossWin?Infinity:0,
+    averageWin,averageLoss,payoffRatio:averageWin!=null&&averageLoss?Number((averageWin/averageLoss).toFixed(2)):null,
+    bestR:rs.length?Number(Math.max(...rs).toFixed(2)):null,worstR:rs.length?Number(Math.min(...rs).toFixed(2)):null,
     maxDrawdown:Number(maxDrawdown.toFixed(2)), documented:closed.length?Math.round(closed.filter(item=>
       item.postTradeLesson || item.psychologyAfter || item.disciplineNotes || item.nextImprovement
     ).length/closed.length*100):0,
     setup:grouped("setupTypes"), session:grouped("session"), instrument:grouped("asset"), regime:grouped("marketRegime"),
+    curve:[...closed].sort((a,b)=>new Date(a.entryDate)-new Date(b.entryDate)).reduce((rows,item)=>{const prior=rows.at(-1)?.value||0;rows.push({value:Number((prior+(Number(item.achievedR)||0)).toFixed(2))});return rows;},[]),
+    evidenceMaturity:closed.length<20?"EARLY":closed.length<50?"DEVELOPING":"ESTABLISHED",
   };
 }
 

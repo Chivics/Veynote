@@ -6,6 +6,9 @@ function summarizeTradingPerformance(records = [], { showPnl = false } = {}) {
   const netR = values.reduce((sum, value) => sum + value, 0);
   const grossWin = wins.reduce((sum, item) => sum + Math.max(0, Number(item.achievedR) || 0), 0);
   const grossLoss = Math.abs(losses.reduce((sum, item) => sum + Math.min(0, Number(item.achievedR) || 0), 0));
+  const average = rows => rows.length ? Number((rows.reduce((sum, item) => sum + Math.abs(Number(item.achievedR) || 0), 0) / rows.length).toFixed(2)) : null;
+  const averageWin = average(wins);
+  const averageLoss = average(losses);
   let running = 0;
   let peak = 0;
   let maxDrawdown = 0;
@@ -39,6 +42,11 @@ function summarizeTradingPerformance(records = [], { showPnl = false } = {}) {
     winRate: closed.length ? Math.round(wins.length / closed.length * 100) : 0,
     expectancy: closed.length ? Number((netR / closed.length).toFixed(2)) : 0,
     profitFactor: grossLoss ? Number((grossWin / grossLoss).toFixed(2)) : grossWin ? null : 0,
+    averageWin,
+    averageLoss,
+    payoffRatio: averageWin != null && averageLoss ? Number((averageWin / averageLoss).toFixed(2)) : null,
+    bestR: values.length ? Number(Math.max(...values).toFixed(2)) : null,
+    worstR: values.length ? Number(Math.min(...values).toFixed(2)) : null,
     maxDrawdown: Number(maxDrawdown.toFixed(2)),
     reviewCoverage: closed.length ? Math.round(closed.filter((item) => item.postTradeLesson || item.psychologyAfter).length / closed.length * 100) : 0,
     evidenceCoverage: closed.length ? Math.round(closed.filter(hasDecisionEvidence).length / closed.length * 100) : 0,
@@ -48,6 +56,7 @@ function summarizeTradingPerformance(records = [], { showPnl = false } = {}) {
     session: grouped("session"),
     instrument: grouped("asset"),
     regime: grouped("marketRegime"),
+    evidenceMaturity: closed.length < 20 ? "EARLY" : closed.length < 50 ? "DEVELOPING" : "ESTABLISHED",
   };
 }
 

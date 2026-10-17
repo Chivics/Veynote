@@ -13,6 +13,12 @@ test("public trading performance contains aggregates without private records", (
   assert.equal(metrics.winRate, 50);
   assert.equal(metrics.expectancy, .5);
   assert.equal(metrics.profitFactor, 2);
+  assert.equal(metrics.averageWin, 2);
+  assert.equal(metrics.averageLoss, 1);
+  assert.equal(metrics.payoffRatio, 2);
+  assert.equal(metrics.bestR, 2);
+  assert.equal(metrics.worstR, -1);
+  assert.equal(metrics.evidenceMaturity, "EARLY");
   assert.equal(metrics.reviewCoverage, 50);
   assert.equal(metrics.evidenceCoverage, 50);
   assert.equal(metrics.regime[0].key, "Trending");

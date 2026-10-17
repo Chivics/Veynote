@@ -11,6 +11,9 @@ test("trading reports summarize closed results without counting open trades", ()
   const report = summarizeTrades(rows);
   assert.equal(report.total,3); assert.equal(report.closed,2); assert.equal(report.netR,1); assert.equal(report.pnl,100);
   assert.equal(report.winRate,50); assert.equal(report.profitFactor,2); assert.equal(report.maxDrawdown,1); assert.equal(report.documented,50);
+  assert.equal(report.averageWin,2); assert.equal(report.averageLoss,1); assert.equal(report.payoffRatio,2);
+  assert.equal(report.bestR,2); assert.equal(report.worstR,-1); assert.equal(report.evidenceMaturity,"EARLY");
+  assert.deepEqual(report.curve,[{value:2},{value:1}]);
   assert.deepEqual(report.setup[0],{key:"Breakout",count:2,wins:1,totalR:1,winRate:50});
   assert.equal(report.regime[0].key,"Trending");
 });

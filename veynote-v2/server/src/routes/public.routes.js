@@ -71,7 +71,9 @@ router.get("/trading/:token", asyncHandler(async (req, res) => {
     title: share.title,
     period: { from: share.fromDate, to: share.toDate },
     accountName: share.showAccountName ? share.account?.name || null : null,
-    generatedAt: share.updatedAt,
+    publishedAt: share.createdAt,
+    calculatedAt: new Date(),
+    methodologyVersion: "veynote-r-1",
     metrics: summarizeTradingPerformance(entries, { showPnl: share.showPnl }),
   } });
 }));
