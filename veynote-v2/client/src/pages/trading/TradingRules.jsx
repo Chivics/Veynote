@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
+import NavigationIcon from "../../components/layout/NavigationIcon";
 
 const CATEGORIES = ["Risk Management", "Entry", "Exit", "Psychology", "Position Sizing", "Session", "News", "Prop Firm", "Other"];
 const PRIORITIES = ["Must follow", "Important", "Optional"];
@@ -26,6 +27,10 @@ export default function TradingRules() {
   const [status, setStatus] = useState("ACTIVE");
   const [compliance, setCompliance] = useState("ALL");
   const [quickReference, setQuickReference] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(() => new Set());
+  const [sessionBusy, setSessionBusy] = useState(false);
+  const [sessionError, setSessionError] = useState("");
+  const [sessionConfirmedAt, setSessionConfirmedAt] = useState(null);
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [creatingBusy, setCreatingBusy] = useState(false);
@@ -51,6 +56,22 @@ export default function TradingRules() {
     warnings: (rules || []).filter((rule) => ["AT_RISK", "VIOLATED"].includes(rule.complianceStatus)).length,
     reviewDue: (rules || []).filter((rule) => rule.status === "Active" && rule.reviewDate && new Date(rule.reviewDate) <= new Date()).length,
   }), [rules]);
+  const sessionRules = useMemo(() => (rules || []).filter(rule => rule.status === "Active" && rule.priority === "Must follow" && (!accountId || !rule.accountId || rule.accountId === accountId)), [rules, accountId]);
+
+  function toggleSessionRule(ruleId) {
+    setSessionChecked(current => { const next = new Set(current); next.has(ruleId) ? next.delete(ruleId) : next.add(ruleId); return next; });
+    setSessionError(""); setSessionConfirmedAt(null);
+  }
+  async function confirmSession() {
+    if (sessionChecked.size !== sessionRules.length || !sessionRules.length) return;
+    setSessionBusy(true); setSessionError("");
+    try {
+      const result = await api.post("/trading-rules/session-check", { ruleIds: sessionRules.map(rule => rule.id), accountId: accountId || null });
+      setRules(current => current.map(rule => sessionChecked.has(rule.id) ? { ...rule, complianceStatus: "COMPLIANT" } : rule));
+      setSessionConfirmedAt(result.occurredAt || new Date().toISOString());
+    } catch (requestError) { setSessionError(requestError.message || "Pre-session readiness could not be recorded."); }
+    finally { setSessionBusy(false); }
+  }
 
   async function createRule(event) {
     event.preventDefault();
@@ -83,7 +104,15 @@ export default function TradingRules() {
 
       {!!summary.critical && <section className="rulebook-quick-reference" aria-label="Pre-session quick reference">
         <div><span className="eyebrow">PRE-SESSION BRIEF</span><h2>Your non-negotiables, before risk is live.</h2><p>{summary.critical} active must-follow control{summary.critical === 1 ? "" : "s"} across {accounts.length || "all"} account{accounts.length === 1 ? "" : "s"}.</p></div>
-        <button type="button" className={quickReference ? "rulebook-mode-toggle active" : "rulebook-mode-toggle"} aria-pressed={quickReference} onClick={() => setQuickReference(value => !value)}>{quickReference ? "Show complete rulebook" : "Open quick reference"}</button>
+        <button type="button" className={quickReference ? "rulebook-mode-toggle active" : "rulebook-mode-toggle"} aria-pressed={quickReference} onClick={() => { setQuickReference(value => !value); setSessionChecked(new Set()); setSessionError(""); setSessionConfirmedAt(null); }}>{quickReference ? "Close readiness check" : "Begin readiness check"}</button>
+      </section>}
+
+      {quickReference && <section className="rulebook-session-check" aria-labelledby="session-check-title">
+        <header><div><span className="eyebrow">PRE-RISK ATTESTATION</span><h2 id="session-check-title">Confirm the controls before the market tests them.</h2><p>{activeAccount ? `This check covers ${activeAccount.name} and every global non-negotiable.` : "This check covers every active non-negotiable across the trading workspace."}</p></div><strong>{sessionChecked.size}<small>of {sessionRules.length} confirmed</small></strong></header>
+        <div className="rulebook-session-progress"><i style={{ width: `${sessionRules.length ? Math.round(sessionChecked.size / sessionRules.length * 100) : 0}%` }} /></div>
+        <div className="rulebook-session-list">{sessionRules.map(rule => <label key={rule.id} className={sessionChecked.has(rule.id) ? "confirmed" : ""}><input type="checkbox" checked={sessionChecked.has(rule.id)} onChange={() => toggleSessionRule(rule.id)} /><span><strong>{rule.rule}</strong><small>{rule.category} · {rule.account?.name || "All accounts"}{rule.limitValue != null ? ` · ${rule.limitValue}${rule.limitUnit || ""}` : ""}</small></span><NavigationIcon name={sessionChecked.has(rule.id) ? "check" : "shield"} size={17}/></label>)}</div>
+        {sessionConfirmedAt ? <div className="rulebook-session-confirmed" role="status"><NavigationIcon name="check" size={18}/><span><strong>Readiness recorded</strong><small>{new Date(sessionConfirmedAt).toLocaleString()} · The compliance ledger now contains this attestation.</small></span></div> : <footer><span>{sessionChecked.size === sessionRules.length ? "All controls acknowledged. This attestation will be added to each rule's history." : "Review and acknowledge every control before recording readiness."}</span><button type="button" className="btn-primary" disabled={sessionBusy || !sessionRules.length || sessionChecked.size !== sessionRules.length} onClick={confirmSession}>{sessionBusy ? "Recording…" : "Confirm session readiness"}</button></footer>}
+        {sessionError && <p className="form-error" role="alert">{sessionError}</p>}
       </section>}
 
       {creating && <form className="card rule-composer" onSubmit={createRule}>

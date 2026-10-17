@@ -7,6 +7,33 @@ router.use(requireAuth);
 const EVENT_KINDS = new Set(["CHECK", "VIOLATION", "REVIEW"]);
 const COMPLIANCE_STATES = new Set(["UNREVIEWED", "COMPLIANT", "AT_RISK", "VIOLATED"]);
 
+router.post("/session-check", async (req, res) => {
+  const ruleIds = [...new Set(Array.isArray(req.body.ruleIds) ? req.body.ruleIds.filter(id => typeof id === "string" && id) : [])];
+  const accountId = typeof req.body.accountId === "string" && req.body.accountId ? req.body.accountId : null;
+  if (!ruleIds.length || ruleIds.length > 100) return res.status(400).json({ error: "Confirm at least one active non-negotiable rule." });
+  if (accountId) {
+    const account = await prisma.tradingAccount.findFirst({ where: { id: accountId, userId: req.userId }, select: { id: true } });
+    if (!account) return res.status(400).json({ error: "Choose one of your trading accounts." });
+  }
+  const rules = await prisma.tradingRule.findMany({
+    where: {
+      id: { in: ruleIds }, userId: req.userId, status: "Active", priority: "Must follow",
+      ...(accountId && { OR: [{ accountId }, { accountId: null }] }),
+    },
+    select: { id: true },
+  });
+  if (rules.length !== ruleIds.length) return res.status(400).json({ error: "Some controls are no longer active or do not apply to this account. Refresh the Rulebook." });
+  const occurredAt = new Date();
+  await prisma.$transaction(async tx => {
+    await tx.tradingRuleEvent.createMany({ data: rules.map(rule => ({
+      userId: req.userId, ruleId: rule.id, kind: "CHECK", complianceStatus: "COMPLIANT",
+      note: accountId ? "Pre-session readiness confirmed for this account." : "Pre-session readiness confirmed.", occurredAt,
+    })) });
+    await tx.tradingRule.updateMany({ where: { id: { in: ruleIds }, userId: req.userId }, data: { complianceStatus: "COMPLIANT" } });
+  });
+  res.status(201).json({ confirmed: rules.length, occurredAt });
+});
+
 router.get("/", async (req, res) => {
   const where = { userId: req.userId };
   if (req.query.accountId) {
