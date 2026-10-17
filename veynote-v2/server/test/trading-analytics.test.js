@@ -4,9 +4,9 @@ const { calculateTradingAnalytics } = require("../src/utils/tradingAnalytics");
 
 test("calculates account statistics from only the supplied closed trades", () => {
   const result = calculateTradingAnalytics([
-    { id: "1", isTrade: true, result: "WIN", achievedR: 2, riskReward: 2, profitLoss: 200, asset: "EURUSD", direction: "LONG", setupTypes: "BOS", entryTimeframe: "15M", marketRegime: "Trending", entryDate: "2026-01-01" },
-    { id: "2", isTrade: true, result: "LOSS", achievedR: -1, riskReward: 2, profitLoss: -100, asset: "EURUSD", direction: "SHORT", setupTypes: "BOS,OB", entryTimeframe: "5M", marketRegime: "Trending", entryDate: "2026-01-02" },
-    { id: "4", isTrade: true, result: "BREAK_EVEN", achievedR: 0, riskReward: 2, profitLoss: 0, asset: "GBPUSD", direction: "LONG", setupTypes: "OB", entryDate: "2026-01-02T12:00:00Z" },
+    { id: "1", isTrade: true, result: "WIN", achievedR: 2, riskReward: 2, profitLoss: 200, asset: "EURUSD", direction: "LONG", session: "LONDON", playbook: { title: "Liquidity reversal" }, setupTypes: "BOS", entryTimeframe: "15M", marketRegime: "Trending", entryDate: "2026-01-01" },
+    { id: "2", isTrade: true, result: "LOSS", achievedR: -1, riskReward: 2, profitLoss: -100, asset: "EURUSD", direction: "SHORT", session: "NEW_YORK", playbook: { title: "Liquidity reversal" }, setupTypes: "BOS,OB", entryTimeframe: "5M", marketRegime: "Trending", entryDate: "2026-01-02" },
+    { id: "4", isTrade: true, result: "BREAK_EVEN", achievedR: 0, riskReward: 2, profitLoss: 0, asset: "GBPUSD", direction: "LONG", session: "LONDON", setupTypes: "OB", entryDate: "2026-01-02T12:00:00Z" },
     { id: "3", isTrade: true, result: "OPEN", achievedR: 8, entryDate: "2026-01-03" },
   ]);
 
@@ -25,6 +25,10 @@ test("calculates account statistics from only the supplied closed trades", () =>
   assert.equal(result.marketRegimeBreakdown[0].key, "Trending");
   assert.equal(result.marketRegimeBreakdown[0].count, 2);
   assert.equal(result.dayOfWeekBreakdown.reduce((sum, row) => sum + row.count, 0), 3);
+  assert.equal(result.sessionBreakdown.find(row => row.key === "LONDON").count, 2);
+  assert.equal(result.playbookBreakdown[0].key, "Liquidity reversal");
+  assert.deepEqual(result.streaks, { current: { outcome: "BREAK_EVEN", count: 1 }, longestWinning: 1, longestLosing: 1 });
+  assert.equal(result.averageOutcome, .33);
 });
 
 test("returns an honest empty state when there are no closed trades", () => {

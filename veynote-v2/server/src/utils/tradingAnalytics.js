@@ -60,6 +60,8 @@ function calculateTradingAnalytics(entries = []) {
   const setupBreakdown = summarizeGroup(ordered, (trade) => (trade.setupTypes || "").split(",").map((item) => item.trim()));
   const instrumentBreakdown = summarizeGroup(ordered, (trade) => [trade.asset]);
   const directionBreakdown = summarizeGroup(ordered, (trade) => [trade.direction]);
+  const sessionBreakdown = summarizeGroup(ordered, (trade) => [trade.session?.replaceAll("_", " ")]);
+  const playbookBreakdown = summarizeGroup(ordered, (trade) => [trade.playbook?.title]);
   const timeframeBreakdown = summarizeGroup(ordered, (trade) => [trade.entryTimeframe || trade.setupTimeframe || trade.biasTimeframe]);
   const marketRegimeBreakdown = summarizeGroup(ordered, (trade) => [trade.marketRegime]);
   const dayOfWeekBreakdown = summarizeGroup(ordered, (trade) => {
@@ -77,6 +79,17 @@ function calculateTradingAnalytics(entries = []) {
     calendarMap.set(date, day);
   }
   const calendarDays = [...calendarMap.values()].map((day) => ({ ...day, totalR: rounded(day.totalR) }));
+  let activeOutcome = null;
+  let activeStreak = 0;
+  let longestWinningStreak = 0;
+  let longestLosingStreak = 0;
+  for (const trade of ordered) {
+    const outcome = trade.result === "WIN" ? "WIN" : trade.result === "LOSS" ? "LOSS" : "BREAK_EVEN";
+    if (outcome === activeOutcome) activeStreak += 1;
+    else { activeOutcome = outcome; activeStreak = 1; }
+    if (outcome === "WIN") longestWinningStreak = Math.max(longestWinningStreak, activeStreak);
+    if (outcome === "LOSS") longestLosingStreak = Math.max(longestLosingStreak, activeStreak);
+  }
 
   return {
     hasData: true,
@@ -97,12 +110,20 @@ function calculateTradingAnalytics(entries = []) {
     worstTrade: ranked.at(-1) || null,
     cumulativeR,
     setupBreakdown,
+    playbookBreakdown,
     instrumentBreakdown,
     directionBreakdown,
+    sessionBreakdown,
     timeframeBreakdown,
     marketRegimeBreakdown,
     dayOfWeekBreakdown,
     calendarDays,
+    averageOutcome: average(ordered, (trade) => trade.achievedR || 0),
+    streaks: {
+      current: { outcome: activeOutcome, count: activeStreak },
+      longestWinning: longestWinningStreak,
+      longestLosing: longestLosingStreak,
+    },
   };
 }
 

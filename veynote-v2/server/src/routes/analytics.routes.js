@@ -11,17 +11,25 @@ router.use(requireAuth);
 // If they have zero closed trades, `hasData: false` is returned so the
 // frontend renders the empty state instead of a chart with nothing in it.
 router.get("/trading", async (req, res) => {
-  const { accountId } = req.query;
+  const { accountId, from, to } = req.query;
   const where = { userId: req.userId, isTrade: true, isDraft: false, archivedAt: null, deletedAt: null };
   if (accountId) {
     const account = await prisma.tradingAccount.findFirst({ where: { id: accountId, userId: req.userId }, select: { id: true } });
     if (!account) return res.status(404).json({ error: "Account not found." });
     where.accountId = accountId;
   }
+  const isoDay = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")) ? new Date(`${value}T00:00:00.000Z`) : null;
+  const fromDate = from ? isoDay(from) : null;
+  const toDate = to ? isoDay(to) : null;
+  if ((from && (!fromDate || Number.isNaN(fromDate.getTime()))) || (to && (!toDate || Number.isNaN(toDate.getTime()))) || (fromDate && toDate && fromDate > toDate)) {
+    return res.status(400).json({ error: "Choose a valid analytics date range." });
+  }
+  if (fromDate || toDate) where.entryDate = { ...(fromDate && { gte: fromDate }), ...(toDate && { lte: new Date(toDate.getTime() + 86_400_000 - 1) }) };
 
   const trades = await prisma.tradingEntry.findMany({
     where,
     orderBy: { entryDate: "asc" },
+    include: { playbook: { select: { id: true, title: true, status: true } } },
   });
 
   const analytics = calculateTradingAnalytics(trades);
